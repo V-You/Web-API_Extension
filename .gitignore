@@ -6,7 +6,6 @@ bak/
 md/*
 *.code-workspace
 tmp
-base_data/
 node_modules/
 dist/
 
