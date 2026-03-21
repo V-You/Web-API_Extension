@@ -8,7 +8,7 @@ The extension replaces the legacy "Web API MCP Server" with a browser-native, ze
 
 ## Overview
 
-The extension is a *Client-Side Adapter*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the user's active browser session to interact with the SaaS:
+The extension is a *Client-Side Adapter*. The legacy MCP server was a tool-wrapper &ndash; this is a *Virtual SDK*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the user's active browser session to interact with the SaaS:
 
 - **Exposes the full Web API** to any WebMCP-compatible AI agent running in Chrome.  
 - **Automates the SaaS via its API** using only a browser extension: no backend proxy, no MCP server, no external credential files or secret stores.  
@@ -29,23 +29,218 @@ The extension is a *Client-Side Adapter*. Instead of an agent talking to a remot
 
 ## Install
 
-...
+### Prerequisites
+
+- Google Chrome **146+** (Canary or Dev channel at the time of writing)
+- WebMCP testing flag enabled: navigate to `chrome://flags/#enable-webmcp-testing` and set it to **Enabled**
+- Node.js 20+ and npm 10+
+
+### Build and load
+
+```bash
+git clone <repo-url> && cd Web-API_Extension
+npm install
+npm run dev        # development mode with hot reload
+# -- or --
+npm run build      # production build
+```
+
+Then load the extension in Chrome:
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode** (top right)
+3. Click **Load unpacked** and select the `dist/chrome-mv3-dev` (dev) or `dist/chrome-mv3-prod` (build) folder
+4. The extension icon appears in the toolbar; click it to open the side panel
+
+### Permissions
+
+The extension requests:
+
+| Permission | Purpose |
+|---|---|
+| `sidePanel` | Primary UI surface |
+| `storage` | Encrypted credential storage (local) and decrypted session cache (session) |
+| `activeTab` | Detect active BIP tab for context binding |
+| `scripting` | Content script injection for dashboard context detection |
+
+Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.oppwa.com` (Prod).
 
 ## Usage
 
-...
+### First run -- credentials
+
+1. Open the side panel and go to the **Connections** tab.
+2. Enter your Web API credentials (username and password) for UAT, Prod, or both.
+3. Choose a PIN (minimum 6 digits). Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The PIN is never persisted.
+4. On subsequent visits, enter your PIN to unlock. The decrypted credentials live in `chrome.storage.session` and survive idle but are cleared on browser restart.
+
+### Tools
+
+Once the extension is loaded and unlocked, **9 tools** are published to any WebMCP-compatible agent (e.g. Chrome's built-in AI sidebar):
+
+| Tool | Domain | What it does |
+|---|---|---|
+| `manage_entity` | Hierarchy | Get, search, list children, create, edit, delete entities (division / merchant / channel) |
+| `get_hierarchy` | Hierarchy | Fetch the full entity tree with depth control and API-call estimation |
+| `manage_contact` | Contacts | CRUD, attach/detach, lock/unlock, password reset for users |
+| `manage_merchant_account` | Merchant accounts | CRUD, attach/detach for merchant accounts |
+| `lookup_clearing_institutes` | Merchant accounts | Search 195 clearing institutes by keyword, get required field mappings |
+| `describe_settings` | Settings | Search RiRo settings by keyword; returns TypeScript interface snippets |
+| `manage_settings` | Settings | Get, set, batch get, batch set, list non-default settings |
+| `execute_workflow` | Code mode | Execute a script in a local sandbox against the virtual SDK |
+| `get_audit_log` | Audit | Retrieve local audit entries with filters |
+
+All write operations go through a **preview-then-confirm** flow: the extension shows the exact API calls and the user approves or cancels.
+
+### Code mode
+
+For complex operations (hierarchy-wide audits, bulk updates, cross-referencing), the agent writes a script and passes it to `execute_workflow`. The script runs locally in a sandboxed `AsyncFunction` with access to:
+
+- `sdk` -- a facade over all 9 tool handlers with SDK-style methods
+- `sdk.config` -- the virtual SDK for typed settings access (get, update, batchGet, batchUpdate, validate, describe, coverage)
+- `console` -- captured log (returned in results)
+- `sleep(ms)` -- async delay
+- `signal` -- AbortSignal for cancellation
+- `progress(pct, msg)` -- report progress to the job runner
+- `checkpoint(state)` -- persist state for pause/resume recovery
+
+### Jobs
+
+Long-running scripts (e.g. a hierarchy-wide settings audit at 9 req/s) run as background jobs:
+
+- **Progress monitor** in the Jobs tab shows state (running / paused / completed / failed), estimated time remaining, and call count.
+- **Pause/resume** -- user-initiated or automatic on tab close. State is persisted to `chrome.storage.local`.
+- **Browser restart recovery** -- on startup, incomplete jobs are marked as paused and offered for resume after re-authentication.
+- **Cancel** produces partial results.
+
+### Environment switching
+
+The active environment (UAT or Prod) is shown as a badge in the side panel. Switching to Prod requires explicit user action. All writes in both environments require confirmation.
 
 ## Architecture
 
-...
+```
++-------------------------------------------------------+
+|  Chrome (146+, #enable-webmcp-testing flag)           |
+|                                                       |
+|  +------------------+     +------------------------+  |
+|  | BIP SaaS tab     |     | AI agent               |  |
+|  | (user logged in) |     | (Claude, Gemini, etc.) |  |
+|  +--------+---------+     +----------+-------------+  |
+|           |                          |                |
+|  +--------v--------------------------v---------+      |
+|  |  Web API Extension                          |      |
+|  |                                             |      |
+|  |  +-----------+  +----------+  +---------+   |      |
+|  |  | WebMCP    |  | Sandbox  |  | Side    |   |      |
+|  |  | tool pub  |  | code mode|  | panel UI|   |      |
+|  |  +-----+-----+  +----+-----+  +----+----+   |      |
+|  |        |              |             |       |      |
+|  |  +-----v--------------v-------------v---+   |      |
+|  |  | Extension core                       |   |      |
+|  |  | - Crypto (PIN + AES-GCM)             |   |      |
+|  |  | - Virtual SDK (typed proxy)          |   |      |
+|  |  | - Job runner (background, pausable)  |   |      |
+|  |  | - Confirm bridge                     |   |      |
+|  |  | - Audit logger                       |   |      |
+|  |  +-----+--------------------------------+   |      |
+|  |        |                                    |      |
+|  +--------v------------------------------------+      |
+|           | fetch() with credentials header           |
+|  +--------v-----------+                               |
+|  | ACI Web API        |                               |
+|  | (UAT or Prod)      |                               |
+|  +--------------------+                               |
++-------------------------------------------------------+
+```
+
+### Layers
+
+| Layer | Module(s) | Role |
+|---|---|---|
+| **WebMCP registration** | `src/webmcp/register-tools.ts` | Registers 9 tools via `navigator.modelContext.registerTool()`. Intercepts direct writes with a confirmation prompt. |
+| **Tool handlers** | `src/tools/*.ts` (9 files) | One handler per tool. Each validates input (Zod), calls the API client, and returns structured results. |
+| **Sandbox** | `src/sandbox/sandbox.ts`, `sdk-facade.ts` | `AsyncFunction`-based sandbox for code mode. The SDK facade wraps all handlers as callable methods and routes writes through the confirm bridge. |
+| **Virtual SDK** | `src/sdk/riro-tree.ts`, `proxy.ts`, `sdk.ts` | Type-on-demand settings layer. Parses `riro_consolidated_lookup.json` into a nested tree with Zod schemas, flattens typed objects back to flat RiRo keys at write time. |
+| **Confirm bridge** | `src/bridge/confirm-bridge.ts` | Singleton promise-based bridge: tool handler requests confirmation, side panel UI resolves it. Supports scoped auto-confirm ("confirm all") for batch operations. |
+| **Job runner** | `src/jobs/job-runner.ts`, `job-store.ts` | Singleton engine for long-running scripts. Supports start, pause, resume, cancel. Progress is flushed every 5 seconds. Checkpoints enable resume after pause or restart. |
+| **API client** | `src/lib/api-client.ts` | `fetch()` wrapper with the custom `credentials: username:password` header, rate limiting (token bucket, 9 req/s default), and audit logging (capped at 500 entries). |
+| **Crypto** | `src/lib/crypto.ts` | PBKDF2 (600K iterations, SHA-256) key derivation + AES-GCM-256 encryption/decryption via Web Crypto API. |
+| **Storage** | `src/lib/storage.ts` | Manages encrypted credentials in `chrome.storage.local` and decrypted session cache in `chrome.storage.session`. |
+| **Service worker** | `background/service-worker.ts` | Side panel activation, API request relay, startup recovery (marks interrupted jobs as paused), tab-close detection. |
+| **Side panel** | `sidepanel/App.tsx`, `views/*.tsx` | React 19 + Tailwind CSS. Tabs: Home, Jobs, History, Connections. Mounts the confirm dialog overlay. PIN gate on startup. |
+
+### Technology stack
+
+| Layer | Technology |
+|---|---|
+| Extension framework | [extension.js](https://extension.js.org/) 2.1.3 |
+| UI | React 19.1 + Tailwind CSS 3.4.19 |
+| Language | TypeScript 5.8 (strict) |
+| Tool publication | WebMCP imperative API (`navigator.modelContext`) |
+| Schema validation | Zod 3.25 |
+| Encryption | Web Crypto API (PBKDF2 + AES-GCM) |
+| Sandbox | `AsyncFunction` constructor |
 
 ## Notes
 
-...
+### API quirks
+
+- **PSP has no GET endpoint.** It is only a parent for sub-resources.
+- **`list_channels` shape.** Returns channel logins -- the `channel` field is the entity ID, not `id`.
+- **POST, not PUT.** All updates use POST. The API does not support PUT.
+- **Custom credentials header.** `credentials: username:password` (raw, not base64, not standard Basic Auth).
+- **Eventual consistency.** After creating or updating entities, changes may take up to 3 minutes to propagate through the API cache.
+- **GET /setting limited.** Only works at merchant and channel level. POST /setting works at all levels (PSP, division, merchant, channel).
+
+### Settings coverage
+
+The source metadata (`riro_consolidated_lookup.json`, 1,225 entries, schema version 3.2) has incomplete type information:
+
+| Tier | Criteria | Count | Behavior |
+|---|---|---|---|
+| **A -- fully typed** | `type` and `path` both populated | ~598 | Typed interface, Zod validation, proxy flattening |
+| **B -- weakly typed** | Key known but `type` or `path` missing | ~627 | Searchable and readable, but exposed as raw key-value; writes accepted without type validation (warning shown) |
+
+### Base data
+
+| File | Content |
+|---|---|
+| `base_data/riro_consolidated_lookup.json` | 1,225 RiRo settings with type, BIP path, default values |
+| `base_data/ci_ma_lookup.json` | 195 clearing institute entries with required field mappings |
+
+### Privacy
+
+Code mode provides strong privacy by default: the LLM writes the script once, the script executes locally for the duration of the job (which can run for hours), and only the final summary is returned to the LLM. Intermediate API responses never leave the browser.
+
+v1 assumes a local or trusted LLM. No data redaction is applied. A one-time notice informs the user that chat content and tool results are available to their configured LLM provider.
+
+Credentials are never exposed to the LLM context, the DOM, content scripts, or any external service.
+
+### Security invariants
+
+- `chrome.storage.local` only holds the encrypted blob, salt, and IV. Never plaintext credentials.
+- `chrome.storage.session` holds decrypted credentials for the active browser session only (cleared on browser close).
+- Audit log exports and diagnostic dumps are guaranteed to exclude credentials.
+- UAT and Prod credential storage is fully isolated (separate encrypted blobs).
 
 ## Version 2 notes
 
-...
+Features explicitly deferred from v1:
+
+- **Detailed progress trace** -- per-call live log streaming during job execution.
+- **Undo / rollback** for setting changes.
+- **Diff view** for setting changes (before/after comparison).
+- **Operation blocking in Prod** -- option to block specific operations (e.g. entity deletion).
+- **Approval workflow** for bulk Prod operations.
+- **`chrome.identity` OAuth2** as an alternative to PIN-encrypted credentials.
+- **Support diagnostics export** -- anonymized logs, extension version, Chrome version, connection status.
+- **DataLake-style cached reporting** -- replaced by long-running live queries in v1.
+- **Desktop-agent bridge** -- WebSocket to `localhost` for non-browser agents.
+- **Other browsers** -- Edge, Brave (depends on WebMCP adoption).
+- **Data redaction** -- configurable rules for entity names, IDs, emails, commercial data.
+- **Summary-only mode** -- LLM never sees raw API responses, only aggregated counts.
+- **Profile switching** -- multiple PSP roots in a single extension instance.
 
 
 
