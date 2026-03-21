@@ -11,7 +11,18 @@ The extension replaces the legacy "Web API MCP Server" with a browser-native, ze
 - **Exposes the full Web API** to any WebMCP-compatible AI agent running in Chrome.
 - **Automates the SaaS via its API** using only a browser extension: no backend proxy, no MCP server, no external credential files or secret stores.
 - **>90% context-window reduction** compared to the legacy MCP approach by using type-on-demand discovery and code-mode execution.
+- **Faster and more accurate tool use** compared to the legacy MCP.
 - Transferable showcase: Architecture works for any SaaS with a keyed-property API.
+
+### Advantages:
+
+The extension is essentially a *Client-Side Adapter*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the user's active browser session to interact with the SaaS.
+
+- Authentication hand-off: extension runs in the user's browser, leveraging the user's existing login session. Also, CORS is now simple. 
+- Context injection: extension can "see" what the user is looking at on the SaaS dashboard and provide that as real-time context to the agent.  
+- Hybrid interaction: WebMCP tools can perform two types of actions:  
+  - API Actions: Call the SaaS API directly using fetch() from the background script.  
+  - UI Actions: If the API is missing a specific feature, the extension can inject a script to click a button or scrape data directly from the DOM.
 
 ### Non-goals
 

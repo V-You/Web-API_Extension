@@ -435,12 +435,14 @@ const TOOL_DEFS: ToolDef[] = [
   {
     name: "execute_workflow",
     description:
-      "Execute a TypeScript script in the local sandbox with the virtual SDK. " +
-      "The agent writes code; this tool runs it locally. (Stub -- not yet implemented.)",
+      "Execute a TypeScript/JS script in the local sandbox with the virtual SDK. " +
+      "The agent writes code; this tool runs it locally. The script has access to " +
+      "sdk.config, sdk.entities, sdk.contacts, sdk.merchantAccounts, sdk.hierarchy, " +
+      "sdk.clearingInstitutes, sdk.audit, plus console, sleep(ms), results array, and context.",
     inputSchema: {
       type: "object",
       properties: {
-        script: { type: "string", description: "TypeScript source code to execute." },
+        script: { type: "string", description: "TypeScript/JS source code to execute." },
         entityId: { type: "string", description: "Entity context for the script." },
         entityType: {
           type: "string",
@@ -449,18 +451,28 @@ const TOOL_DEFS: ToolDef[] = [
         },
         dryRun: {
           type: "boolean",
-          description: "If true, validate only -- do not execute.",
+          description: "If true, validate syntax only -- do not execute.",
+        },
+        timeoutMs: {
+          type: "number",
+          description: "Timeout in milliseconds (default: 600000 = 10 minutes).",
         },
       },
       required: ["script"],
     },
     async execute(params) {
-      return executeWorkflow({
-        script: params.script as string,
-        entityId: params.entityId as string | undefined,
-        entityType: params.entityType as string | undefined,
-        dryRun: params.dryRun as boolean | undefined,
-      });
+      const { creds, env } = await sessionOrError();
+      return executeWorkflow(
+        {
+          script: params.script as string,
+          entityId: params.entityId as string | undefined,
+          entityType: params.entityType as string | undefined,
+          dryRun: params.dryRun as boolean | undefined,
+          timeoutMs: params.timeoutMs as number | undefined,
+        },
+        creds,
+        env,
+      );
     },
   },
 ];

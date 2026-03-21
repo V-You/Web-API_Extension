@@ -1,39 +1,63 @@
 /**
- * execute_workflow tool handler (stub).
+ * execute_workflow tool handler.
  *
- * Executes a TypeScript script in a local sandbox with the virtual SDK
+ * Executes a TypeScript/JS script in the code-mode sandbox with the virtual SDK
  * available as `sdk`. This is the code-mode entry point -- the agent writes
  * a script, and this tool runs it locally.
  *
- * Full implementation requires:
- *   - Virtual SDK proxy (build step 3) -- DONE, see src/sdk/
- *   - Code-mode sandbox with isolated execution (build step 4)
- *   - Preview/confirm bridge for write operations (build step 5)
+ * The sandbox provides:
+ *   - `sdk` -- full API facade (config, entities, contacts, MAs, hierarchy, CI, audit)
+ *   - `console` -- captured log/warn/error (returned in output)
+ *   - `sleep(ms)` -- async delay (respects cancellation)
+ *   - `results` -- array the script can push structured output to
+ *   - `context` -- { entityId, entityType, env } if provided
+ *   - `signal` -- AbortSignal for cooperative cancellation
  *
- * This stub validates the input shape and returns a not-yet-implemented marker
- * so the agent knows the tool exists but cannot execute scripts yet.
+ * Write operations are recorded for the preview/confirm bridge (build step 5).
  */
 
+import { runSandbox, type SandboxResult } from "../sandbox/sandbox";
+import type { ApiCredentials, Environment } from "../lib/types";
+
 export interface ExecuteWorkflowInput {
-  /** TypeScript source code to execute. */
+  /** TypeScript/JS source code to execute. */
   script: string;
   /** Entity context for the script (optional). */
   entityId?: string;
   entityType?: string;
   /** If true, dry-run only -- parse and validate but do not execute. */
   dryRun?: boolean;
+  /** Timeout in milliseconds (default: 10 minutes). */
+  timeoutMs?: number;
 }
 
-export async function executeWorkflow(input: ExecuteWorkflowInput) {
+export async function executeWorkflow(
+  input: ExecuteWorkflowInput,
+  creds: ApiCredentials,
+  env: Environment
+) {
   if (!input.script) {
     return { error: "script is required." };
   }
 
-  // Stub: script execution is not yet implemented (requires build steps 3-5)
+  const result: SandboxResult = await runSandbox({
+    script: input.script,
+    creds,
+    env,
+    entityId: input.entityId,
+    entityType: input.entityType,
+    dryRun: input.dryRun,
+    timeoutMs: input.timeoutMs,
+  });
+
   return {
-    status: "not_implemented",
-    message: "execute_workflow requires the code-mode sandbox (build step 4), which is not yet built. The virtual SDK (step 3) is ready. The script was received but not executed.",
-    scriptLength: input.script.length,
-    dryRun: input.dryRun ?? false,
+    status: result.status,
+    returnValue: result.returnValue,
+    results: result.results,
+    logs: result.logs.map((l) => `[${l.level}] ${l.args.map(String).join(" ")}`),
+    writeCount: result.writes.length,
+    writes: result.writes,
+    durationMs: result.durationMs,
+    error: result.error,
   };
 }
