@@ -9,17 +9,11 @@
  * Tier B (type or path missing): returns raw key with a warning.
  */
 
-import riroData from "../../base_data/riro_consolidated_lookup.json";
-
-interface RiroEntry {
-  id: number;
-  key: string;
-  type: string;
-  path: string;
-  default: string;
-}
-
-const ENTRIES: RiroEntry[] = (riroData as { entries: RiroEntry[] }).entries;
+import {
+  allSettings,
+  entryCount,
+  type SettingMeta,
+} from "../sdk/riro-tree";
 
 export interface DescribeSettingsInput {
   /** Keyword to search for (matched against key and path). */
@@ -34,63 +28,43 @@ export function executeDescribeSettings(input: DescribeSettingsInput) {
   const q = input.query.toLowerCase();
   const limit = Math.min(input.limit ?? 20, 100);
 
-  const matches = ENTRIES.filter(
-    (e) =>
-      e.key.toLowerCase().includes(q) ||
-      (e.path && e.path.toLowerCase().includes(q))
-  ).slice(0, limit);
+  const matches = allSettings()
+    .filter(
+      (m) =>
+        m.flatKey.toLowerCase().includes(q) ||
+        m.sdkPath.toLowerCase().includes(q) ||
+        (m.bipPath && m.bipPath.toLowerCase().includes(q))
+    )
+    .slice(0, limit);
 
   return {
     query: input.query,
     matchCount: matches.length,
-    totalEntries: ENTRIES.length,
-    results: matches.map((e) => formatEntry(e)),
+    totalEntries: entryCount,
+    results: matches.map((m) => formatEntry(m)),
   };
 }
 
-function formatEntry(entry: RiroEntry) {
-  const tierA = entry.type && entry.path;
-  const sdkPath = keyToSdkPath(entry.key);
-
-  if (tierA) {
+function formatEntry(meta: SettingMeta) {
+  if (meta.tier === "A") {
     return {
       tier: "A" as const,
-      key: entry.key,
-      sdkPath,
-      bipPath: entry.path,
-      typeSnippet: toTypeSnippet(sdkPath, entry.type, entry.default),
-      default: entry.default || undefined,
+      key: meta.flatKey,
+      sdkPath: meta.sdkPath,
+      bipPath: meta.bipPath,
+      typeSnippet: toTypeSnippet(meta.sdkPath, meta.riroType, meta.defaultValue),
+      default: meta.defaultValue || undefined,
     };
   }
 
   return {
     tier: "B" as const,
-    key: entry.key,
-    sdkPath,
-    bipPath: entry.path || null,
+    key: meta.flatKey,
+    sdkPath: meta.sdkPath,
+    bipPath: meta.bipPath || null,
     warning: "Type metadata missing -- raw key-value only, no type validation.",
-    default: entry.default || undefined,
+    default: meta.defaultValue || undefined,
   };
-}
-
-/**
- * Convert a flat RiRo key to an SDK-style dotted path.
- * e.g. "* /type:entity/module:ctpe/processing:risk/risk:avsCheck/avsCheck:active"
- *   -> "risk.avsCheck.active"
- *
- * Strategy: take the last two segments and use the value parts.
- */
-function keyToSdkPath(key: string): string {
-  const segments = key.split("/").filter(Boolean);
-  // Skip the leading wildcard and type/module segments; use the meaningful tail
-  const meaningful = segments
-    .filter((s) => !s.startsWith("*") && !s.startsWith("type:") && !s.startsWith("module:"))
-    .map((s) => {
-      const colonIdx = s.indexOf(":");
-      return colonIdx >= 0 ? s.substring(colonIdx + 1) : s;
-    });
-
-  return meaningful.join(".");
 }
 
 /** Generate a TypeScript-style type snippet for a tier A setting. */
@@ -116,7 +90,10 @@ function riroTypeToTs(riroType: string): string {
     case "string":
     case "text":
       return "string";
+    case "stringlist":
+      return "string[]";
     case "enum":
+    case "predefined list":
       return "string /* enum */";
     case "list":
       return "string[] /* list */";

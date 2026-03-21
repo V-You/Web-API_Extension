@@ -6,7 +6,7 @@
  * a script, and this tool runs it locally.
  *
  * Full implementation requires:
- *   - Virtual SDK proxy (build step 3)
+ *   - Virtual SDK proxy (build step 3) -- DONE, see src/sdk/
  *   - Code-mode sandbox with isolated execution (build step 4)
  *   - Preview/confirm bridge for write operations (build step 5)
  *
@@ -32,7 +32,7 @@ export async function executeWorkflow(input: ExecuteWorkflowInput) {
   // Stub: script execution is not yet implemented (requires build steps 3-5)
   return {
     status: "not_implemented",
-    message: "execute_workflow requires the virtual SDK proxy and code-mode sandbox, which are not yet built. The script was received but not executed.",
+    message: "execute_workflow requires the code-mode sandbox (build step 4), which is not yet built. The virtual SDK (step 3) is ready. The script was received but not executed.",
     scriptLength: input.script.length,
     dryRun: input.dryRun ?? false,
   };
