@@ -12,10 +12,10 @@
  */
 
 import { useState, useEffect } from "react";
-import { useActiveJob, useJobs } from "@/jobs/use-jobs";
-import { pauseJob, resumeJob, cancelJob, cancelJobById } from "@/jobs/job-runner";
-import { estimateRemaining, findRecoverableJobs, type JobRecord } from "@/jobs/job-store";
-import { getCredentials, getActiveEnv } from "@/lib/storage";
+import { useActiveJob, useJobs } from "../../src/jobs/use-jobs";
+import { pauseJob, resumeJob, cancelJob, cancelJobById } from "../../src/jobs/job-runner";
+import { estimateRemaining, findRecoverableJobs, type JobRecord } from "../../src/jobs/job-store";
+import { getCredentials, getActiveEnv } from "../../src/lib/storage";
 
 export function JobMonitor() {
   const activeJob = useActiveJob();

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { unlockWithPin } from "@/lib/storage";
+import { unlockWithPin } from "../../src/lib/storage";
 
 interface Props {
   onUnlocked: () => void;

@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { useCredentialStore } from "@/hooks/useCredentialStore";
+import { useCredentialStore } from "../src/hooks/useCredentialStore";
 import { HomePage } from "./views/HomePage";
 import { ConnectionsPage } from "./views/ConnectionsPage";
 import { RunHistoryPage } from "./views/RunHistoryPage";
 import { PinEntryPage } from "./views/PinEntryPage";
 import { ConfirmDialog } from "./views/ConfirmDialog";
 import { JobMonitor } from "./views/JobMonitor";
-import type { Environment } from "@/lib/types";
+import type { Environment } from "../src/lib/types";
 
 type View = "home" | "connections" | "history" | "jobs";
 

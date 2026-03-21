@@ -40,7 +40,7 @@ The extension is a *Client-Side Adapter*. The legacy MCP server was a tool-wrapp
 ```bash
 git clone <repo-url> && cd Web-API_Extension
 npm install
-npm run dev        # development mode with hot reload
+# npm run dev        # development mode with hot reload
 # -- or --
 npm run build      # production build
 ```

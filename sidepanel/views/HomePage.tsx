@@ -1,4 +1,4 @@
-import { useCredentialStore } from "@/hooks/useCredentialStore";
+import { useCredentialStore } from "../../src/hooks/useCredentialStore";
 
 export function HomePage() {
   const { isUnlocked, activeEnv } = useCredentialStore();

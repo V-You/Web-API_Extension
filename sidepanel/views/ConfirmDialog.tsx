@@ -6,7 +6,7 @@
  * Confirm / Cancel buttons (+ "Confirm all" in sandbox scope).
  */
 
-import { useConfirm } from "@/bridge/use-confirm";
+import { useConfirm } from "../../src/bridge/use-confirm";
 
 export function ConfirmDialog() {
   const { pending, confirm, cancel, confirmAll } = useConfirm();

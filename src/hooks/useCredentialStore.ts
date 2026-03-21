@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Environment } from "@/lib/types";
+import type { Environment } from "../lib/types";
 import {
   hasStoredCredentials,
   isSessionUnlocked,
   getActiveEnv,
-} from "@/lib/storage";
+} from "../lib/storage";
 
 interface CredentialStoreState {
   /** True when at least one encrypted credential blob exists. */

@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import type { Environment, ApiCredentials } from "@/lib/types";
-import { ENV_DEFAULTS } from "@/lib/types";
+import type { Environment, ApiCredentials } from "../../src/lib/types";
+import { ENV_DEFAULTS } from "../../src/lib/types";
 import {
   saveCredentials,
   getCredentials,
   forgetCredentials,
   setActiveEnv,
   getActiveEnv,
-} from "@/lib/storage";
+} from "../../src/lib/storage";
 
 interface Props {
   onChanged: () => void;

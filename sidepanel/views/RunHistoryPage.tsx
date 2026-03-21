@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { AuditEntry, Environment } from "@/lib/types";
+import type { AuditEntry, Environment } from "../../src/lib/types";
 
 /**
  * Run history page -- shows a local audit log of API operations.
