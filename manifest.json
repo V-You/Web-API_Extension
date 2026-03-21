@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Web API Extension",
+  "version": "0.1.0",
+  "description": "Operate ACI's Web API through WebMCP-published tools, code mode execution, and a typed virtual SDK.",
+  "minimum_chrome_version": "146",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://eu-test.oppwa.com/*",
+    "https://eu-prod.oppwa.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.ts"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  },
+  "action": {
+    "default_title": "Web API Extension"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

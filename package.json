@@ -1,0 +1,26 @@
+{
+  "name": "web-api-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome Extension for ACI Web API automation via WebMCP",
+  "scripts": {
+    "dev": "extension dev",
+    "build": "extension build",
+    "preview": "extension preview"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "extension": "^2.1.3",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/chrome": "^0.0.319",
+    "typescript": "^5.8.3",
+    "tailwindcss": "^3.4.19",
+    "postcss": "^8.5.6",
+    "autoprefixer": "^10.4.21"
+  }
+}
