@@ -5,9 +5,10 @@ import { ConnectionsPage } from "./views/ConnectionsPage";
 import { RunHistoryPage } from "./views/RunHistoryPage";
 import { PinEntryPage } from "./views/PinEntryPage";
 import { ConfirmDialog } from "./views/ConfirmDialog";
+import { JobMonitor } from "./views/JobMonitor";
 import type { Environment } from "@/lib/types";
 
-type View = "home" | "connections" | "history";
+type View = "home" | "connections" | "history" | "jobs";
 
 export function App() {
   const [view, setView] = useState<View>("home");
@@ -32,6 +33,7 @@ export function App() {
           <ConnectionsPage onChanged={() => checkState()} />
         )}
         {view === "history" && <RunHistoryPage />}
+        {view === "jobs" && <JobMonitor />}
       </main>
       <Nav current={view} onChange={setView} />
       <ConfirmDialog />
@@ -67,6 +69,7 @@ function Nav({
 }) {
   const tabs: { id: View; label: string }[] = [
     { id: "home", label: "Home" },
+    { id: "jobs", label: "Jobs" },
     { id: "history", label: "History" },
     { id: "connections", label: "Connections" },
   ];

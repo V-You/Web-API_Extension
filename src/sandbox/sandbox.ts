@@ -35,8 +35,14 @@ export interface SandboxInput {
   entityType?: string;
   /** If true, validate/parse only -- do not execute. */
   dryRun?: boolean;
-  /** Timeout in milliseconds (default: 10 minutes). */
+  /** Timeout in milliseconds (default: 10 minutes). 0 = no timeout. */
   timeoutMs?: number;
+  /** Resume checkpoint from a previous interrupted run. */
+  checkpoint?: unknown;
+  /** Progress callback for job runner integration. */
+  progressFn?: (p: { completedCalls: number; totalCalls: number; checkpoint?: unknown }) => void;
+  /** External abort signal (from job runner). Overrides internal controller. */
+  abortSignal?: AbortSignal;
 }
 
 export interface SandboxResult {
@@ -112,7 +118,7 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
   const logs: LogEntry[] = [];
   const results: unknown[] = [];
   const writes: WriteRecord[] = [];
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = input.timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : input.timeoutMs;
 
   // Build the SDK facade
   const sdk = buildSdkFacade(input.creds, input.env, writes);
@@ -124,9 +130,14 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
     error: (...args: unknown[]) => logs.push({ level: "error", args, timestamp: new Date().toISOString() }),
   };
 
-  // Abort controller for timeout and cancellation
+  // Abort controller for timeout and cancellation.
+  // When the job runner provides an external signal, link it.
   const controller = new AbortController();
   const { signal } = controller;
+  if (input.abortSignal) {
+    if (input.abortSignal.aborted) { controller.abort(); }
+    else { input.abortSignal.addEventListener("abort", () => controller.abort(), { once: true }); }
+  }
 
   // Sleep utility respecting abort signal
   const sleep = (ms: number) =>
@@ -139,11 +150,17 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
       }, { once: true });
     });
 
-  // Context object with entity info (if provided)
+  // Progress reporter injected into the script as `progress(completed, total, cp)`
+  const progress = (completedCalls: number, totalCalls: number, checkpoint?: unknown) => {
+    input.progressFn?.({ completedCalls, totalCalls, checkpoint });
+  };
+
+  // Context object with entity info and checkpoint (if resuming)
   const context = {
     entityId: input.entityId ?? null,
     entityType: input.entityType ?? null,
     env: input.env,
+    checkpoint: input.checkpoint ?? null,
   };
 
   // Strip TS annotations
@@ -152,8 +169,7 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
   // Dry run: parse only, do not execute
   if (input.dryRun) {
     try {
-      // Attempt to construct the function to validate syntax
-      new AsyncFunction("sdk", "console", "sleep", "results", "context", "signal", jsCode);
+      new AsyncFunction("sdk", "console", "sleep", "results", "context", "signal", "progress", jsCode);
       return {
         status: "dry_run",
         returnValue: null,
@@ -186,21 +202,26 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
       "results",
       "context",
       "signal",
+      "progress",
       jsCode
     );
 
-    // Race between execution and timeout
-    const execPromise = fn(sdk, consoleProxy, sleep, results, context, signal);
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
-        controller.abort();
-        reject(new DOMException("Script execution timed out", "TimeoutError"));
-      }, timeoutMs);
-      // Allow GC if exec finishes first
-      execPromise.then(() => clearTimeout(timer), () => clearTimeout(timer));
-    });
+    // Race between execution and timeout (if timeoutMs is set)
+    const execPromise = fn(sdk, consoleProxy, sleep, results, context, signal, progress);
 
-    const returnValue = await Promise.race([execPromise, timeoutPromise]);
+    let returnValue: unknown;
+    if (timeoutMs > 0) {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const timer = setTimeout(() => {
+          controller.abort();
+          reject(new DOMException("Script execution timed out", "TimeoutError"));
+        }, timeoutMs);
+        execPromise.then(() => clearTimeout(timer), () => clearTimeout(timer));
+      });
+      returnValue = await Promise.race([execPromise, timeoutPromise]);
+    } else {
+      returnValue = await execPromise;
+    }
 
     return {
       status: "completed",
