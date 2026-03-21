@@ -8,7 +8,8 @@ The extension replaces the legacy "Web API MCP Server" with a browser-native, ze
 
 ## Overview
 
-- The extension is a *Client-Side Adapter*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the user's active browser session to interact with the SaaS.
+The extension is a *Client-Side Adapter*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the user's active browser session to interact with the SaaS:
+
 - **Exposes the full Web API** to any WebMCP-compatible AI agent running in Chrome.  
 - **Automates the SaaS via its API** using only a browser extension: no backend proxy, no MCP server, no external credential files or secret stores.  
 - **>90% context-window reduction** compared to the legacy MCP approach by using type-on-demand discovery and code-mode execution.  
