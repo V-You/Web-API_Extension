@@ -1,3 +1,19 @@
+# THIS PROJECT
+
+Build order:
+
+1. Tool handlers (the execute functions for each of the 9 tools)
+2. WebMCP registration (wire handlers to navigator.modelContext.registerTool)
+3. Virtual SDK proxy + type generation from riro_consolidated_lookup.json
+4. Code mode sandbox (execute_workflow)
+5. Preview/confirm bridge (side panel <-> tool handler coordination)
+6. Job runner (pause/resume in service worker)
+
+Details:
+
+- PRD = file `md/2026-03-20_PRD_v1.md`
+- If in doubt, ask or scan other files in md/ (PRD drew from those files)
+
 # General
 
 - Before changing any file, create a backup copy, extension .bak.YYYYMMDD, in bak/
