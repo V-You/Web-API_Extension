@@ -5,12 +5,15 @@
  * can call sdk.entities.get(...) instead of executeManageEntity({action:"get",...}).
  *
  * Also exposes the VirtualSdk.config for typed settings operations.
+ *
+ * Write operations are intercepted by the preview/confirm bridge before
+ * execution, and recorded into the writes[] array.
  */
 
 import { createSdk, type SdkContext } from "../sdk/sdk";
-import { apiRequest } from "../lib/api-client";
 import type { EntityType } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
+import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
@@ -31,8 +34,11 @@ export interface WriteRecord {
 /**
  * Build the full `sdk` object injected into sandbox scripts.
  *
- * Write operations are recorded into the writes array so the
- * preview/confirm bridge (step 5) can intercept them.
+ * Every write operation goes through confirmAndWrite() which:
+ *   1. Sends a preview to the confirmation bridge
+ *   2. Waits for user approval (confirm / cancel / confirm_all)
+ *   3. Records the write in the writes[] array
+ *   4. Throws if the user cancels
  */
 export function buildSdkFacade(
   creds: ApiCredentials,
@@ -42,13 +48,49 @@ export function buildSdkFacade(
   const ctx: SdkContext = { creds, env };
   const virtualSdk = createSdk(ctx);
 
-  function recordWrite(tool: string, action: string, entityId: string, entityType: string, params: Record<string, unknown>) {
+  /** Request confirmation, record write, or throw on cancel. */
+  async function confirmAndWrite(
+    tool: string,
+    action: string,
+    method: "POST" | "DELETE",
+    entityId: string,
+    entityType: string,
+    description: string,
+    params: Record<string, unknown>,
+  ) {
+    const preview: WritePreview = { tool, action, method, description, params, env };
+    const choice = await requestConfirm(preview);
+    if (choice === "cancel") throw new Error("Operation cancelled by user.");
     writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
   }
 
   return {
-    // -- Settings (the typed proxy from step 3) --
-    config: virtualSdk.config,
+    // -- Settings (wrapped to intercept writes) --
+    config: {
+      get: virtualSdk.config.get.bind(virtualSdk.config),
+      batchGet: virtualSdk.config.batchGet.bind(virtualSdk.config),
+      describe: virtualSdk.config.describe.bind(virtualSdk.config),
+      validate: virtualSdk.config.validate.bind(virtualSdk.config),
+      coverage: virtualSdk.config.coverage.bind(virtualSdk.config),
+      async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        const keys = Object.keys(settings);
+        await confirmAndWrite(
+          "config", "update", "POST", entityId, entityType,
+          `Update ${keys.length} setting(s) on ${entityType} ${entityId}`,
+          { settings },
+        );
+        return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        const keys = Object.keys(settings);
+        await confirmAndWrite(
+          "config", "batch_update", "POST", entityId, entityType,
+          `Batch update ${keys.length} setting(s) on ${entityType} ${entityId}`,
+          { settings },
+        );
+        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
+      },
+    },
 
     // -- Entity operations --
     entities: {
@@ -62,15 +104,27 @@ export function buildSdkFacade(
         return executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env);
       },
       async create(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel", fields: Record<string, string>) {
-        recordWrite("manage_entity", "create", parentId, parentType, { childType, fields });
+        await confirmAndWrite(
+          "manage_entity", "create", "POST", parentId, parentType,
+          `Create ${childType} under ${parentType} ${parentId}`,
+          { childType, fields },
+        );
         return executeManageEntity({ action: "create", parentType, parentId, childType, fields }, creds, env);
       },
       async edit(entityType: EntityType, entityId: string, fields: Record<string, string>) {
-        recordWrite("manage_entity", "edit", entityId, entityType, { fields });
+        await confirmAndWrite(
+          "manage_entity", "edit", "POST", entityId, entityType,
+          `Edit ${entityType} ${entityId}`,
+          { fields },
+        );
         return executeManageEntity({ action: "edit", entityType, entityId, fields }, creds, env);
       },
       async delete(entityType: EntityType, entityId: string) {
-        recordWrite("manage_entity", "delete", entityId, entityType, {});
+        await confirmAndWrite(
+          "manage_entity", "delete", "DELETE", entityId, entityType,
+          `Delete ${entityType} ${entityId}`,
+          {},
+        );
         return executeManageEntity({ action: "delete", entityType, entityId }, creds, env);
       },
     },
@@ -94,35 +148,67 @@ export function buildSdkFacade(
         return executeManageContact({ action: "list", entityType, entityId, scope }, creds, env);
       },
       async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
-        recordWrite("manage_contact", "create", entityId, entityType, { fields });
+        await confirmAndWrite(
+          "manage_contact", "create", "POST", entityId, entityType,
+          `Create contact on ${entityType} ${entityId}`,
+          { fields },
+        );
         return executeManageContact({ action: "create", entityType, entityId, fields }, creds, env);
       },
       async edit(contactId: string, fields: Record<string, string>) {
-        recordWrite("manage_contact", "edit", contactId, "contact", { fields });
+        await confirmAndWrite(
+          "manage_contact", "edit", "POST", contactId, "contact",
+          `Edit contact ${contactId}`,
+          { fields },
+        );
         return executeManageContact({ action: "edit", contactId, fields }, creds, env);
       },
       async delete(contactId: string) {
-        recordWrite("manage_contact", "delete", contactId, "contact", {});
+        await confirmAndWrite(
+          "manage_contact", "delete", "DELETE", contactId, "contact",
+          `Delete contact ${contactId}`,
+          {},
+        );
         return executeManageContact({ action: "delete", contactId }, creds, env);
       },
       async attach(entityType: EntityType, entityId: string, contactId: string) {
-        recordWrite("manage_contact", "attach", entityId, entityType, { contactId });
+        await confirmAndWrite(
+          "manage_contact", "attach", "POST", entityId, entityType,
+          `Attach contact ${contactId} to ${entityType} ${entityId}`,
+          { contactId },
+        );
         return executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env);
       },
       async detach(entityType: EntityType, entityId: string, contactId: string) {
-        recordWrite("manage_contact", "detach", entityId, entityType, { contactId });
+        await confirmAndWrite(
+          "manage_contact", "detach", "DELETE", entityId, entityType,
+          `Detach contact ${contactId} from ${entityType} ${entityId}`,
+          { contactId },
+        );
         return executeManageContact({ action: "detach", entityType, entityId, contactId }, creds, env);
       },
       async lock(contactId: string) {
-        recordWrite("manage_contact", "lock", contactId, "contact", {});
+        await confirmAndWrite(
+          "manage_contact", "lock", "POST", contactId, "contact",
+          `Lock contact ${contactId}`,
+          {},
+        );
         return executeManageContact({ action: "lock", contactId }, creds, env);
       },
       async unlock(contactId: string) {
-        recordWrite("manage_contact", "unlock", contactId, "contact", {});
+        await confirmAndWrite(
+          "manage_contact", "unlock", "POST", contactId, "contact",
+          `Unlock contact ${contactId}`,
+          {},
+        );
         return executeManageContact({ action: "unlock", contactId }, creds, env);
       },
       async resetPassword(contactId: string, newPassword: string) {
-        recordWrite("manage_contact", "reset_password", contactId, "contact", {});
+        await confirmAndWrite(
+          "manage_contact", "reset_password", "POST", contactId, "contact",
+          `Reset password for contact ${contactId}`,
+          {},
+        );
         return executeManageContact({ action: "reset_password", contactId, newPassword }, creds, env);
       },
     },
@@ -136,23 +222,43 @@ export function buildSdkFacade(
         return executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env);
       },
       async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
-        recordWrite("manage_merchant_account", "create", entityId, entityType, { fields });
+        await confirmAndWrite(
+          "manage_merchant_account", "create", "POST", entityId, entityType,
+          `Create merchant account on ${entityType} ${entityId}`,
+          { fields },
+        );
         return executeManageMerchantAccount({ action: "create", entityType, entityId, fields }, creds, env);
       },
       async edit(merchantAccountId: string, fields: Record<string, string>) {
-        recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
+        await confirmAndWrite(
+          "manage_merchant_account", "edit", "POST", merchantAccountId, "merchant_account",
+          `Edit merchant account ${merchantAccountId}`,
+          { fields },
+        );
         return executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env);
       },
       async delete(merchantAccountId: string) {
-        recordWrite("manage_merchant_account", "delete", merchantAccountId, "merchant_account", {});
+        await confirmAndWrite(
+          "manage_merchant_account", "delete", "DELETE", merchantAccountId, "merchant_account",
+          `Delete merchant account ${merchantAccountId}`,
+          {},
+        );
         return executeManageMerchantAccount({ action: "delete", merchantAccountId }, creds, env);
       },
       async attach(entityType: EntityType, entityId: string, merchantAccountId: string, subTypes: string, currency: string) {
-        recordWrite("manage_merchant_account", "attach", entityId, entityType, { merchantAccountId, subTypes, currency });
+        await confirmAndWrite(
+          "manage_merchant_account", "attach", "POST", entityId, entityType,
+          `Attach merchant account ${merchantAccountId} to ${entityType} ${entityId}`,
+          { merchantAccountId, subTypes, currency },
+        );
         return executeManageMerchantAccount({ action: "attach", entityType, entityId, fields: { merchantAccountId, subTypes, currency } }, creds, env);
       },
       async detach(attachedMerchantAccountId: string) {
-        recordWrite("manage_merchant_account", "detach", attachedMerchantAccountId, "merchant_account", {});
+        await confirmAndWrite(
+          "manage_merchant_account", "detach", "DELETE", attachedMerchantAccountId, "merchant_account",
+          `Detach merchant account relationship ${attachedMerchantAccountId}`,
+          {},
+        );
         return executeManageMerchantAccount({ action: "detach", attachedMerchantAccountId }, creds, env);
       },
       async threeDCheck(merchantAccountId: string) {

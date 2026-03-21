@@ -32,12 +32,25 @@ The extension is essentially a *Client-Side Adapter*. Instead of an agent talkin
 - No multi-tenant or multi-PSP profile switching (deferred).
 - No built-in LLM or chat UI. The extension is a tool provider, not an agent host. BYOK support.
 
-## ...
+## Install
 
 ...
 
+## Usage
 
+...
 
+## Architecture
+
+...
+
+## Notes
+
+...
+
+## Version 2 notes
+
+...
 
 
 

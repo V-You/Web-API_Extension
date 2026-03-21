@@ -4,6 +4,7 @@ import { HomePage } from "./views/HomePage";
 import { ConnectionsPage } from "./views/ConnectionsPage";
 import { RunHistoryPage } from "./views/RunHistoryPage";
 import { PinEntryPage } from "./views/PinEntryPage";
+import { ConfirmDialog } from "./views/ConfirmDialog";
 import type { Environment } from "@/lib/types";
 
 type View = "home" | "connections" | "history";
@@ -33,6 +34,7 @@ export function App() {
         {view === "history" && <RunHistoryPage />}
       </main>
       <Nav current={view} onChange={setView} />
+      <ConfirmDialog />
     </div>
   );
 }

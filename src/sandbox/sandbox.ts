@@ -18,6 +18,7 @@
  */
 
 import { buildSdkFacade, type WriteRecord } from "./sdk-facade";
+import { beginScope, endScope } from "../bridge/confirm-bridge";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 // -- Types ----------------------------------------------------------------
@@ -175,6 +176,8 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
   }
 
   // Build and execute the function
+  const scopeId = `sandbox-${Date.now()}`;
+  beginScope(scopeId);
   try {
     const fn = new AsyncFunction(
       "sdk",
@@ -241,5 +244,7 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
       durationMs: Date.now() - startTime,
       error: err instanceof Error ? err.message : String(err),
     };
+  } finally {
+    endScope();
   }
 }
