@@ -1,6 +1,6 @@
 # THIS PROJECT
 
-Build order:
+**Build order:**
 
 1. Tool handlers (the execute functions for each of the 9 tools)
 2. WebMCP registration (wire handlers to navigator.modelContext.registerTool)
@@ -9,7 +9,7 @@ Build order:
 5. Preview/confirm bridge (side panel <-> tool handler coordination)
 6. Job runner (pause/resume in service worker)
 
-Details:
+**Details:**
 
 - PRD = file `md/2026-03-20_PRD_v1.md`
 - If in doubt, ask or scan other files in md/ (PRD drew from those files)
@@ -17,9 +17,9 @@ Details:
 # General
 
 - Before changing any file, create a backup copy, extension .bak.YYYYMMDD, in bak/
-- If code seems missing anywhere, look in bak/ for most recent version and cherry pick from there
+- If code seems missing anywhere, check bak/ for recent version to cherry pick
 - Use PyLance MCP server when needed for Python code
-- Use Context7 MCP server to get the latest documentation for libraries and frameworks
+- Use Context7 MCP server to get latest documentation for libraries and frameworks
 - Use Chrome DevTools MCP server to browser the web (or your built-in web tool)
 
 # Skills
