@@ -10,39 +10,48 @@
 
 // -- Side panel activation ------------------------------------------------
 
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch(console.error);
+if (chrome.sidePanel?.setPanelBehavior) {
+  chrome.sidePanel
+    .setPanelBehavior({ openPanelOnActionClick: true })
+    .catch(console.error);
+} else {
+  // Keep worker alive even when sidePanel is unavailable on this Chrome build.
+  console.warn("[sw] sidePanel API not available.");
+}
 
 // -- Browser restart recovery ---------------------------------------------
 // If the browser restarted while a job was running, mark it as paused
 // so the side panel can offer to resume.
 
-chrome.runtime.onStartup.addListener(async () => {
-  const result = await chrome.storage.local.get("jobs");
-  const jobs = (result.jobs ?? []) as Array<{ id: string; state: string; pausedAt?: string }>;
-  let changed = false;
-  for (const job of jobs) {
-    if (job.state === "running" || job.state === "resumed") {
-      job.state = "paused";
-      job.pausedAt = new Date().toISOString();
-      changed = true;
+if (chrome.runtime?.onStartup) {
+  chrome.runtime.onStartup.addListener(async () => {
+    const result = await chrome.storage.local.get("jobs");
+    const jobs = (result.jobs ?? []) as Array<{ id: string; state: string; pausedAt?: string }>;
+    let changed = false;
+    for (const job of jobs) {
+      if (job.state === "running" || job.state === "resumed") {
+        job.state = "paused";
+        job.pausedAt = new Date().toISOString();
+        changed = true;
+      }
     }
-  }
-  if (changed) {
-    await chrome.storage.local.set({ jobs });
-  }
-});
+    if (changed) {
+      await chrome.storage.local.set({ jobs });
+    }
+  });
+}
 
 // -- Tab removal detection ------------------------------------------------
 // Per PRD 8.2: if the BIP tab is closed, the job should pause.
 // The side panel listens for this message to trigger pauseJob().
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  chrome.runtime.sendMessage({ type: "tab_closed", tabId }).catch(() => {
-    // Side panel may not be open -- ignore
+if (chrome.tabs?.onRemoved) {
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    chrome.runtime.sendMessage({ type: "tab_closed", tabId }).catch(() => {
+      // Side panel may not be open -- ignore
+    });
   });
-});
+}
 
 // -- Message handling -----------------------------------------------------
 
