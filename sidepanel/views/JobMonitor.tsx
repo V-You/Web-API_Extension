@@ -61,7 +61,13 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
     ? Math.min(100, Math.round((job.completedCalls / job.totalCalls) * 100))
     : 0;
   const remaining = estimateRemaining(job);
-  const elapsed = formatDuration(job.elapsedMs + (job.state === "running" ? Date.now() - Date.parse(job.startedAt ?? job.createdAt) : 0));
+  const liveElapsed = job.state === "running"
+    ? (() => {
+        const startTime = job.startedAt ? Date.parse(job.startedAt) : Date.parse(job.createdAt);
+        return isNaN(startTime) ? 0 : Math.max(0, Date.now() - startTime);
+      })()
+    : 0;
+  const elapsed = formatDuration(job.elapsedMs + liveElapsed);
 
   return (
     <div className="border border-slate-200 rounded-lg p-3 space-y-2">
