@@ -81,11 +81,38 @@ export function subscribe(listener: () => void): () => void {
 
 // -- CRUD -----------------------------------------------------------------
 
+/** Normalize a job record to ensure all fields are valid and safe to render. */
+function normalizeJob(raw: any): JobRecord {
+  return {
+    id: String(raw.id ?? "unknown"),
+    label: String(raw.label ?? "Untitled"),
+    script: String(raw.script ?? ""),
+    entityId: raw.entityId ? String(raw.entityId) : undefined,
+    entityType: raw.entityType ? String(raw.entityType) : undefined,
+    state: (raw.state ?? "paused") as JobState,
+    createdAt: String(raw.createdAt ?? new Date().toISOString()),
+    startedAt: raw.startedAt ? String(raw.startedAt) : undefined,
+    pausedAt: raw.pausedAt ? String(raw.pausedAt) : undefined,
+    completedAt: raw.completedAt ? String(raw.completedAt) : undefined,
+    totalCalls: Number(raw.totalCalls ?? 0),
+    completedCalls: Number(raw.completedCalls ?? 0),
+    throttleRate: Number(raw.throttleRate ?? 9),
+    elapsedMs: Number(raw.elapsedMs ?? 0),
+    checkpoint: raw.checkpoint, // keep as-is (not rendered)
+    results: Array.isArray(raw.results) ? raw.results : [],
+    logs: Array.isArray(raw.logs) ? raw.logs : [],
+    writes: Array.isArray(raw.writes) ? raw.writes : [],
+    error: raw.error ? String(raw.error) : undefined,
+    env: (raw.env ?? "uat") as Environment,
+  };
+}
+
 /** Load all jobs from storage. */
 export async function loadJobs(): Promise<JobRecord[]> {
   if (cachedJobs) return cachedJobs;
   const result = await chrome.storage.local.get(STORAGE_KEY);
-  cachedJobs = (result[STORAGE_KEY] ?? []) as JobRecord[];
+  const raw = (result[STORAGE_KEY] ?? []) as any[];
+  cachedJobs = raw.map(normalizeJob);
   return cachedJobs;
 }
 
