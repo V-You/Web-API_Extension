@@ -63,6 +63,7 @@ export interface JobProgress {
 
 const STORAGE_KEY = "jobs";
 const MAX_JOBS = 100;
+const EMPTY_JOBS: JobRecord[] = [];
 
 // -- Subscription ---------------------------------------------------------
 
@@ -127,7 +128,7 @@ async function saveJobs(jobs: JobRecord[]): Promise<void> {
 
 /** Get a snapshot for useSyncExternalStore. */
 export function getJobsSnapshot(): JobRecord[] {
-  return cachedJobs ?? [];
+  return cachedJobs ?? EMPTY_JOBS;
 }
 
 /** Create a new job record. Returns the record. */
