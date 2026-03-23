@@ -10,6 +10,9 @@ export interface ToolSchema {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations?: {
+    readOnlyHint?: boolean;
+  };
 }
 
 export const TOOL_SCHEMAS: ToolSchema[] = [
@@ -64,6 +67,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       "Fetch the entity hierarchy tree starting from a PSP. " +
       "Set estimateOnly=true to preview the number of API calls before executing.",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
@@ -176,6 +180,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       "Search clearing institutes by keyword, get required field mappings for a CI, " +
       "or list live CIs from the API.",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
@@ -198,6 +203,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       "Search RiRo settings by keyword. Returns TypeScript interface snippets for " +
       "matching settings -- the type-on-demand pattern.",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
@@ -261,6 +267,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       "Retrieve entries from the local audit log. Supports filtering by event type, " +
       "entity ID, and time range.",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {

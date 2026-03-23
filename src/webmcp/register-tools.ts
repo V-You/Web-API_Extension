@@ -282,9 +282,10 @@ function tryRegister(): boolean {
       name: def.name,
       description: def.description,
       inputSchema: def.inputSchema,
-      execute: async (params) => {
+      ...(def.annotations ? { annotations: def.annotations } : {}),
+      execute: async (input, _client) => {
         try {
-          const result = await def.execute(params);
+          const result = await def.execute(input);
           return typeof result === "string" ? result : JSON.stringify(result);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

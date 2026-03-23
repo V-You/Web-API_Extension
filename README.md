@@ -35,7 +35,7 @@ The extension is a *Client-Side Adapter*. The legacy MCP server was a tool-wrapp
 - WebMCP testing flag enabled: navigate to `chrome://flags/#enable-webmcp-testing` and set it to **Enabled**
 - Node.js 20+ and npm 10+
 
-### Build and load
+### Build the extension
 
 ```bash
 git clone <repo-url> && cd Web-API_Extension
@@ -45,18 +45,17 @@ npm install
 npm run build      # production build
 ```
 
-Then load the extension in Chrome:
+### Load the extension in Chrome:
 
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top right)
 3. Click **Load unpacked** and select the `dist/chrome-mv3-dev` (dev) or `dist/chrome-mv3-prod` (build) folder
-4. The extension icon appears in the toolbar; click it to open the side panel
+4. Recommendation: "Pin" the extension to the bookmark toolbar
+5. Click Extension icon to open the side panel
 
 ### Permissions
 
-The extension requests:
-
-| Permission | Purpose |
+| Extension requests: | Purpose |
 |---|---|
 | `sidePanel` | Primary UI surface |
 | `storage` | Encrypted credential storage (local) and decrypted session cache (session) |
@@ -65,26 +64,31 @@ The extension requests:
 
 Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.oppwa.com` (Prod).
 
+
 ## Usage
 
-### First run -- credentials
+### First run
 
 1. Open the side panel and go to the **Connections** tab.
 2. Enter your Web API credentials (username and password) for UAT, Prod, or both.
-3. Choose a PIN (minimum 6 digits). Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The PIN is never persisted.
+3. Choose a PIN (minimum 6 digits). Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The PIN is never persisted.  Consider tracking this PIN using an external tool (password manager).
 4. On subsequent visits, enter your PIN to unlock. The decrypted credentials live in `chrome.storage.session` and survive idle but are cleared on browser restart.
 
-#### Example flow when using Google Gemini (browser side panel)
+> Any LLM with browser-capability can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and OpenAPI specs (enriched).
 
-- Install the extension in Chrome (version, flag)
-- Open an oppwa.com page (UAT or Prod host).
-- Open the Web API Extension side panel once:
+### Full example workflow using Google Gemini (browser side panel)
+
+> Gemini can be used as the LLM Chat tool performing the requested actions. Gemini already sits inside the browser. The workflow from end user point of view:
+
+- Install the extension in Chrome (min-version, set flag)
+- Open an oppwa.com page (UAT or Prod)
+- Open the Web API Extension side panel once, and:
     - Set credentials in "Connections"
-    - Set a PIN
+    - Set a PIN (track value externally)
     - Test connection
     - Close the side panel
 - On the same active oppwa.com tab, open Gemini side panel
-- Ask Gemini to list available tools or perform an action
+- Ask Gemini to list available tools, or perform an action
 
 ### Tools
 

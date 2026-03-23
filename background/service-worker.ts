@@ -10,6 +10,8 @@
  */
 
 import { swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
+import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
+import type { ToolSchema } from "../src/webmcp/tool-schemas";
 
 // -- Side panel activation ------------------------------------------------
 
@@ -144,6 +146,25 @@ chrome.runtime.onMessage.addListener(
       sendResponse({ activeJobId: swGetActiveJobId() });
       return false;
     }
+
+    // -- Main-world WebMCP tool registration (bypasses page CSP) ----------
+
+    if (message.type === "webmcp:inject-main") {
+      const tabId = _sender.tab?.id;
+      if (!tabId) {
+        sendResponse({ ok: false, error: "No tab ID" });
+        return false;
+      }
+      chrome.scripting.executeScript({
+        target: { tabId },
+        world: "MAIN",
+        func: registerToolsInMainWorld,
+        args: [TOOL_SCHEMAS],
+      })
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: String(err) }));
+      return true;
+    }
   }
 );
 
@@ -183,4 +204,90 @@ async function handleApiRequest(
   }
 
   return { ok: res.ok, status: res.status, data };
+}
+
+// -- Main-world registration function (injected via chrome.scripting) -----
+// This function runs in the page's main world. It receives TOOL_SCHEMAS as
+// an argument. chrome.scripting.executeScript bypasses the page's CSP.
+
+function registerToolsInMainWorld(schemas: ToolSchema[]) {
+  const pending = new Map<string, { resolve: (v: string) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  const CALL_TIMEOUT_MS = 600_000;
+  let registered = false;
+  const RETRY_MS = 2_000;
+  const MAX_RETRIES = 15;
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+    const d = event.data;
+    if (!d || d.type !== "webmcp:tool-result") return;
+    const entry = pending.get(d.callId);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    pending.delete(d.callId);
+    if (d.error) entry.reject(new Error(d.error));
+    else entry.resolve(d.result || "{}");
+  });
+
+  function tryRegister(): boolean {
+    if (registered) return true;
+    if (!navigator.modelContext) return false;
+    for (const schema of schemas) {
+      navigator.modelContext.registerTool({
+        name: schema.name,
+        description: schema.description,
+        inputSchema: schema.inputSchema,
+        ...(schema.annotations ? { annotations: schema.annotations } : {}),
+        execute(input: Record<string, unknown>, _client: { requestUserInteraction: (cb: () => void) => void }) {
+          const callId = crypto.randomUUID();
+          return new Promise<string>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              pending.delete(callId);
+              reject(new Error(`Tool ${schema.name} timed out.`));
+            }, CALL_TIMEOUT_MS);
+            pending.set(callId, { resolve, reject, timer });
+            window.postMessage({ type: "webmcp:tool-call", callId, tool: schema.name, params: input }, "*");
+          });
+        },
+      });
+    }
+    registered = true;
+    console.log(`[webmcp-main] Registered ${schemas.length} tools in main world.`);
+
+    // Verify via testing API if available
+    const testing = (navigator as { modelContextTesting?: { listTools: () => unknown[] } }).modelContextTesting;
+    if (testing) {
+      try {
+        const tools = testing.listTools();
+        console.log(`[webmcp-main] modelContextTesting.listTools() reports ${Array.isArray(tools) ? tools.length : "?"} tools.`);
+      } catch (e) {
+        console.warn("[webmcp-main] modelContextTesting.listTools() failed:", e);
+      }
+    } else {
+      console.log("[webmcp-main] modelContextTesting not available (enable #enable-webmcp-testing flag to verify).");
+    }
+    return true;
+  }
+
+  console.log(`[webmcp-main] Injected via chrome.scripting. modelContext: ${!!navigator.modelContext}`);
+
+  if (!tryRegister()) {
+    console.warn("[webmcp-main] navigator.modelContext not available yet -- retrying...");
+    let retries = 0;
+    const interval = setInterval(() => {
+      retries++;
+      if (tryRegister() || retries >= MAX_RETRIES) {
+        clearInterval(interval);
+        if (!registered) {
+          console.warn(
+            `[webmcp-main] Gave up after ${MAX_RETRIES} retries. ` +
+            `Ensure chrome://flags/#enable-webmcp-testing is Enabled and restart Chrome.`,
+          );
+        }
+      }
+    }, RETRY_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && !registered) tryRegister();
+    });
+  }
 }
