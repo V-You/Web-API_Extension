@@ -74,6 +74,18 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 3. Choose a PIN (minimum 6 digits). Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The PIN is never persisted.
 4. On subsequent visits, enter your PIN to unlock. The decrypted credentials live in `chrome.storage.session` and survive idle but are cleared on browser restart.
 
+#### Example flow when using Google Gemini (browser side panel)
+
+- Install the extension in Chrome (version, flag)
+- Open an oppwa.com page (UAT or Prod host).
+- Open the Web API Extension side panel once:
+    - Set credentials in "Connections"
+    - Set a PIN
+    - Test connection
+    - Close the side panel
+- On the same active oppwa.com tab, open Gemini side panel
+- Ask Gemini to list available tools or perform an action
+
 ### Tools
 
 Once the extension is loaded and unlocked, **9 tools** are published to any WebMCP-compatible agent (e.g. Chrome's built-in AI sidebar):

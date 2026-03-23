@@ -86,6 +86,35 @@ export function requestConfirm(preview: WritePreview): Promise<ConfirmChoice> {
     return Promise.resolve("confirm");
   }
 
+  // Fallback for contexts without the side panel UI subscription
+  // (for example content-script WebMCP registration on oppwa tabs).
+  if (listeners.size === 0) {
+    const nativeConfirm = typeof window !== "undefined" && typeof window.confirm === "function"
+      ? window.confirm
+      : null;
+
+    if (!nativeConfirm) {
+      return Promise.resolve("cancel");
+    }
+
+    const prettyParams = Object.keys(preview.params).length > 0
+      ? JSON.stringify(preview.params, null, 2)
+      : "(none)";
+
+    const message = [
+      `Confirm write (${preview.env.toUpperCase()})`,
+      "",
+      preview.description,
+      "",
+      `Method: ${preview.method}`,
+      `Tool: ${preview.tool}/${preview.action}`,
+      "",
+      `Params: ${prettyParams}`,
+    ].join("\n");
+
+    return Promise.resolve(nativeConfirm(message) ? "confirm" : "cancel");
+  }
+
   return new Promise<ConfirmChoice>((resolve) => {
     pendingState = { preview, hasScope: currentScopeId !== null };
     pendingResolve = (choice) => {

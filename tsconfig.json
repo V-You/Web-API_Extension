@@ -20,7 +20,8 @@
   "include": [
     "src/**/*",
     "sidepanel/**/*",
-    "background/**/*"
+    "background/**/*",
+    "content/**/*"
   ],
   "exclude": [
     "node_modules",

@@ -17,6 +17,18 @@
   "background": {
     "service_worker": "background/service-worker.ts"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://eu-test.oppwa.com/*",
+        "https://eu-prod.oppwa.com/*"
+      ],
+      "js": [
+        "content/register-tools.ts"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "side_panel": {
     "default_path": "sidepanel/index.html"
   },
