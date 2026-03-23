@@ -14,6 +14,7 @@ import { createSdk, type SdkContext } from "../sdk/sdk";
 import type { EntityType } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
+import { recordWrite } from "../bridge/write-status";
 import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
@@ -62,6 +63,7 @@ export function buildSdkFacade(
     const choice = await requestConfirm(preview);
     if (choice === "cancel") throw new Error("Operation cancelled by user.");
     writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
+    recordWrite(description);
   }
 
   return {

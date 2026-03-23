@@ -7,6 +7,8 @@ import {
   forgetCredentials,
   setActiveEnv,
   getActiveEnv,
+  getThrottleRate,
+  setThrottleRate,
 } from "../../src/lib/storage";
 
 interface Props {
@@ -73,6 +75,8 @@ export function ConnectionsPage({ onChanged }: Props) {
           onChanged();
         }}
       />
+
+      <ThrottleRateSetting />
     </div>
   );
 }
@@ -258,6 +262,47 @@ function CredentialForm({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function ThrottleRateSetting() {
+  const [rate, setRate] = useState(9);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getThrottleRate().then(setRate);
+  }, []);
+
+  async function handleSave() {
+    await setThrottleRate(rate);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 mt-4 space-y-2">
+      <h3 className="text-xs font-semibold text-slate-600">Throttle rate</h3>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={1}
+          max={50}
+          value={rate}
+          onChange={(e) => setRate(Number(e.target.value))}
+          className="w-20 border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+        />
+        <span className="text-xs text-slate-500">req/s</span>
+        <button
+          onClick={handleSave}
+          className="text-xs font-medium text-blue-600 hover:text-blue-700"
+        >
+          {saved ? "Saved" : "Save"}
+        </button>
+      </div>
+      <p className="text-[10px] text-slate-400">
+        Maximum API requests per second for jobs (default: 9).
+      </p>
     </div>
   );
 }

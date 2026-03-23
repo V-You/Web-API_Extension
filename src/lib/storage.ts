@@ -98,6 +98,28 @@ export async function setActiveEnv(env: Environment): Promise<void> {
   await chrome.storage.session.set({ activeEnv: env });
 }
 
+/** Get the user's configured throttle rate (requests per second). */
+export async function getThrottleRate(): Promise<number> {
+  const result = await chrome.storage.local.get("throttleRate");
+  return typeof result.throttleRate === "number" ? result.throttleRate : 9;
+}
+
+/** Set the throttle rate. */
+export async function setThrottleRate(rate: number): Promise<void> {
+  await chrome.storage.local.set({ throttleRate: Math.max(1, Math.min(50, rate)) });
+}
+
+/** Check whether the privacy notice has been dismissed. */
+export async function isPrivacyNoticeDismissed(): Promise<boolean> {
+  const result = await chrome.storage.local.get("privacyNoticeDismissed");
+  return result.privacyNoticeDismissed === true;
+}
+
+/** Mark the privacy notice as dismissed. */
+export async function dismissPrivacyNotice(): Promise<void> {
+  await chrome.storage.local.set({ privacyNoticeDismissed: true });
+}
+
 /** Remove all credentials for an environment (both encrypted and session). */
 export async function forgetCredentials(env: Environment): Promise<void> {
   await chrome.storage.local.remove(STORAGE_KEY(env));

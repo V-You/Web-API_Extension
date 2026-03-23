@@ -6,6 +6,8 @@ import { RunHistoryPage } from "./views/RunHistoryPage";
 import { PinEntryPage } from "./views/PinEntryPage";
 import { ConfirmDialog } from "./views/ConfirmDialog";
 import { JobMonitor } from "./views/JobMonitor";
+import { PrivacyNotice } from "./views/PrivacyNotice";
+import { WriteStatusToast } from "./views/WriteStatusToast";
 import type { Environment } from "../src/lib/types";
 
 type View = "home" | "connections" | "history" | "jobs";
@@ -27,6 +29,7 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       <Header activeEnv={activeEnv} />
+      <PrivacyNotice />
       <main className="flex-1 overflow-y-auto p-3">
         {view === "home" && <HomePage />}
         {view === "connections" && (
@@ -36,6 +39,7 @@ export function App() {
         {view === "jobs" && <JobMonitor />}
       </main>
       <Nav current={view} onChange={setView} />
+      <WriteStatusToast />
       <ConfirmDialog />
     </div>
   );

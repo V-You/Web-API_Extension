@@ -31,7 +31,12 @@ export function JobMonitor() {
     (j) => j.id !== activeJob?.id && (j.state === "paused" || j.state === "failed")
   );
 
-  if (!activeJob && pausedJobs.length === 0) {
+  // Completed jobs with results (for download per PRD 2.2)
+  const completedJobs = jobs.filter(
+    (j) => j.id !== activeJob?.id && j.state === "completed" && j.results.length > 0
+  );
+
+  if (!activeJob && pausedJobs.length === 0 && completedJobs.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500">
         <p className="text-sm">No active or recoverable jobs.</p>
@@ -49,6 +54,16 @@ export function JobMonitor() {
           </h3>
           {pausedJobs.map((job) => (
             <RecoverableJobCard key={job.id} job={job} />
+          ))}
+        </div>
+      )}
+      {completedJobs.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Completed reports
+          </h3>
+          {completedJobs.map((job) => (
+            <CompletedJobCard key={job.id} job={job} />
           ))}
         </div>
       )}
@@ -164,6 +179,76 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
           Discard
         </button>
       </div>
+    </div>
+  );
+}
+
+function CompletedJobCard({ job }: { job: JobRecord }) {
+  const [expanded, setExpanded] = useState(false);
+
+  function downloadJson() {
+    const blob = new Blob([JSON.stringify(job.results, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${job.label.replace(/[^a-z0-9]/gi, "_")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadCsv() {
+    // Best effort: convert array of objects to CSV
+    const items = job.results as Record<string, unknown>[];
+    if (items.length === 0) return;
+    const keys = [...new Set(items.flatMap((r) => Object.keys(r)))];
+    const header = keys.join(",") + "\n";
+    const rows = items.map((r) =>
+      keys.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","),
+    );
+    const blob = new Blob([header + rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${job.label.replace(/[^a-z0-9]/gi, "_")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="border border-slate-200 rounded p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium truncate">{job.label}</span>
+        <StateBadge state={job.state} />
+      </div>
+      <div className="text-xs text-slate-500">
+        {job.results.length} result(s) &ndash; {job.completedCalls} calls
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={downloadJson}
+          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
+        >
+          JSON
+        </button>
+        <button
+          onClick={downloadCsv}
+          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
+        >
+          CSV
+        </button>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+        >
+          {expanded ? "Hide" : "Preview"}
+        </button>
+      </div>
+      {expanded && (
+        <pre className="mt-1 p-2 bg-slate-50 rounded text-[10px] text-slate-600 overflow-x-auto max-h-40">
+          {JSON.stringify(job.results.slice(0, 20), null, 2)}
+          {job.results.length > 20 && `\n... (${job.results.length - 20} more)`}
+        </pre>
+      )}
     </div>
   );
 }

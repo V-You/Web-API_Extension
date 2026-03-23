@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "extension dev",
     "build": "extension build",
-    "preview": "extension preview"
+    "postbuild": "node scripts/tier-coverage.mjs",
+    "preview": "extension preview",
+    "verify:tokens": "node scripts/token-benchmark.mjs",
+    "verify:security": "node scripts/security-verify.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
