@@ -95,6 +95,7 @@ function CredentialForm({
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
 
   // Reset form when env changes
   useEffect(() => {
@@ -103,6 +104,7 @@ function CredentialForm({
     setPassword("");
     setPin("");
     setError(null);
+    setTestResult(null);
   }, [env]);
 
   async function handleSave() {
@@ -110,8 +112,8 @@ function CredentialForm({
       setError("All fields are required.");
       return;
     }
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 characters.");
+    if (pin.length < 6) {
+      setError("PIN must be at least 6 characters.");
       return;
     }
 
@@ -137,6 +139,37 @@ function CredentialForm({
     try {
       await forgetCredentials(env);
       onDeleted();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTest() {
+    if (!username || !password) {
+      setError("Username and password are required to test.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setTestResult(null);
+    try {
+      const url = `${baseUrl}/divisions`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { credentials: `${username}:${password}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        setTestResult("fail");
+        setError(`Authentication failed (${res.status}).`);
+      } else if (res.ok) {
+        setTestResult("ok");
+      } else {
+        setTestResult("fail");
+        setError(`Unexpected response: ${res.status}`);
+      }
+    } catch (e) {
+      setTestResult("fail");
+      setError(e instanceof Error ? e.message : "Connection failed.");
     } finally {
       setBusy(false);
     }
@@ -190,14 +223,24 @@ function CredentialForm({
           type="password"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
-          placeholder="Minimum 4 characters"
+          placeholder="Minimum 6 characters"
           className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
         />
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {testResult === "ok" && (
+        <p className="text-xs text-green-600">Connection successful.</p>
+      )}
 
       <div className="flex gap-2">
+        <button
+          onClick={handleTest}
+          disabled={busy}
+          className="bg-slate-100 text-slate-700 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-slate-200 disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Testing..." : "Test"}
+        </button>
         <button
           onClick={handleSave}
           disabled={busy}

@@ -16,6 +16,7 @@
 import { apiRequest } from "../lib/api-client";
 import { type EntityType, ENTITY_PLURAL } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
+import { allSettings, getByKey } from "../sdk/riro-tree";
 
 export interface ManageSettingsInput {
   action: "get" | "set" | "batch_get" | "batch_set" | "list_non_default";
@@ -31,6 +32,8 @@ export interface ManageSettingsInput {
   keys?: string[];
   /** For batch_set: key-value pairs. */
   settings?: Record<string, string>;
+  /** For list_non_default: keyword filter to limit which settings to check. */
+  query?: string;
 }
 
 export async function executeManageSettings(
@@ -177,10 +180,84 @@ async function listNonDefault(
   creds: ApiCredentials,
   env: Environment
 ) {
-  // The API has no "list all non-default settings" endpoint.
-  // This would normally require iterating all 1,225 keys -- not practical in a single call.
-  // Return guidance for the agent.
+  if (!input.entityId || !input.entityType) {
+    return { error: "entityId and entityType are required for list_non_default." };
+  }
+  if (input.entityType !== "merchant" && input.entityType !== "channel") {
+    return { error: `list_non_default only works at merchant/channel level (not ${input.entityType}).` };
+  }
+
+  // Determine which keys to check
+  let keysToCheck: { flatKey: string; defaultValue: string }[];
+
+  if (input.keys?.length) {
+    // Explicit key list provided
+    keysToCheck = input.keys.map((k) => {
+      const meta = getByKey(k);
+      return { flatKey: k, defaultValue: meta?.defaultValue ?? "" };
+    });
+  } else {
+    // Use keyword query to filter, or reject if no filter provided
+    const q = input.query?.toLowerCase();
+    if (!q) {
+      return {
+        error: "Provide keys (array of flat RiRo keys) or query (keyword) to filter which settings to check. Checking all 1,225 settings would require too many API calls.",
+      };
+    }
+    keysToCheck = allSettings()
+      .filter(
+        (m) =>
+          m.flatKey.toLowerCase().includes(q) ||
+          m.sdkPath.toLowerCase().includes(q) ||
+          (m.bipPath && m.bipPath.toLowerCase().includes(q))
+      )
+      .map((m) => ({ flatKey: m.flatKey, defaultValue: m.defaultValue }));
+  }
+
+  if (keysToCheck.length === 0) {
+    return { matchedKeys: 0, nonDefault: [] };
+  }
+
+  // Cap at 200 keys to avoid excessive API calls
+  const capped = keysToCheck.length > 200;
+  const subset = capped ? keysToCheck.slice(0, 200) : keysToCheck;
+
+  const nonDefault: { key: string; currentValue: unknown; defaultValue: string }[] = [];
+  const errors: { key: string; status: number }[] = [];
+
+  for (const { flatKey, defaultValue } of subset) {
+    const res = await apiRequest(creds, env, {
+      path: `${settingPath(input.entityType, input.entityId)}?key=${encodeURIComponent(flatKey)}`,
+    });
+
+    if (!res.ok) {
+      errors.push({ key: flatKey, status: res.status });
+      continue;
+    }
+
+    // Compare current value to known default
+    const current = extractValue(res.data);
+    if (current !== undefined && String(current) !== defaultValue) {
+      nonDefault.push({ key: flatKey, currentValue: current, defaultValue });
+    }
+  }
+
   return {
-    note: "The API has no endpoint to list non-default settings. Use execute_workflow with a script that iterates known keys from describe_settings and compares values to defaults. For targeted checks, use batch_get with specific keys of interest.",
+    entityId: input.entityId,
+    entityType: input.entityType,
+    checkedKeys: subset.length,
+    capped,
+    totalMatched: keysToCheck.length,
+    nonDefaultCount: nonDefault.length,
+    nonDefault,
+    ...(errors.length > 0 ? { errorCount: errors.length, errors: errors.slice(0, 10) } : {}),
   };
+}
+
+/** Extract the setting value from the API response payload. */
+function extractValue(data: unknown): unknown {
+  if (data && typeof data === "object" && "value" in data) {
+    return (data as { value: unknown }).value;
+  }
+  return data;
 }

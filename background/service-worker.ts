@@ -6,7 +6,10 @@
  *   2. Relay API requests from the side panel (message passing).
  *   3. Detect tab closure to signal job pause.
  *   4. On startup, mark any "running" jobs as "paused" (browser restart recovery).
+ *   5. Execute long-running jobs (per PRD 8.1).
  */
+
+import { swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
 
 // -- Side panel activation ------------------------------------------------
 
@@ -47,6 +50,12 @@ if (chrome.runtime?.onStartup) {
 
 if (chrome.tabs?.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
+    // Auto-pause the active job if a tab closes (per PRD 8.2)
+    if (swGetActiveJobId()) {
+      console.log("[sw] tab closed, pausing active job");
+      swPauseJob();
+    }
+    // Also notify the side panel (for UI update)
     chrome.runtime.sendMessage({ type: "tab_closed", tabId }).catch(() => {
       // Side panel may not be open -- ignore
     });
@@ -99,13 +108,40 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
-    // Job control messages are forwarded to the side panel context.
-    // The service worker itself doesn't manage job state -- the side panel does.
-    // These are here for external triggers (e.g., popup, keyboard shortcuts).
-    if (message.type === "job_pause" || message.type === "job_cancel") {
-      // Relay to all extension views (side panel listens)
-      chrome.runtime.sendMessage(message).catch(() => {});
-      sendResponse({ ok: true });
+    // -- Job execution (per PRD 8.1: jobs execute in service worker) ------
+
+    if (message.type === "job_start") {
+      swStartJob(message.payload as SwJobStartInput)
+        .then(sendResponse)
+        .catch((err) =>
+          sendResponse({ ok: false, jobId: "", error: err instanceof Error ? err.message : String(err) })
+        );
+      return true;
+    }
+
+    if (message.type === "job_pause") {
+      swPauseJob().then(() => sendResponse({ ok: true }));
+      return true;
+    }
+
+    if (message.type === "job_cancel") {
+      const cancelId = message.jobId as string | undefined;
+      (cancelId ? swCancelJobById(cancelId) : swCancelJob())
+        .then(() => sendResponse({ ok: true }));
+      return true;
+    }
+
+    if (message.type === "job_resume") {
+      swStartJob(message.payload as SwJobStartInput)
+        .then(sendResponse)
+        .catch((err) =>
+          sendResponse({ ok: false, jobId: "", error: err instanceof Error ? err.message : String(err) })
+        );
+      return true;
+    }
+
+    if (message.type === "job_status") {
+      sendResponse({ activeJobId: swGetActiveJobId() });
       return false;
     }
   }

@@ -16,6 +16,22 @@ export function RunHistoryPage() {
     });
   }, []);
 
+  function downloadJson() {
+    const blob = new Blob([JSON.stringify(entries, null, 2)], { type: "application/json" });
+    triggerDownload(blob, "audit-log.json");
+  }
+
+  function downloadCsv() {
+    const header = "id,timestamp,eventType,entityType,entityId,responseStatus,environment\n";
+    const rows = entries.map((e) =>
+      [e.id, e.timestamp, e.eventType, e.entityType, e.entityId, e.responseStatus, e.environment]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(",")
+    );
+    const blob = new Blob([header + rows.join("\n")], { type: "text/csv" });
+    triggerDownload(blob, "audit-log.csv");
+  }
+
   if (entries.length === 0) {
     return (
       <div className="text-center py-12 text-slate-500">
@@ -26,7 +42,23 @@ export function RunHistoryPage() {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-base font-semibold">Run history</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">Run history</h2>
+        <div className="flex gap-1">
+          <button
+            onClick={downloadJson}
+            className="text-[10px] text-slate-500 hover:text-slate-700 border border-slate-200 rounded px-1.5 py-0.5"
+          >
+            JSON
+          </button>
+          <button
+            onClick={downloadCsv}
+            className="text-[10px] text-slate-500 hover:text-slate-700 border border-slate-200 rounded px-1.5 py-0.5"
+          >
+            CSV
+          </button>
+        </div>
+      </div>
       <ul className="space-y-1">
         {entries.map((entry) => (
           <li
@@ -78,4 +110,13 @@ function formatEvent(eventType: string): string {
   return eventType
     .replace(/_/g, " ")
     .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

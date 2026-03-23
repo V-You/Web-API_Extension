@@ -25,7 +25,7 @@ The extension is a *Client-Side Adapter*. The legacy MCP server was a tool-wrapp
 - Does not support offline or disconnected operation.
 - No mobile browser support.
 - No multi-tenant or multi-PSP profile switching (deferred).
-- No built-in LLM or chat UI. Extension is a tool provider, not an agent host. BYOK.
+- No built-in LLM or chat UI. Extension is a tool provider, not an agent host.
 
 ## Install
 

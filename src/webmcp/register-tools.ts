@@ -553,16 +553,15 @@ const TOOL_DEFS: ToolDef[] = [
 
 // -- Registration ---------------------------------------------------------
 
+let registered = false;
+
 /**
- * Register all tools with the WebMCP runtime.
- * Returns true if registration succeeded, false if navigator.modelContext
- * is not available (e.g. WebMCP flag not enabled).
+ * Attempt to register all tools with the WebMCP runtime.
+ * Returns true if registration succeeded or was already done.
  */
-export function registerAllTools(): boolean {
-  if (!navigator.modelContext) {
-    console.warn("[webmcp] navigator.modelContext not available -- tools not registered.");
-    return false;
-  }
+function tryRegister(): boolean {
+  if (registered) return true;
+  if (!navigator.modelContext) return false;
 
   for (const def of TOOL_DEFS) {
     navigator.modelContext.registerTool({
@@ -581,8 +580,50 @@ export function registerAllTools(): boolean {
     });
   }
 
+  registered = true;
   console.log(`[webmcp] Registered ${TOOL_DEFS.length} tools.`);
   return true;
+}
+
+const RETRY_INTERVAL_MS = 2_000;
+const MAX_RETRIES = 15; // 30 seconds total
+
+/**
+ * Register all tools with retry logic.
+ *
+ * navigator.modelContext may not be available immediately on page load
+ * (Chrome injects it asynchronously). This retries every 2 seconds for
+ * up to 30 seconds, and also retries on visibility changes.
+ */
+export function registerAllTools(): boolean {
+  if (tryRegister()) return true;
+
+  console.warn("[webmcp] navigator.modelContext not yet available -- will retry.");
+
+  let retries = 0;
+  const interval = setInterval(() => {
+    retries++;
+    if (tryRegister() || retries >= MAX_RETRIES) {
+      clearInterval(interval);
+      if (!registered) {
+        console.warn("[webmcp] Gave up waiting for navigator.modelContext after retries.");
+      }
+    }
+  }, RETRY_INTERVAL_MS);
+
+  // Also try when the page becomes visible (side panel may open later)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !registered) {
+      tryRegister();
+    }
+  });
+
+  return false;
+}
+
+/** Whether tools have been successfully registered. */
+export function isRegistered(): boolean {
+  return registered;
 }
 
 /** Exported for testing -- the raw definitions array. */

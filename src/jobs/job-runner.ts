@@ -1,36 +1,20 @@
 /**
- * Job runner engine.
+ * Job runner -- side panel messaging proxy.
  *
- * Manages execution of a single job at a time in the side panel context.
- * Wraps the sandbox with lifecycle management:
- *   - Start: creates job record, runs sandbox, updates progress
- *   - Pause: aborts the sandbox via AbortController, persists state
- *   - Resume: restarts sandbox with checkpoint data
- *   - Cancel: aborts permanently, marks as cancelled
+ * Delegates actual execution to the service worker (background/sw-job-executor.ts).
+ * The side panel calls startJob/pauseJob/etc. which send messages to the SW.
+ * Job state is tracked via chrome.storage.local and the subscription hooks
+ * here provide useSyncExternalStore-compatible state for the React UI.
  *
- * The sandbox's `context.checkpoint` and a `progress(completed, total)` helper
- * are injected so the script can report progress and save resume state.
- *
- * This runs in the side panel context (same as tool handlers + sandbox).
- * The service worker coordinates pause-on-tab-close and restart recovery.
+ * Per PRD 8.1: long-running queries execute in the extension's service worker.
  */
 
-import { runSandbox, type SandboxResult } from "../sandbox/sandbox";
-import {
-  updateJob,
-  getJob,
-  createJob,
-  type JobRecord,
-  type JobProgress,
-} from "./job-store";
+import { getJob, type JobRecord } from "./job-store";
 import type { ApiCredentials, Environment } from "../lib/types";
 
-// -- Active job state (singleton) -----------------------------------------
+// -- Active job tracking (kept in sync via storage changes) ---------------
 
 let activeJobId: string | null = null;
-let abortController: AbortController | null = null;
-let progressCallback: ((p: JobProgress) => void) | null = null;
-let segmentStart = 0;
 
 const stateListeners = new Set<() => void>();
 
@@ -49,25 +33,34 @@ export function getActiveJobId(): string | null {
   return activeJobId;
 }
 
-// -- Progress persistence -------------------------------------------------
+// -- Sync active job state from SW ----------------------------------------
 
-const PROGRESS_FLUSH_INTERVAL = 5_000;
-let lastFlush = 0;
-let pendingProgress: JobProgress | null = null;
-
-async function flushProgress(jobId: string, force = false) {
-  if (!pendingProgress) return;
-  const now = Date.now();
-  if (!force && now - lastFlush < PROGRESS_FLUSH_INTERVAL) return;
-  lastFlush = now;
-  const p = pendingProgress;
-  pendingProgress = null;
-  await updateJob(jobId, {
-    completedCalls: p.completedCalls,
-    totalCalls: p.totalCalls,
-    checkpoint: p.checkpoint,
-  });
+/** Ask the SW for the current active job. */
+async function syncActiveJobId(): Promise<void> {
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "job_status" });
+    const newId = res?.activeJobId ?? null;
+    if (newId !== activeJobId) {
+      activeJobId = newId;
+      notifyState();
+    }
+  } catch {
+    // SW may not be running yet
+  }
 }
+
+// Poll periodically to keep side panel in sync
+setInterval(syncActiveJobId, 3_000);
+
+// Also sync when storage changes (job state updates from SW)
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.jobs) {
+    syncActiveJobId();
+  }
+});
+
+// Initial sync
+syncActiveJobId();
 
 // -- Start ----------------------------------------------------------------
 
@@ -83,110 +76,95 @@ export interface StartJobInput {
 }
 
 /**
- * Start a new job. Returns the job record immediately.
- * Execution proceeds asynchronously.
+ * Start a new job. Sends the spec to the service worker for execution.
+ * Returns the job record.
  */
 export async function startJob(input: StartJobInput): Promise<JobRecord> {
-  if (activeJobId) {
-    throw new Error("A job is already running. Pause or cancel it first.");
-  }
-
-  const job = await createJob({
-    label: input.label,
-    script: input.script,
-    entityId: input.entityId,
-    entityType: input.entityType,
-    totalCalls: input.totalCalls,
-    throttleRate: input.throttleRate ?? 9,
-    env: input.env,
+  const res = await chrome.runtime.sendMessage({
+    type: "job_start",
+    payload: {
+      label: input.label,
+      script: input.script,
+      entityId: input.entityId,
+      entityType: input.entityType,
+      totalCalls: input.totalCalls,
+      throttleRate: input.throttleRate,
+      creds: input.creds,
+      env: input.env,
+    },
   });
 
-  activeJobId = job.id;
+  if (!res?.ok) {
+    throw new Error(res?.error ?? "Failed to start job.");
+  }
+
+  activeJobId = res.jobId;
   notifyState();
 
-  // Start execution asynchronously
-  executeJob(job.id, input.creds, input.env);
+  const job = await getJob(res.jobId);
+  if (!job) throw new Error("Job created but not found in storage.");
   return job;
 }
 
 // -- Resume ---------------------------------------------------------------
 
 /**
- * Resume a paused or recovered job.
+ * Resume a paused or failed job via the service worker.
  */
 export async function resumeJob(
   jobId: string,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
 ): Promise<JobRecord | null> {
-  if (activeJobId) {
-    throw new Error("A job is already running. Pause or cancel it first.");
-  }
-
   const job = await getJob(jobId);
   if (!job) return null;
-  if (job.state !== "paused" && job.state !== "failed") {
-    throw new Error(`Cannot resume job in state "${job.state}".`);
+
+  const res = await chrome.runtime.sendMessage({
+    type: "job_resume",
+    payload: {
+      jobId,
+      label: job.label,
+      script: job.script,
+      entityId: job.entityId,
+      entityType: job.entityType,
+      totalCalls: job.totalCalls,
+      throttleRate: job.throttleRate,
+      creds,
+      env,
+    },
+  });
+
+  if (!res?.ok) {
+    throw new Error(res?.error ?? "Failed to resume job.");
   }
 
   activeJobId = jobId;
   notifyState();
-  executeJob(jobId, creds, env);
   return job;
 }
 
 // -- Pause ----------------------------------------------------------------
 
 /**
- * Pause the active job. Aborts sandbox execution and persists state.
+ * Pause the active job via the service worker.
  */
 export async function pauseJob(): Promise<void> {
   if (!activeJobId) return;
-  const jobId = activeJobId;
-
-  // Abort the running sandbox
-  abortController?.abort();
-
-  // Flush pending progress
-  await flushProgress(jobId, true);
-
-  // Accumulate elapsed time for this segment
-  const segmentElapsed = Date.now() - segmentStart;
-  const job = await getJob(jobId);
-  if (job && job.state === "running") {
-    await updateJob(jobId, {
-      state: "paused",
-      pausedAt: new Date().toISOString(),
-      elapsedMs: job.elapsedMs + segmentElapsed,
-    });
-  }
-
-  cleanup();
+  await chrome.runtime.sendMessage({ type: "job_pause" });
+  activeJobId = null;
+  notifyState();
 }
 
 // -- Cancel ---------------------------------------------------------------
 
 /**
- * Cancel the active job permanently. Partial results are preserved.
+ * Cancel the active job permanently via the service worker.
  */
 export async function cancelJob(): Promise<void> {
   if (!activeJobId) return;
-  const jobId = activeJobId;
-
-  abortController?.abort();
-  await flushProgress(jobId, true);
-
-  const segmentElapsed = Date.now() - segmentStart;
-  const job = await getJob(jobId);
-  if (job) {
-    await updateJob(jobId, {
-      state: "cancelled",
-      completedAt: new Date().toISOString(),
-      elapsedMs: job.elapsedMs + segmentElapsed,
-    });
-  }
-
-  cleanup();
+  await chrome.runtime.sendMessage({ type: "job_cancel" });
+  activeJobId = null;
+  notifyState();
 }
 
 /**
@@ -196,100 +174,5 @@ export async function cancelJobById(jobId: string): Promise<void> {
   if (activeJobId === jobId) {
     return cancelJob();
   }
-  await updateJob(jobId, {
-    state: "cancelled",
-    completedAt: new Date().toISOString(),
-  });
-}
-
-// -- Internal execution ---------------------------------------------------
-
-function cleanup() {
-  activeJobId = null;
-  abortController = null;
-  progressCallback = null;
-  pendingProgress = null;
-  notifyState();
-}
-
-async function executeJob(
-  jobId: string,
-  creds: ApiCredentials,
-  env: Environment,
-) {
-  const job = await getJob(jobId);
-  if (!job) { cleanup(); return; }
-
-  // Mark as running
-  await updateJob(jobId, {
-    state: "running",
-    startedAt: job.startedAt ?? new Date().toISOString(),
-    pausedAt: undefined,
-  });
-
-  abortController = new AbortController();
-  segmentStart = Date.now();
-
-  // Set up progress callback used by the injected `progress()` function
-  progressCallback = (p: JobProgress) => {
-    pendingProgress = p;
-    flushProgress(jobId);
-  };
-
-  const result: SandboxResult = await runSandbox({
-    script: job.script,
-    creds,
-    env,
-    entityId: job.entityId,
-    entityType: job.entityType,
-    timeoutMs: undefined, // no timeout for jobs -- pause/cancel via UI
-    // Pass checkpoint + progress callback via the sandbox's context extension
-    checkpoint: job.checkpoint,
-    progressFn: progressCallback,
-    abortSignal: abortController.signal,
-  });
-
-  // Flush any remaining progress
-  await flushProgress(jobId, true);
-
-  const segmentElapsed = Date.now() - segmentStart;
-
-  // If the abort was triggered by pauseJob() or cancelJob(), they handle
-  // the state update. Only update if we're still the active job.
-  if (activeJobId !== jobId) return;
-
-  if (result.status === "completed") {
-    await updateJob(jobId, {
-      state: "completed",
-      completedAt: new Date().toISOString(),
-      results: [...job.results, ...result.results],
-      logs: [...job.logs, ...result.logs],
-      writes: [...job.writes, ...result.writes],
-      elapsedMs: job.elapsedMs + segmentElapsed,
-    });
-  } else if (result.status === "timeout") {
-    // Sandbox was aborted (pause or cancel handled above)
-    // If we're still active, treat as a pause
-    await updateJob(jobId, {
-      state: "paused",
-      pausedAt: new Date().toISOString(),
-      results: [...job.results, ...result.results],
-      logs: [...job.logs, ...result.logs],
-      writes: [...job.writes, ...result.writes],
-      elapsedMs: job.elapsedMs + segmentElapsed,
-    });
-  } else {
-    // error
-    await updateJob(jobId, {
-      state: "failed",
-      completedAt: new Date().toISOString(),
-      results: [...job.results, ...result.results],
-      logs: [...job.logs, ...result.logs],
-      writes: [...job.writes, ...result.writes],
-      elapsedMs: job.elapsedMs + segmentElapsed,
-      error: result.error,
-    });
-  }
-
-  cleanup();
+  await chrome.runtime.sendMessage({ type: "job_cancel", jobId });
 }
