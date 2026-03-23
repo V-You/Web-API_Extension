@@ -4,12 +4,12 @@
   "private": true,
   "description": "Chrome Extension for ACI Web API automation via WebMCP",
   "scripts": {
-    "dev": "extension dev",
+    "dev": "extension dev --chromium-binary=\"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe\"",
     "build": "extension build",
-    "postbuild": "node scripts/tier-coverage.mjs",
+    "postbuild": "node tools-cli/tier-coverage.mjs",
     "preview": "extension preview",
-    "verify:tokens": "node scripts/token-benchmark.mjs",
-    "verify:security": "node scripts/security-verify.mjs"
+    "verify:tokens": "node tools-cli/token-benchmark.mjs",
+    "verify:security": "node tools-cli/security-verify.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
