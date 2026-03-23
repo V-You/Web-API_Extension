@@ -13,6 +13,16 @@ module.exports = {
       fs: false,
       path: false,
     };
+
+    // Inject build timestamp as a global constant.
+    const { DefinePlugin } = require("@rspack/core");
+    config.plugins = config.plugins || [];
+    config.plugins.push(
+      new DefinePlugin({
+        __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
+      }),
+    );
+
     return config;
   },
 };

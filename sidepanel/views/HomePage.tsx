@@ -79,6 +79,11 @@ export function HomePage() {
           description="Create, edit, or lock/unlock contact users"
         />
       </div>
+
+      {/* Build info */}
+      <p className="text-slate-400 text-[10px] mt-6">
+        Built {__BUILD_TIMESTAMP__}
+      </p>
     </div>
   );
 }

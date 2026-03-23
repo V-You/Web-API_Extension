@@ -272,4 +272,7 @@ window.addEventListener("message", async (event: MessageEvent) => {
   }
 });
 
-console.log("[webmcp-bridge] Isolated-world bridge ready.");
+console.log(
+  `[webmcp-bridge] Isolated-world bridge ready (built ${__BUILD_TIMESTAMP__}). ` +
+  `URL: ${location.href}`,
+);

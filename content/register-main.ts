@@ -92,6 +92,11 @@ function tryRegister(): boolean {
 const RETRY_INTERVAL_MS = 2_000;
 const MAX_RETRIES = 15;
 
+console.log(
+  `[webmcp-main] Content script loaded (built ${__BUILD_TIMESTAMP__}). ` +
+  `URL: ${location.href}, modelContext: ${!!navigator.modelContext}`,
+);
+
 if (!tryRegister()) {
   console.warn("[webmcp-main] navigator.modelContext not yet available -- will retry.");
 
@@ -101,7 +106,11 @@ if (!tryRegister()) {
     if (tryRegister() || retries >= MAX_RETRIES) {
       clearInterval(interval);
       if (!registered) {
-        console.warn("[webmcp-main] Gave up waiting for navigator.modelContext after retries.");
+        console.warn(
+          `[webmcp-main] Gave up after ${MAX_RETRIES} retries (${MAX_RETRIES * RETRY_INTERVAL_MS / 1000}s). ` +
+          `navigator.modelContext is still ${typeof navigator.modelContext}. ` +
+          `Ensure chrome://flags/#enable-webmcp-testing is Enabled and restart Chrome.`,
+        );
       }
     }
   }, RETRY_INTERVAL_MS);

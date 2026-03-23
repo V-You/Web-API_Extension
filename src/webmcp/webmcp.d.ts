@@ -26,6 +26,9 @@ declare global {
     /** WebMCP model context -- present in Chrome 146+ with WebMCP flag enabled. */
     modelContext?: ModelContext;
   }
+
+  /** Injected at build time by DefinePlugin. */
+  const __BUILD_TIMESTAMP__: string;
 }
 
 export {};
