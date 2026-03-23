@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Operate ACI's Web API through WebMCP-published tools, code mode execution, and a typed virtual SDK.",
   "minimum_chrome_version": "146",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArbApZb9fkk4ropiEMEc2p20DWFantqfBbmFTYYfixolWJ/xx5hZnsPyNV1v8bzpT/TQw0iet/Gev3F55vb/HYXOPn4+ZBnPvdJ2vKt6gCHn9HRFlVNoV1r+zNhC2H9J7FQ8PKtQ0coTGWex1gVTzSP0HQMQrw7C1usr6PZyjG3sXAi/fZ86HTqkF9l9UDP3lK8jg0jRevmWKc6ze+bSNzQ9IR2MXXSpOrUtjz2vzPb62+LWC8Gz73tmOe9XsN8/EXRSD7fsgfQ9qLe7b6ZvQBE903Mu/LEphvb+cHIS4VnWqci1k1cnbNoxmh5n7jeRAjJjETi9hFmLBl0wruqncMQIDAQAB",
   "permissions": [
     "sidePanel",
     "storage",
@@ -23,10 +24,17 @@
         "https://eu-test.oppwa.com/*",
         "https://eu-prod.oppwa.com/*"
       ],
-      "js": [
-        "content/register-tools.ts"
-      ],
+      "js": ["content/bridge.ts"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://eu-test.oppwa.com/*",
+        "https://eu-prod.oppwa.com/*"
+      ],
+      "js": ["content/register-main.ts"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ],
   "side_panel": {

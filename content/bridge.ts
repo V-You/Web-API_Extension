@@ -1,30 +1,24 @@
 /**
- * WebMCP tool registration.
+ * Isolated-world bridge -- receives tool calls from the main world and
+ * executes them with full chrome API access (credentials, storage, fetch).
  *
- * Registers all 9 tools via navigator.modelContext.registerTool().
- * Each execute callback resolves credentials from chrome.storage.session,
- * delegates to the corresponding tool handler, and returns the result.
- *
- * Call registerAllTools() once when the extension initialises (side panel mount).
- * Returns false if WebMCP is not available.
+ * Runs in the default isolated world. Credentials never cross the
+ * postMessage boundary.
  */
 
-import "../webmcp/webmcp.d.ts";
+import { getActiveEnv, getCredentials } from "../src/lib/storage";
+import type { ApiCredentials, AuditEventType, Environment } from "../src/lib/types";
+import { requestConfirm, type WritePreview } from "../src/bridge/confirm-bridge";
 
-import { TOOL_SCHEMAS } from "./tool-schemas";
-import { getActiveEnv, getCredentials } from "../lib/storage";
-import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
-import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
-
-import { executeManageEntity } from "../tools/manage-entity";
-import { executeGetHierarchy } from "../tools/get-hierarchy";
-import { executeManageContact } from "../tools/manage-contact";
-import { executeManageMerchantAccount } from "../tools/manage-merchant-account";
-import { executeLookupClearingInstitutes } from "../tools/lookup-clearing-institutes";
-import { executeDescribeSettings } from "../tools/describe-settings";
-import { executeManageSettings } from "../tools/manage-settings";
-import { executeGetAuditLog } from "../tools/get-audit-log";
-import { executeWorkflow } from "../tools/execute-workflow";
+import { executeManageEntity } from "../src/tools/manage-entity";
+import { executeGetHierarchy } from "../src/tools/get-hierarchy";
+import { executeManageContact } from "../src/tools/manage-contact";
+import { executeManageMerchantAccount } from "../src/tools/manage-merchant-account";
+import { executeLookupClearingInstitutes } from "../src/tools/lookup-clearing-institutes";
+import { executeDescribeSettings } from "../src/tools/describe-settings";
+import { executeManageSettings } from "../src/tools/manage-settings";
+import { executeGetAuditLog } from "../src/tools/get-audit-log";
+import { executeWorkflow } from "../src/tools/execute-workflow";
 
 // -- Credential helper ----------------------------------------------------
 
@@ -46,9 +40,8 @@ function sessionOrError() {
   });
 }
 
-// -- Write confirmation for direct tool calls -----------------------------
+// -- Write confirmation ---------------------------------------------------
 
-/** Actions that mutate data, keyed by tool name. */
 const MUTATING_ACTIONS: Record<string, Set<string>> = {
   manage_entity: new Set(["create", "edit", "delete"]),
   manage_contact: new Set(["create", "edit", "delete", "attach", "detach", "lock", "unlock", "reset_password"]),
@@ -56,12 +49,10 @@ const MUTATING_ACTIONS: Record<string, Set<string>> = {
   manage_settings: new Set(["set", "batch_set"]),
 };
 
-/** HTTP methods for mutating actions. */
 function httpMethod(action: string): "POST" | "DELETE" {
   return action === "delete" || action === "detach" ? "DELETE" : "POST";
 }
 
-/** Build a human-readable description for a direct tool call. */
 function describeDirectWrite(tool: string, action: string, params: Record<string, unknown>): string {
   const id = (params.entityId ?? params.contactId ?? params.merchantAccountId ?? params.attachedMerchantAccountId ?? "") as string;
   const type = (params.entityType ?? "") as string;
@@ -93,10 +84,6 @@ function describeDirectWrite(tool: string, action: string, params: Record<string
   }
 }
 
-/**
- * Check whether a tool call is mutating; if so, request user confirmation.
- * Throws if the user cancels.
- */
 async function confirmIfMutating(tool: string, params: Record<string, unknown>, env: Environment) {
   const actions = MUTATING_ACTIONS[tool];
   if (!actions) return;
@@ -115,13 +102,10 @@ async function confirmIfMutating(tool: string, params: Record<string, unknown>, 
   if (choice === "cancel") throw new Error("Operation cancelled by user.");
 }
 
-// -- Tool definitions -----------------------------------------------------
-// Schemas (name, description, inputSchema) are imported from tool-schemas.ts.
-// Here we only define the execute callbacks and zip them with the schemas.
+// -- Tool execution routing -----------------------------------------------
 
 type ExecuteFn = (params: Record<string, unknown>) => Promise<unknown>;
 
-/** Execute callbacks keyed by tool name. */
 const EXECUTE_MAP: Record<string, ExecuteFn> = {
   manage_entity: async (params) => {
     const { creds, env } = await sessionOrError();
@@ -259,86 +243,33 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
   },
 };
 
-/** Combined tool definitions (schema + execute). */
-const TOOL_DEFS = TOOL_SCHEMAS.map((schema) => ({
-  ...schema,
-  execute: EXECUTE_MAP[schema.name],
-}));
+// -- Message listener (main world -> isolated world) ----------------------
 
-// -- Registration ---------------------------------------------------------
+window.addEventListener("message", async (event: MessageEvent) => {
+  if (event.source !== window) return;
+  const data = event.data;
+  if (!data || data.type !== "webmcp:tool-call") return;
 
-let registered = false;
+  const { callId, tool, params } = data as {
+    callId: string;
+    tool: string;
+    params: Record<string, unknown>;
+  };
 
-/**
- * Attempt to register all tools with the WebMCP runtime.
- * Returns true if registration succeeded or was already done.
- */
-function tryRegister(): boolean {
-  if (registered) return true;
-  if (!navigator.modelContext) return false;
-
-  for (const def of TOOL_DEFS) {
-    navigator.modelContext.registerTool({
-      name: def.name,
-      description: def.description,
-      inputSchema: def.inputSchema,
-      execute: async (params) => {
-        try {
-          const result = await def.execute(params);
-          return typeof result === "string" ? result : JSON.stringify(result);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return JSON.stringify({ error: msg });
-        }
-      },
-    });
+  const handler = EXECUTE_MAP[tool];
+  if (!handler) {
+    window.postMessage({ type: "webmcp:tool-result", callId, error: `Unknown tool: ${tool}` }, "*");
+    return;
   }
 
-  registered = true;
-  console.log(`[webmcp] Registered ${TOOL_DEFS.length} tools.`);
-  return true;
-}
+  try {
+    const result = await handler(params);
+    const serialized = typeof result === "string" ? result : JSON.stringify(result);
+    window.postMessage({ type: "webmcp:tool-result", callId, result: serialized }, "*");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    window.postMessage({ type: "webmcp:tool-result", callId, error: msg }, "*");
+  }
+});
 
-const RETRY_INTERVAL_MS = 2_000;
-const MAX_RETRIES = 15; // 30 seconds total
-
-/**
- * Register all tools with retry logic.
- *
- * navigator.modelContext may not be available immediately on page load
- * (Chrome injects it asynchronously). This retries every 2 seconds for
- * up to 30 seconds, and also retries on visibility changes.
- */
-export function registerAllTools(): boolean {
-  if (tryRegister()) return true;
-
-  console.warn("[webmcp] navigator.modelContext not yet available -- will retry.");
-
-  let retries = 0;
-  const interval = setInterval(() => {
-    retries++;
-    if (tryRegister() || retries >= MAX_RETRIES) {
-      clearInterval(interval);
-      if (!registered) {
-        console.warn("[webmcp] Gave up waiting for navigator.modelContext after retries.");
-      }
-    }
-  }, RETRY_INTERVAL_MS);
-
-  // Also try when the page becomes visible (side panel may open later)
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !registered) {
-      tryRegister();
-    }
-  });
-
-  return false;
-}
-
-/** Whether tools have been successfully registered. */
-export function isRegistered(): boolean {
-  return registered;
-}
-
-/** Exported for testing -- the raw definitions array. */
-export { TOOL_DEFS };
+console.log("[webmcp-bridge] Isolated-world bridge ready.");
