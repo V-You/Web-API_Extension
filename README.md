@@ -258,6 +258,12 @@ Features explicitly deferred from v1:
 - **Summary-only mode** -- LLM never sees raw API responses, only aggregated counts.
 - **Profile switching** -- multiple PSP roots in a single extension instance.
 
+## Source
+- https://github.com/universal-tool-calling-protocol
+- https://dev.to/czmilo/chrome-webmcp-the-complete-2026-guide-to-ai-agent-protocol-1ae9
+- https://dev.to/axrisi/chromes-webmcp-early-preview-the-end-of-ai-agents-clicking-buttons-b6e
+- https://modelcontextprotocol.io/docs/getting-started/intro
+- https://blog.cloudflare.com/code-mode/
 
 
 --- 

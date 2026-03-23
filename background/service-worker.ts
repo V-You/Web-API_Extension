@@ -260,6 +260,28 @@ function registerToolsInMainWorld(schemas: ToolSchema[]) {
       try {
         const tools = testing.listTools();
         console.log(`[webmcp-main] modelContextTesting.listTools() reports ${Array.isArray(tools) ? tools.length : "?"} tools.`);
+
+        // Browser-returned object key order is implementation detail.
+        // Expose name-first helpers for predictable UX in console output.
+        if (Array.isArray(tools)) {
+          const normalized = tools.map((t) => {
+            const tool = (t ?? {}) as { name?: unknown; description?: unknown; inputSchema?: unknown };
+            return {
+              name: String(tool.name ?? ""),
+              description: String(tool.description ?? ""),
+              inputSchema: tool.inputSchema,
+            };
+          });
+
+          (window as unknown as { __webmcpListTools?: () => unknown[] }).__webmcpListTools = () => normalized;
+          (window as unknown as { __webmcpPrintTools?: () => void }).__webmcpPrintTools = () => {
+            console.table(normalized.map((t) => ({ name: t.name, description: t.description })));
+          };
+
+          console.log(
+            "[webmcp-main] Helpers installed: __webmcpListTools() and __webmcpPrintTools().",
+          );
+        }
       } catch (e) {
         console.warn("[webmcp-main] modelContextTesting.listTools() failed:", e);
       }
