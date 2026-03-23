@@ -26,15 +26,6 @@
       ],
       "js": ["content/bridge.ts"],
       "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://eu-test.oppwa.com/*",
-        "https://eu-prod.oppwa.com/*"
-      ],
-      "js": ["content/register-main.ts"],
-      "run_at": "document_idle",
-      "world": "MAIN"
     }
   ],
   "side_panel": {

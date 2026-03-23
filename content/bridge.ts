@@ -4,8 +4,13 @@
  *
  * Runs in the default isolated world. Credentials never cross the
  * postMessage boundary.
+ *
+ * Also injects the main-world registration script via a <script> element
+ * so Extension.js's HMR/reloader code (which needs chrome.runtime) is
+ * never loaded in the main world.
  */
 
+import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
 import { getActiveEnv, getCredentials } from "../src/lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../src/lib/types";
 import { requestConfirm, type WritePreview } from "../src/bridge/confirm-bridge";
@@ -272,7 +277,93 @@ window.addEventListener("message", async (event: MessageEvent) => {
   }
 });
 
+// -- Build timestamp (DefinePlugin may not apply to content scripts) ------
+
+let buildTs = "unknown";
+try { buildTs = __BUILD_TIMESTAMP__; } catch { /* not replaced by DefinePlugin */ }
+
 console.log(
-  `[webmcp-bridge] Isolated-world bridge ready (built ${__BUILD_TIMESTAMP__}). ` +
-  `URL: ${location.href}`,
+  `[webmcp-bridge] Isolated-world bridge ready (built ${buildTs}). URL: ${location.href}`,
 );
+
+// -- Inject main-world tool registration ----------------------------------
+// We inject via <script> so Extension.js's HMR wrapper (which requires
+// chrome.runtime) is never loaded in the main world.
+
+function injectMainWorldRegistration() {
+  const schemasJson = JSON.stringify(TOOL_SCHEMAS);
+  const code = `(function() {
+  var TOOL_SCHEMAS = ${schemasJson};
+  var pending = new Map();
+  var CALL_TIMEOUT_MS = 600000;
+  var registered = false;
+  var RETRY_MS = 2000;
+  var MAX_RETRIES = 15;
+
+  window.addEventListener("message", function(event) {
+    if (event.source !== window) return;
+    var d = event.data;
+    if (!d || d.type !== "webmcp:tool-result") return;
+    var entry = pending.get(d.callId);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    pending.delete(d.callId);
+    if (d.error) entry.reject(new Error(d.error));
+    else entry.resolve(d.result || "{}");
+  });
+
+  function tryRegister() {
+    if (registered) return true;
+    if (!navigator.modelContext) return false;
+    TOOL_SCHEMAS.forEach(function(schema) {
+      navigator.modelContext.registerTool({
+        name: schema.name,
+        description: schema.description,
+        inputSchema: schema.inputSchema,
+        execute: function(params) {
+          var callId = crypto.randomUUID();
+          return new Promise(function(resolve, reject) {
+            var timer = setTimeout(function() {
+              pending.delete(callId);
+              reject(new Error("Tool " + schema.name + " timed out."));
+            }, CALL_TIMEOUT_MS);
+            pending.set(callId, { resolve: resolve, reject: reject, timer: timer });
+            window.postMessage({ type: "webmcp:tool-call", callId: callId, tool: schema.name, params: params }, "*");
+          });
+        }
+      });
+    });
+    registered = true;
+    console.log("[webmcp-main] Registered " + TOOL_SCHEMAS.length + " tools in main world.");
+    return true;
+  }
+
+  console.log("[webmcp-main] Injected. modelContext: " + !!navigator.modelContext);
+
+  if (!tryRegister()) {
+    console.warn("[webmcp-main] navigator.modelContext not available yet -- retrying...");
+    var retries = 0;
+    var interval = setInterval(function() {
+      retries++;
+      if (tryRegister() || retries >= MAX_RETRIES) {
+        clearInterval(interval);
+        if (!registered) {
+          console.warn("[webmcp-main] Gave up after " + MAX_RETRIES + " retries. " +
+            "Ensure chrome://flags/#enable-webmcp-testing is Enabled and restart Chrome.");
+        }
+      }
+    }, RETRY_MS);
+    document.addEventListener("visibilitychange", function() {
+      if (document.visibilityState === "visible" && !registered) tryRegister();
+    });
+  }
+})();`;
+
+  const script = document.createElement("script");
+  script.textContent = code;
+  (document.documentElement || document.head).appendChild(script);
+  script.remove();
+  console.log("[webmcp-bridge] Main-world registration script injected.");
+}
+
+injectMainWorldRegistration();
