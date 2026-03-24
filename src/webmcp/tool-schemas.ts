@@ -201,7 +201,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   {
     name: "describe_settings",
     description:
-      "Search RiRo settings by keyword. Returns TypeScript interface snippets for " +
+      "Search RiRo settings by keyword or glossary synonym. Returns TypeScript interface snippets for " +
       "matching settings -- the type-on-demand pattern.",
     annotations: { readOnlyHint: true },
     inputSchema: {

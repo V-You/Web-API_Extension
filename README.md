@@ -21,7 +21,7 @@ The extension is a *Client-Side Adapter*. The legacy MCP server was a tool-wrapp
 
 **Non-goals (v1):**
 
-- Does not replace the Saa dashboard UI for human-only workflows.
+- Does not replace the SaaS dashboard UI for human-only workflows.
 - Does not support offline or disconnected operation.
 - No mobile browser support.
 - No multi-tenant or multi-PSP profile switching (deferred).
@@ -101,7 +101,7 @@ Once the extension is loaded and unlocked, **9 tools** are published to any WebM
 | `manage_contact` | Contacts | CRUD, attach/detach, lock/unlock, password reset for users |
 | `manage_merchant_account` | Merchant accounts | CRUD, attach/detach for merchant accounts |
 | `lookup_clearing_institutes` | Merchant accounts | Search 195 clearing institutes by keyword, get required field mappings |
-| `describe_settings` | Settings | Search RiRo settings by keyword; returns TypeScript interface snippets |
+| `describe_settings` | Settings | Search RiRo settings by keyword or glossary synonym; returns TypeScript interface snippets |
 | `manage_settings` | Settings | Get, set, batch get, batch set, list non-default settings |
 | `execute_workflow` | Code mode | Execute a script in a local sandbox against the virtual SDK |
 | `get_audit_log` | Audit | Retrieve local audit entries with filters |
@@ -224,6 +224,14 @@ The source metadata (`riro_consolidated_lookup.json`, 1,225 entries, schema vers
 |---|---|
 | `base_data/riro_consolidated_lookup.json` | 1,225 RiRo settings with type, BIP path, default values |
 | `base_data/ci_ma_lookup.json` | 195 clearing institute entries with required field mappings |
+| `base_data/glossary.json` | ACI business terms and aliases used for settings search synonym expansion |
+
+### Glossary-backed search
+
+`describe_settings` uses `glossary.json` as an advisory synonym layer for
+settings discovery. It expands business terms such as `riro`, `settings`, and
+other known aliases conservatively, while keeping direct matches ranked above
+glossary-derived matches.
 
 ### Privacy
 
