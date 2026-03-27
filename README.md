@@ -298,7 +298,7 @@ Features explicitly deferred from v1:
 - https://dev.to/axrisi/chromes-webmcp-early-preview-the-end-of-ai-agents-clicking-buttons-b6e
 - https://modelcontextprotocol.io/docs/getting-started/intro
 - https://blog.cloudflare.com/code-mode/
-- See also [https://www.linkedin.com/pulse/beyond-context-window-how-webmcp-fixing-biggest-flaws-stefan-laetzer-b13se/](What will life be like without an MCP server that lets me chat with my payments SaaS?)
+- See also [What will life be like without an MCP server that lets me chat with my payments SaaS?](https://www.linkedin.com/pulse/beyond-context-window-how-webmcp-fixing-biggest-flaws-stefan-laetzer-b13se/)
 
 
 --- 
