@@ -13,6 +13,9 @@ The extension replaces the legacy "Web API MCP Server" with a browser-native, ze
             <th>
                 Provide the calls needed to list all users, in curl.
             </th>
+            <th>
+                What does db.db mean? Explanation + example calls.
+            </th>
         </tr>
     </thead>
     <tbody>
@@ -25,6 +28,11 @@ The extension replaces the legacy "Web API MCP Server" with a browser-native, ze
             <td valign="top" align="center">
                 <kbd>
                     <img src="img/provide-curl-for-contacts.png" alt="List users" width="111">
+                </kbd>
+            </td>
+            <td valign="top" align="center">
+                <kbd>
+                    <img src="img/what-does-dbdb-mean.webp" alt="What is db.db" width="111">
                 </kbd>
             </td>
         </tr>
