@@ -109,7 +109,7 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 
 > Any LLM with browser-capability can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and OpenAPI specs (enriched).
 
-### Full example workflow using Google Gemini (browser side panel)
+### Some day - Full example workflow using Google Gemini (browser side panel)
 
 > Gemini can be used as the LLM Chat tool performing the requested actions. Gemini already sits inside the browser. The workflow from end user point of view:
 
@@ -122,6 +122,40 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
     - Close the side panel
 - On the same active oppwa.com tab, open Gemini side panel
 - Ask Gemini to list available tools, or perform an action
+
+Working as of: ... [add date]
+
+### Full example workflow using Antigravity (IDE)
+
+> Antigravity does not yet *natively* support WebMCP. Suggested workaround:
+
+```json
+"args": [
+    "-y",
+    "@mcp-b/chrome-devtools-mcp@latest",
+    "--chrome-arg=--load-extension=full-path/dist/chrome/",
+    "--chrome-arg=--enable-features=WebMCPTesting",
+    "--ignore-default-chrome-arg=--disable-extensions"
+]
+```
+
+- Add the above to `mcp_config.json` within Antigravity
+- This adds a custom Chrome DevTools (mcp-b) that does have WebMCP support to Antigravity
+- Seems counter-intiutive - Web API Extension sits in the browser without need for an MCP server
+- This is still correct, but for now this custom MCP server is a wrapper
+- Once AG supports WebMCP, this wrapper will not be needed anymore
+
+Config: <br>
+<kbd><img src="img/custom-dectools-config-antigravity.png" alt="AG config" width="111" /></kbd>
+
+Result: <br>
+<kbd><img src="img/custom-devtools-in-antigravity.png" alt="AG result" width="111" /></kbd>
+
+
+### Currently - Full example workflow using VS Code Insiders (IDE)
+
+> VS Code Insiders does have WebMCP support. 
+
 
 ### Tools
 
