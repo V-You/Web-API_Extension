@@ -142,7 +142,7 @@ Working as of: ... [add date]
 - Add the above to `mcp_config.json` within Antigravity
 - This adds a custom Chrome DevTools (mcp-b) that does have WebMCP support to Antigravity
 - Seems counter-intiutive - Web API Extension sits in the browser without need for an MCP server
-- This is still correct, but for now this custom MCP server is a wrapper
+- This is still correct, but for now this custom MCP server is a wrapper, adding WebMCP to AG
 - Once AG supports WebMCP, this wrapper will not be needed anymore
 
 Config: <br>
