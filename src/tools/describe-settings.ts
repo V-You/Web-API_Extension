@@ -19,6 +19,13 @@ import {
   normalizeGlossaryText,
   type GlossarySearchTerm,
 } from "../lib/glossary";
+import {
+  getFamilyRankingBoost,
+  getSettingFamiliesForMeta,
+  resolveSettingFamilies,
+  type FamilySearchTerm,
+  type SettingFamilyMatch,
+} from "../lib/settings-family";
 
 export interface DescribeSettingsInput {
   /** Keyword to search for (matched against key and path). */
@@ -31,39 +38,55 @@ export function executeDescribeSettings(input: DescribeSettingsInput) {
   if (!input.query) return { error: "query is required." };
 
   const limit = Math.min(input.limit ?? 20, 100);
-  const expansion = expandGlossaryQuery(input.query);
+  const glossaryExpansion = expandGlossaryQuery(input.query);
+  const familyExpansion = resolveSettingFamilies(input.query);
+  const searchTerms = filterBlockedQueryTerms(
+    dedupeSearchTerms([...glossaryExpansion.searchTerms, ...familyExpansion.searchTerms]),
+    familyExpansion.blockedQueryTerms,
+  );
 
   const matches = allSettings()
-    .map((meta) => rankMatch(meta, expansion.searchTerms))
+    .map((meta) => rankMatch(meta, searchTerms, familyExpansion.matchedFamilies))
     .filter((match): match is RankedMatch => match !== null)
     .sort((a, b) => b.score - a.score || a.meta.sdkPath.localeCompare(b.meta.sdkPath));
 
   const limited = matches.slice(0, limit);
+  const familyGroups = familyExpansion.applied
+    ? buildFamilyGroups(limited, familyExpansion.matchedFamilies)
+    : [];
 
   return {
     query: input.query,
-    normalizedQuery: expansion.normalizedQuery,
+    normalizedQuery: glossaryExpansion.normalizedQuery,
     glossary: {
-      applied: expansion.applied,
-      matchedEntries: expansion.matchedEntries,
-      searchTerms: expansion.searchTerms.map((term) => ({
+      applied: glossaryExpansion.applied,
+      matchedEntries: glossaryExpansion.matchedEntries,
+      searchTerms: glossaryExpansion.searchTerms.map((term) => ({
         term: term.term,
         source: term.source,
         matchedInput: term.matchedInput,
         canonicalTerm: term.canonicalTerm,
       })),
     },
+    familyResolution: {
+      applied: familyExpansion.applied,
+      blockedQueryTerms: familyExpansion.blockedQueryTerms,
+      matchedFamilies: familyExpansion.matchedFamilies,
+    },
     matchCount: matches.length,
     returnedCount: limited.length,
     totalEntries: entryCount,
+    familyGroups,
     results: limited.map((m) => formatEntry(m.meta, m.details)),
   };
 }
 
+type SearchTerm = FamilySearchTerm | GlossarySearchTerm;
+
 interface MatchDetail {
   field: "flatKey" | "sdkPath" | "bipPath";
   term: string;
-  source: "query" | "glossary";
+  source: "query" | "glossary" | "family";
   matchedInput?: string;
   canonicalTerm?: string;
 }
@@ -74,7 +97,11 @@ interface RankedMatch {
   details: MatchDetail[];
 }
 
-function rankMatch(meta: SettingMeta, terms: GlossarySearchTerm[]): RankedMatch | null {
+function rankMatch(
+  meta: SettingMeta,
+  terms: SearchTerm[],
+  matchedFamilies: SettingFamilyMatch[],
+): RankedMatch | null {
   const flatKey = normalizeGlossaryText(meta.flatKey);
   const sdkPath = normalizeGlossaryText(meta.sdkPath);
   const bipPath = normalizeGlossaryText(meta.bipPath || "");
@@ -91,7 +118,7 @@ function rankMatch(meta: SettingMeta, terms: GlossarySearchTerm[]): RankedMatch 
         matchedInput: term.matchedInput,
         canonicalTerm: term.canonicalTerm,
       });
-      score += term.source === "query" ? 300 : 180;
+      score += scoreForMatch("bipPath", term.source);
     }
     if (sdkPath.includes(term.term)) {
       details.push({
@@ -101,7 +128,7 @@ function rankMatch(meta: SettingMeta, terms: GlossarySearchTerm[]): RankedMatch 
         matchedInput: term.matchedInput,
         canonicalTerm: term.canonicalTerm,
       });
-      score += term.source === "query" ? 220 : 130;
+      score += scoreForMatch("sdkPath", term.source);
     }
     if (flatKey.includes(term.term)) {
       details.push({
@@ -111,15 +138,53 @@ function rankMatch(meta: SettingMeta, terms: GlossarySearchTerm[]): RankedMatch 
         matchedInput: term.matchedInput,
         canonicalTerm: term.canonicalTerm,
       });
-      score += term.source === "query" ? 140 : 80;
+      score += scoreForMatch("flatKey", term.source);
     }
   }
 
   if (details.length === 0) return null;
 
+  score += getFamilyRankingBoost(meta, matchedFamilies);
   score += new Set(details.map((detail) => `${detail.field}:${detail.term}:${detail.source}`)).size;
 
   return { meta, score, details: dedupeDetails(details) };
+}
+
+function scoreForMatch(
+  field: MatchDetail["field"],
+  source: MatchDetail["source"],
+): number {
+  if (field === "bipPath") {
+    if (source === "query") return 300;
+    if (source === "family") return 260;
+    return 180;
+  }
+  if (field === "sdkPath") {
+    if (source === "query") return 220;
+    if (source === "family") return 190;
+    return 130;
+  }
+  if (source === "query") return 140;
+  if (source === "family") return 120;
+  return 80;
+}
+
+function dedupeSearchTerms(terms: SearchTerm[]): SearchTerm[] {
+  const seen = new Set<string>();
+  const unique: SearchTerm[] = [];
+  for (const term of terms) {
+    const key = `${term.source}:${term.term}:${term.canonicalTerm ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(term);
+  }
+  return unique;
+}
+
+function filterBlockedQueryTerms(terms: SearchTerm[], blocked: string[]): SearchTerm[] {
+  if (blocked.length === 0) return terms;
+  const blockedTerms = new Set(blocked);
+  return terms.filter((term) => !(term.source === "query" && blockedTerms.has(term.term)));
 }
 
 function dedupeDetails(details: MatchDetail[]): MatchDetail[] {
@@ -136,6 +201,8 @@ function dedupeDetails(details: MatchDetail[]): MatchDetail[] {
 
 function formatEntry(meta: SettingMeta, details: MatchDetail[]) {
   const match = {
+    familyMatch: details.some((detail) => detail.source === "family"),
+    familyShortcodes: [...new Set(details.filter((detail) => detail.source === "family").map((detail) => detail.canonicalTerm ?? detail.term))],
     glossaryMatch: details.some((detail) => detail.source === "glossary"),
     matchedFields: [...new Set(details.map((detail) => detail.field))],
     matchedTerms: [...new Set(details.map((detail) => detail.term))],
@@ -163,6 +230,44 @@ function formatEntry(meta: SettingMeta, details: MatchDetail[]) {
     default: meta.defaultValue || undefined,
     match,
   };
+}
+
+function buildFamilyGroups(matches: RankedMatch[], families: SettingFamilyMatch[]) {
+  const familiesByShortcode = new Map(families.map((family) => [family.shortcode, family]));
+  const groups = new Map<string, {
+    aliases: string[];
+    label: string;
+    matchedBy: SettingFamilyMatch["matchedBy"];
+    matchedInputs: string[];
+    results: Array<ReturnType<typeof formatEntry>>;
+    shortcode: string;
+    totalSettingCount: number;
+  }>();
+
+  for (const match of matches) {
+    for (const family of getSettingFamiliesForMeta(match.meta)) {
+      const resolvedFamily = familiesByShortcode.get(family.shortcode);
+      if (!resolvedFamily) continue;
+
+      const existing = groups.get(family.shortcode);
+      if (existing) {
+        existing.results.push(formatEntry(match.meta, match.details));
+        continue;
+      }
+
+      groups.set(family.shortcode, {
+        aliases: family.aliases,
+        label: family.label,
+        matchedBy: resolvedFamily.matchedBy,
+        matchedInputs: resolvedFamily.matchedInputs,
+        results: [formatEntry(match.meta, match.details)],
+        shortcode: family.shortcode,
+        totalSettingCount: family.totalSettingCount,
+      });
+    }
+  }
+
+  return [...groups.values()].sort((a, b) => b.results.length - a.results.length || a.label.localeCompare(b.label));
 }
 
 /** Generate a TypeScript-style type snippet for a tier A setting. */

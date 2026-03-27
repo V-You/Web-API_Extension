@@ -1,0 +1,161 @@
+{
+  "families": [
+    {
+      "shortcode": "db.db",
+      "label": "Identifies Doublet within Timeframe",
+      "aliases": ["doublet check", "dupe check", "duplicate check"],
+      "rankingProfile": {
+        "keyContainsBoosts": [
+          ["/processing:risk/risk:doublication/", 220],
+          ["/processing:risklogic/risklogic:scoring/db.db:", -120],
+          ["/processing:pricing/pricing:risk/db.db:", -80]
+        ],
+        "keyEndsWithBoosts": [
+          [":active", 120],
+          [":timeframe", 105],
+          [":maxAmount", 80],
+          [":minAmount", 75],
+          [":paymentMethod", 60],
+          [":paymentType", 55],
+          [":paymentSource", 50],
+          [":operations", -20],
+          [":matchScore", -10],
+          [":noMatchScore", -15]
+        ],
+        "preferredKeyFragments": [
+          "/processing:risk/risk:doublication/",
+          "/processing:risklogic/risklogic:scoring/db.db:",
+          "/processing:pricing/pricing:risk/db.db:"
+        ],
+        "pathStartsWithBoosts": [["Rating Method Scores >", -120]],
+        "preferredKeyMismatchPenalty": -140
+      }
+    },
+    {
+      "shortcode": "db.uq",
+      "label": "Uniqueness Check",
+      "aliases": ["uniqueness check", "unique check"],
+      "rankingProfile": {
+        "keyContainsBoosts": [
+          ["/processing:risk/risk:uniquenessCheck/", 220],
+          ["/processing:risklogic/risklogic:scoring/db.uq:", -120],
+          ["/processing:pricing/pricing:risk/db.uq:", -80]
+        ],
+        "keyEndsWithBoosts": [
+          [":active", 120],
+          [":timeframe", 105],
+          [":maxAmount", 80],
+          [":minAmount", 75],
+          [":paymentMethod", 60],
+          [":paymentType", 55],
+          [":paymentSource", 50],
+          [":operations", -20],
+          [":matchScore", -10],
+          [":noMatchScore", -15]
+        ],
+        "preferredKeyFragments": [
+          "/processing:risk/risk:uniquenessCheck/",
+          "/processing:risklogic/risklogic:scoring/db.uq:",
+          "/processing:pricing/pricing:risk/db.uq:"
+        ],
+        "pathStartsWithBoosts": [["Rating Method Scores >", -120]],
+        "preferredKeyMismatchPenalty": -140
+      }
+    },
+    {
+      "shortcode": "ib.ac",
+      "label": "Individual Blacklist by Accounts",
+      "aliases": ["account blacklist", "individual blacklist by accounts"],
+      "rankingProfile": {
+        "keyContainsBoosts": [
+          ["/processing:risk/risk:account/account:", 220],
+          ["/processing:risk/risk:account/black:", -60],
+          ["/processing:risklogic/risklogic:scoring/ib.ac:", -120],
+          ["/processing:pricing/pricing:risk/ib.ac:", -80]
+        ],
+        "keyEndsWithBoosts": [
+          [":active", 120],
+          [":threshold", 105],
+          [":pspGlobalEnforced", 90],
+          [":maxAmount", 80],
+          [":minAmount", 75],
+          [":paymentMethod", 60],
+          [":paymentType", 55],
+          [":paymentSource", 50],
+          [":operations", -20],
+          [":matchScore", -10],
+          [":noMatchScore", -15]
+        ],
+        "preferredKeyFragments": [
+          "/processing:risk/risk:account/account:",
+          "/processing:risk/risk:account/black:",
+          "/processing:risklogic/risklogic:scoring/ib.ac:",
+          "/processing:pricing/pricing:risk/ib.ac:"
+        ],
+        "pathStartsWithBoosts": [["Rating Method Scores >", -120]],
+        "preferredKeyMismatchPenalty": -140
+      }
+    },
+    {
+      "shortcode": "ib.cb",
+      "label": "Individual Blacklist Country by BIN",
+      "aliases": ["bin country blacklist", "blacklist country by bin"],
+      "rankingProfile": {
+        "keyContainsBoosts": [
+          ["/processing:risk/risk:binCountry/binCountry:", 220],
+          ["/processing:risklogic/risklogic:scoring/ib.cb:", -120],
+          ["/processing:pricing/pricing:risk/ib.cb:", -80]
+        ],
+        "keyEndsWithBoosts": [
+          [":active", 120],
+          [":maxAmount", 80],
+          [":minAmount", 75],
+          [":paymentMethod", 60],
+          [":paymentType", 55],
+          [":paymentSource", 50],
+          [":operations", -20],
+          [":matchScore", -10],
+          [":noMatchScore", -15]
+        ],
+        "preferredKeyFragments": [
+          "/processing:risk/risk:binCountry/binCountry:",
+          "/processing:risklogic/risklogic:scoring/ib.cb:",
+          "/processing:pricing/pricing:risk/ib.cb:"
+        ],
+        "pathStartsWithBoosts": [["Rating Method Scores >", -120]],
+        "preferredKeyMismatchPenalty": -140
+      }
+    },
+    {
+      "shortcode": "ib.cn",
+      "label": "Individual Blacklist by Customer Country",
+      "aliases": ["customer country blacklist", "blacklist by customer country"],
+      "rankingProfile": {
+        "keyContainsBoosts": [
+          ["/processing:risk/risk:barring/barring:", 220],
+          ["/processing:risklogic/risklogic:scoring/ib.cn:", -120],
+          ["/processing:pricing/pricing:risk/ib.cn:", -80]
+        ],
+        "keyEndsWithBoosts": [
+          [":active", 120],
+          [":barredCountries", 105],
+          [":maxAmount", 80],
+          [":minAmount", 75],
+          [":paymentMethod", 60],
+          [":paymentType", 55],
+          [":paymentSource", 50],
+          [":operations", -20],
+          [":matchScore", -10],
+          [":noMatchScore", -15]
+        ],
+        "preferredKeyFragments": [
+          "/processing:risk/risk:barring/barring:",
+          "/processing:risklogic/risklogic:scoring/ib.cn:",
+          "/processing:pricing/pricing:risk/ib.cn:"
+        ],
+        "pathStartsWithBoosts": [["Rating Method Scores >", -120]],
+        "preferredKeyMismatchPenalty": -140
+      }
+    }
+  ]
+}

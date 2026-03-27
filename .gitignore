@@ -8,6 +8,7 @@ md/*
 tmp
 node_modules/
 dist/
+base_data/*
 
 
 # Byte-compiled / optimized / DLL files
