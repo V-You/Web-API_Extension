@@ -107,9 +107,11 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 3. Choose a PIN (minimum 6 digits). Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The PIN is never persisted.  Consider tracking this PIN using an external tool (password manager).
 4. On subsequent visits, enter your PIN to unlock. The decrypted credentials live in `chrome.storage.session` and survive idle but are cleared on browser restart.
 
-> Any LLM with browser-capability can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and OpenAPI specs (enriched).
+> **Any LLM with browser-capability** can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and OpenAPI specs (enriched).
 
-### Some day - Full example workflow using Google Gemini (browser side panel)
+### Example workflow using Google Gemini (browser side panel)
+
+**Not supported yet** Gemini in the Chrome side panel does not have WebMCP support as of 2026-03-27 (incl Googla AI Pro and Ultra tiers).
 
 > Gemini can be used as the LLM Chat tool performing the requested actions. Gemini already sits inside the browser. The workflow from end user point of view:
 
@@ -123,11 +125,9 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 - On the same active oppwa.com tab, open Gemini side panel
 - Ask Gemini to list available tools, or perform an action
 
-Working as of: ... [add date]
+### Example workflow using Antigravity (IDE)
 
-### Full example workflow using Antigravity (IDE)
-
-> Antigravity does not yet *natively* support WebMCP. Suggested workaround:
+> Antigravity does not yet *natively* support WebMCP (2026-03-27). Suggested workaround:
 
 ```json
 "args": [
@@ -148,13 +148,16 @@ Working as of: ... [add date]
 Config: <br>
 <kbd><img src="img/custom-dectools-config-antigravity.png" alt="AG config" width="111" /></kbd>
 
-Result: <br>
+**Result:** <br>
 <kbd><img src="img/custom-devtools-in-antigravity.png" alt="AG result" width="111" /></kbd>
 
 
-### Currently - Full example workflow using VS Code Insiders (IDE)
+### Example workflow using VS Code Insiders (IDE)
 
 > VS Code Insiders does have WebMCP support. 
+
+- Config needed to persist experimental flag and unpacked extension:
+- [add here]
 
 
 ### Tools
