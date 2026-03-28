@@ -315,7 +315,7 @@ Example flow in practice:
 - The sandbox uses a lightweight TypeScript-stripping step, then executes via `AsyncFunction` in sandbox.ts.
 - Semantic quality depends heavily on agent reasoning and the quality of the prompts and tool descriptions.
 
-## Confirm dialog overlay
+### Confirm dialog overlay
 
 Write operations always require confirmation. If the Web API Extension side panel is active, confirmation is shown in the Extension UI. Otherwise, external WebMCP tool calls fall back to a native browser confirm dialog on the active tab.
 
