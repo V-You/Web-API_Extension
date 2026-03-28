@@ -80,7 +80,7 @@ npm install
 npm run build      # production build
 ```
 
-### Load the extension in Chrome:
+### Load the extension in Chrome
 
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top right)
@@ -165,6 +165,164 @@ VS Code Insiders does have WebMCP support.
 
 - Config needed to persist experimental flag and unpacked extension:
 - [add here]
+
+
+## Features
+
+### Practical flow example
+
+1. User prompts: "Delete all Contacts from this Entity"
+2. Agent sees which Entity, gets confirmation from user
+3. The tool `manage_contact` supports list and delete, but not “delete all” as one atomic action. The agent would either:
+    - Call manage_contact with action: "list" to get all contacts for entity X, then call manage_contact with action: "delete" once per contact.
+    - For a larger batch, call `execute_workflow` and let the local script iterate and delete (will not be a tracked background Job).
+4. The agent reasons:
+    - first I need the contacts on that entity
+    - then I need to delete them
+    - the relevant tool is manage_contact
+
+And calls:
+
+```json
+{
+  "tool": "manage_contact",
+  "params": {
+    "action": "list",
+    "entityType": "merchant",
+    "entityId": "X",
+    "scope": "owned"
+  }
+}
+```
+That call goes into the WebMCP registration callback in `register-main.ts`.
+
+5. The tool call is passed from main world to isolated world. The main-world registration code does not execute the business logic directly. It posts a message: type / tool / params / callId. The isolated-world bridge listens for that message. This bridge exists because the isolated world has access to extension APIs and storage, while the page main world does not
+    - main world = visible to WebMCP/browser agent
+    - isolated world = trusted execution layer with credentials and chrome APIs
+6. The extension dispatches the call to the real handler: Inside `bridge.ts`, the call is routed through `EXECUTE_MAP`. For manage_contact, that means:
+    - resolve active environment
+    - load decrypted credentials from extension session storage
+    - if the action is mutating, trigger the confirmation bridge
+    - then call `manage-contact.ts`
+7. At this point the extension absolutely knows:
+    - which tool was called
+    - with which params
+    - in which environment
+    - whether it is read-only or mutating (History)
+8. If it is a write, the extension asks the user to confirm: Before the actual API call happens, `bridge.ts` creates a preview and sends it to `confirm-bridge`. The side panel is subscribed to that bridge and renders `ConfirmDialog.tsx`.
+9. The tool handler makes the API request: Once confirmed, `manage-contact.ts` runs the relevant branch. For delete, that goes to `manage-contact.ts`, which calls `api-client.ts` with:
+    - method DELETE
+    - path /contacts/{contactId}
+    - header credentials: username:password
+10. In effect, the extenstion is acting as the local API client. Finally, it records local history. Because `deleteContact` passes audit metadata, `api-client.ts` appends an audit entry into `chrome.storage.local.audit`. This is rendered in the "History" tab, `RunHistoryPage.tsx`.
+11. History tab shows:
+    - event type contact_delete
+    - entity id
+    - environment
+    - response status
+    - timestamp
+12. The result is returned to the agent: The isolated-world bridge posts a `webmcp:tool-result` message back to the main world in `bridge.ts`. Then `register-main.ts` resolves the pending tool promise, and the external agent receives the result.
+
+
+
+### History
+
+The user's LLM agent does not call the Web API. It calls the extension's WebMCP tool. The extension knows the action before the HTTP request even exists:
+
+- Extension receives the tool call
+- Loads credentials
+- Enforces confirmation
+- Performs fetch
+- Records audit/history
+- Returns result
+
+
+### Jobs
+
+Jobs are created when Extension's explicit job system is used, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`.
+
+
+### History / Jobs diagram
+
+<details>
+    <summary>Diagram: ...</summary>
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant AG as Agent
+    participant EXT as Extension
+    participant UI as Confirm UI
+    participant API as Web API
+    participant H as History
+
+    U->>AG: "Delete all contacts at entity X"
+    AG->>EXT: manage_contact(list, entity X)
+    EXT->>API: GET ownedContacts
+    API-->>EXT: contacts[]
+    EXT-->>AG: contacts[]
+
+    loop each contact
+        AG->>EXT: manage_contact(delete, contactId)
+        EXT->>UI: request confirmation
+        UI-->>U: Confirm / Cancel
+        U-->>UI: Confirm
+        UI-->>EXT: approved
+        EXT->>API: DELETE /contacts/{contactId}
+        API-->>EXT: result
+        EXT->>H: append audit entry
+        EXT-->>AG: delete result
+    end
+
+    Note over EXT,H: History is updated here. Jobs are only used via execute_workflow + job runner.
+```
+</details>
+
+
+
+## Scripts
+
+Scripts are written by the external agent:
+
+- The agent writes the script text.
+- The extension executes that script locally (browser).
+- The extension constrains what the script can do.
+- (A human could also write the script manually and pass it to `execute_workflow`.)
+
+Example flow in practice:
+
+1. Agent inspects the available tools and maybe calls read tools first, like `manage_contact`, `get_hierarchy`, or `describe_settings`.
+2. For a larger multi-step task, the agent composes a short imperative script.
+3. Agent sends that script to `execute_workflow`.
+4. Extension runs it through the sandbox in `sandbox.ts`.
+
+
+**What constrains the script**
+- The script does not get raw extension internals. It gets an injected `sdk`, `console`, `sleep`, `results`, `context`, `signal`, and `progress` from sandbox.ts.
+- The `sdk` is a curated facade from sdk-facade.ts, not arbitrary browser or extension access.
+- For config settings, the virtual SDK in sdk.ts provides typed paths, flattening, and validation instead of making the agent handcraft flat RiRo keys.
+
+**Quality controls**
+- `describe_settings` gives the agent structured, typed setting metadata first, via describe-settings.ts. That helps the agent write a better script.
+- The SDK facade exposes higher-level methods like `sdk.contacts.list`, `sdk.contacts.delete`, and `sdk.config.update` in sdk-facade.ts - better than having the agent invent raw HTTP calls.
+- Settings writes go through validation and flattening in sdk.ts.
+- Write operations go through the confirm bridge in confirm-bridge.ts, so even a good script still needs user approval before mutation.
+- API mutations are audit-logged by api-client.ts.
+- The sandbox supports `dryRun`, timeout, cancellation, logs, and captured results in sandbox.ts.
+- `dryRun` checks parseability, not business correctness.
+- The extension governs quality mainly through constrained SDK shape, typed discovery, validation, confirmation, timeout/cancel, and audit.
+- **There is no full compiler-grade or lint-grade quality gate.**
+- The sandbox uses a lightweight TypeScript-stripping step, then executes via `AsyncFunction` in sandbox.ts.
+- Semantic quality depends heavily on agent reasoning and the quality of the prompts and tool descriptions.
+
+## Confirm dialog overlay
+
+Write operations always require confirmation. If the Web API Extension side panel is active, confirmation is shown in the Extension UI. Otherwise, external WebMCP tool calls fall back to a native browser confirm dialog on the active tab.
+
+
+
+
+
 
 
 ### Tools
@@ -280,15 +438,9 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 
 ## Web API Extension vs. Alternatives
 
-Focus:  
-- Deployment & maintenance  
-- Security & privacy  
-- User experience (UX)  
-- Domain-specific value (QoL)  
-
 <img src="img/WebAX-vs-competition.png" width="793" alt="Table: Web API Extension vs. Alternatives" />
 
-### Web API Extension wins:
+### Web API Extension wins
 
 * **Killer feature Context Binding:** Standard MCP servers (vendor, custom, or Postman) live on a server; they are blind to what the user is currently doing. Web API Extension lives in the browser. It sees the active dashboard and the API commands simultaneously, creating a true "co-pilot" experience rather than just a remote-control bot.
 * **Zero-infrastructure scalability:** Meaning *client-side scaling*. The extension executes logic locally in the browser. No central backend server needed. The compute is decentralized to the end-user.
