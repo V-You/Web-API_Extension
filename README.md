@@ -104,18 +104,16 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 
 ### First run
 
-1. Open the side panel and go to the **Connections** tab.
-2. Enter your Web API credentials (username and password) for UAT, Prod, or both.
-3. Choose a PIN (minimum 6 digits). Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The PIN is never persisted.  Consider tracking this PIN using an external tool (password manager).
-4. On subsequent visits, enter your PIN to unlock. The decrypted credentials live in `chrome.storage.session` and survive idle but are cleared on browser restart.
+1. Open the side panel -> **Connections** tab,
+2. Enter Web API credentials (username and password) for UAT, Prod, or both,
+3. Choose a PIN (minimum 6 digits). Store PIN in external tool.
+4. On later visits, enter PIN to unlock. Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The decrypted credentials in `chrome.storage.session` survive idle, but are cleared on browser restart. 
 
-> **Any LLM with browser-capability** can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and OpenAPI specs (enriched).
+> **Any LLM with browser-capability** can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
 
 ### Example workflow using Google Gemini (browser side panel)
 
-**Not supported yet** Gemini in the Chrome side panel does not have WebMCP support as of 2026-03-27 (incl Googla AI Pro and Ultra tiers).
-
-> Gemini can be used as the LLM Chat tool performing the requested actions. Gemini already sits inside the browser. The workflow from end user point of view:
+*WebMCP not supported by Gemini as of 2026-03-27 (Chrome side panel, including Google AI Pro and Ultra tiers).* Gemini can be used as the LLM Chat tool performing the requested actions. Gemini already sits inside the browser. The workflow from enduser point of view:
 
 - Install the extension in Chrome (min-version, set flag)
 - Open an oppwa.com page (UAT or Prod)
@@ -129,23 +127,30 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 
 ### Example workflow using Antigravity (IDE)
 
-> Antigravity does not yet *natively* support WebMCP (2026-03-27). Suggested workaround:
+Antigravity does not yet *natively* support WebMCP (2026-03-27). Suggested workaround:
 
 ```json
-"args": [
-    "-y",
-    "@mcp-b/chrome-devtools-mcp@latest",
-    "--chrome-arg=--load-extension=full-path/dist/chrome/",
-    "--chrome-arg=--enable-features=WebMCPTesting",
-    "--ignore-default-chrome-arg=--disable-extensions"
-]
+{
+    "mcpServers": {
+        "chrome-devtools": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@mcp-b/chrome-devtools-mcp@latest",
+                "--chrome-arg=--load-extension=u:\\home\\snlr\\code\\Web-API_Extension\\dist\\chrome\\",
+                "--chrome-arg=--enable-features=WebMCPTesting",
+                "--ignore-default-chrome-arg=--disable-extensions"
+            ]
+        }
+    }
+}
 ```
 
-- Add the above to `mcp_config.json` within Antigravity
-- This adds a custom Chrome DevTools (mcp-b) that does have WebMCP support to Antigravity
-- Seems counter-intiutive - Web API Extension sits in the browser without need for an MCP server
-- This is still correct, but for now this custom MCP server is a wrapper, adding WebMCP to AG
-- Once AG supports WebMCP, this wrapper will not be needed anymore
+- Add the above to `mcp_config.json` in Antigravity.
+- This adds a custom Chrome DevTools (mcp-b) that does have WebMCP support to Antigravity.
+- Seems counter-intiutive - Web API Extension sits in the browser without need for an MCP server.
+- This is still correct, but for now this custom MCP server is a wrapper, adding WebMCP to AG.
+- Once AG supports WebMCP, this wrapper will not be needed anymore.
 
 Config: <br>
 <kbd><img src="img/custom-dectools-config-antigravity.png" alt="AG config" width="111" /></kbd>
@@ -156,7 +161,7 @@ Config: <br>
 
 ### Example workflow using VS Code Insiders (IDE)
 
-> VS Code Insiders does have WebMCP support. 
+VS Code Insiders does have WebMCP support. 
 
 - Config needed to persist experimental flag and unpacked extension:
 - [add here]
@@ -286,7 +291,7 @@ Focus:
 ### Web API Extension wins:
 
 * **Killer feature Context Binding:** Standard MCP servers (vendor, custom, or Postman) live on a server; they are blind to what the user is currently doing. Web API Extension lives in the browser. It sees the active dashboard and the API commands simultaneously, creating a true "co-pilot" experience rather than just a remote-control bot.
-* **Zero-infrastructure scalability:** Meaning *client-side scaling*. The extension executes logic locally in the user's browser. No central backend server needed. The compute is decentralized to the end-user.
+* **Zero-infrastructure scalability:** Meaning *client-side scaling*. The extension executes logic locally in the browser. No central backend server needed. The compute is decentralized to the end-user.
 * **Domain-specific Quality of Life (QoL):** Generic solutions like Postman or raw scripts just fire JSON payloads. Web API Extension understands the *business*. Features like glossary, shortcode mappings, and built-in job pausing/resuming/export elevate it from "tool" to "Virtual SDK." 
 * **The Postman trap:** Postman is the easiest direct competitor, for the price of ... cost, but also depth. As a generic HTTP wrapper, it forces a business dependency, carries high enterprise licensing costs for AI features, and ultimately lacks the domain-specific nuances (like API quirks workarounds) that a dedicated adapter handles out-of-the-box.
 
