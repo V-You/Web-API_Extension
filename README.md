@@ -1,8 +1,10 @@
 # Web API Extension
 
-**Web API Extension** is a Chrome extension that lets ACI customers operate their payment SaaS (BIP or POPP) through its Web API (also known as Merchant Onboarding API) without needing a standalone MCP server. It uses WebMCP for in-browser tool publication, UTCP for efficient tool orchestration, and code mode for local script execution -- representing the most modern, fastest, and most secure approach to SaaS automation via API.
+**Web API Extension** is a Chrome extension that lets ACI customers operate their SaaS via Web API (Merchant Onboarding API). It uses WebMCP for in-browser tool publication, UTCP for efficient tool orchestration, and code mode for local script execution -- representing the most modern, fastest, and most secure approach to SaaS automation via API.
 
-The extension replaces the legacy "Web API MCP Server" with a browser-native, zero-infrastructure alternative that uses the active SaaS tab for context binding, executes logic locally, and minimizes data exposure to external LLM providers.
+**Web API Extension** replaces the legacy "Web API MCP Server" with a browser-native, zero-infrastructure alternative that uses the active SaaS tab for context binding, executes logic locally, and minimizes data exposure to external LLM providers.
+
+**Web API Extension** represents a paradigm shift in SaaS API automation. Unlike traditional MCP servers or generic tools like Postman that require costly backend infrastructure and operate blindly, this extension acts as a zero-infrastructure "Virtual SDK" directly within the user's browser. By executing logic locally and binding to the active dashboard session, it securely bridges the gap between what your users see and what your AI agents can do. The result is immediate, domain-aware automation with unparalleled data privacy - all without the maintenance burden or security risks of a custom backend build.
 
 <table>
     <thead>
@@ -268,6 +270,30 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 | Encryption | Web Crypto API (PBKDF2 + AES-GCM) |
 | Sandbox | `AsyncFunction` constructor |
 
+
+---
+
+## Web API Extension vs. Alternatives
+
+Focus:  
+- Deployment & maintenance  
+- Security & privacy  
+- User experience (UX)  
+- Domain-specific value (QoL)  
+
+<img src="img/WebAX-vs-competition.png" width="793" alt="Table: Web API Extension vs. Alternatives" />
+
+### Web API Extension wins:
+
+* **Killer feature Context Binding:** Standard MCP servers (vendor, custom, or Postman) live on a server; they are blind to what the user is currently doing. Web API Extension lives in the browser. It sees the active dashboard and the API commands simultaneously, creating a true "co-pilot" experience rather than just a remote-control bot.
+* **Zero-infrastructure scalability:** Meaning *client-side scaling*. The extension executes logic locally in the user's browser. No central backend server needed. The compute is decentralized to the end-user.
+* **Domain-specific Quality of Life (QoL):** Generic solutions like Postman or raw scripts just fire JSON payloads. Web API Extension understands the *business*. Features like glossary, shortcode mappings, and built-in job pausing/resuming/export elevate it from "tool" to "Virtual SDK." 
+* **The Postman trap:** Postman is the easiest direct competitor, for the price of ... cost, but also depth. As a generic HTTP wrapper, it forces a business dependency, carries high enterprise licensing costs for AI features, and ultimately lacks the domain-specific nuances (like API quirks workarounds) that a dedicated adapter handles out-of-the-box.
+
+
+
+---
+
 ## Notes
 
 ### API quirks
@@ -319,6 +345,7 @@ Credentials are never exposed to the LLM context, the DOM, content scripts, or a
 - Audit log exports and diagnostic dumps are guaranteed to exclude credentials.
 - UAT and Prod credential storage is fully isolated (separate encrypted blobs).
 
+
 ## Version 2 notes
 
 Features explicitly deferred from v1:
@@ -337,7 +364,7 @@ Features explicitly deferred from v1:
 - **Summary-only mode** -- LLM never sees raw API responses, only aggregated counts.
 - **Profile switching** -- multiple PSP roots in a single extension instance.
 
-## Source
+## Links
 - https://github.com/universal-tool-calling-protocol
 - https://dev.to/czmilo/chrome-webmcp-the-complete-2026-guide-to-ai-agent-protocol-1ae9
 - https://dev.to/axrisi/chromes-webmcp-early-preview-the-end-of-ai-agents-clicking-buttons-b6e

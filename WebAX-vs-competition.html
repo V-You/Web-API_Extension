@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web API Extension - Competitive Matrix</title>
+<style>
+        /* Base Styles & Typography */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Table Container */
+        .table-container {
+            background: #ffffff;
+            border-radius: 0px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            max-width: 777px;
+            width: 100%;
+        }
+
+        /* Table Layout */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            text-align: center;
+            font-size: 11px;
+        }
+
+        th, td {
+            padding: 4px 2px;
+            border-bottom: 1px solid #ffffff;
+            border-right: 1px solid #ffffff;
+        }
+
+        td {
+            font-family:monospace;
+        }
+
+        /* Headers */
+        th {
+            background-color: #f2f3f3;
+            font-weight: 600;
+            color: #333;
+            font-size: 11px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* Feature Column (Left-most) */
+        td:first-child, th:first-child {
+            text-align: right;
+            font-weight: 600;
+            color: #222;
+            background-color: #ffffff;
+            border-right: 2px solid #e2e8f0;
+            padding-right:12px;
+            font-family:sans-serif;
+        }
+
+        /* Highlighted Column Header (Web API Extension) */
+        th:nth-child(2) {
+            background-color: #ecfdf5; 
+            color: #065f46;
+            border-top: 2px solid #10b981;
+        }
+
+        /* Cell State Backgrounds */
+        td.bg-green {
+            background-color: #dcfce7;
+            color: #166534;
+            font-weight: 500;
+        }
+
+        td.bg-yellow {
+            background-color: #fef9c3;
+            color: #854d0e;
+            font-weight: 500;
+        }
+
+        td.bg-red {
+            background-color: #fee2e2;
+            color: #991b1b;
+            font-weight: 500;
+        }
+
+        /* Clean up borders for the last row/column */
+        tr:last-child td {
+            border-bottom: none;
+        }
+        td:last-child, th:last-child {
+            border-right: none;
+        }
+    </style>    
+</head>
+<body>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>&nbsp;</th>
+                    <th>Web API <br>Extension</th>
+                    <th>Vendor <br>WebMCP</th>
+                    <th>Vendor <br>MCP Server</th>
+                    <th>Postman <br>MCP Generator</th>
+                    <th>Custom <br>MCP server</th>
+                    <th>Custom <br>API scripts</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Setup & infra cost</td>
+                    <td class="bg-green">Zero</td>
+                    <td class="bg-green">Zero</td>
+                    <td class="bg-red">Own server</td>
+                    <td class="bg-yellow">High pro cost</td>
+                    <td class="bg-red">High effort</td>
+                    <td class="bg-red">Dev-heavy</td>
+                </tr>
+                <tr>
+                    <td>Context binding</td>
+                    <td class="bg-green">Yes</td>
+                    <td class="bg-yellow">Maybe</td>
+                    <td class="bg-red">No</td>
+                    <td class="bg-red">No</td>
+                    <td class="bg-red">No</td>
+                    <td class="bg-red">No</td>
+                </tr>
+                <tr>
+                    <td>Data privacy</td>
+                    <td class="bg-green">High</td>
+                    <td class="bg-yellow">Maybe</td>
+                    <td class="bg-yellow">Maybe</td>
+                    <td class="bg-red">Low</td>
+                    <td class="bg-green">Full control</td>
+                    <td class="bg-green">Full control</td>
+                </tr>
+                <tr>
+                    <td>Auth & rate limits</td>
+                    <td class="bg-green">Centralized</td>
+                    <td class="bg-green">Seamless</td>
+                    <td class="bg-yellow">External</td>
+                    <td class="bg-yellow">External</td>
+                    <td class="bg-red">Manual</td>
+                    <td class="bg-red">Manual</td>
+                </tr>
+                <tr>
+                    <td>Domain context</td>
+                    <td class="bg-green">Built-in</td>
+                    <td class="bg-red">Unlikely</td>
+                    <td class="bg-yellow">Basic</td>
+                    <td class="bg-red">Generic</td>
+                    <td class="bg-yellow">Custom</td>
+                    <td class="bg-red">None</td>
+                </tr>
+                <tr>
+                    <td>Observability</td>
+                    <td class="bg-green">Centralized</td>
+                    <td class="bg-yellow">Maybe</td>
+                    <td class="bg-yellow">Maybe</td>
+                    <td class="bg-yellow">Basic</td>
+                    <td class="bg-red">Manual</td>
+                    <td class="bg-red">Manual</td>
+                </tr>
+                <tr>
+                    <td>Job management</td>
+                    <td class="bg-green">Built-in</td>
+                    <td class="bg-red">Unlikely</td>
+                    <td class="bg-red">Unlikely</td>
+                    <td class="bg-red">Not really</td>
+                    <td class="bg-red">Manual</td>
+                    <td class="bg-red">Manual</td>
+                </tr>
+                <tr>
+                    <td>Maintenance burden</td>
+                    <td class="bg-green">Low</td>
+                    <td class="bg-green">Zero</td>
+                    <td class="bg-yellow">Medium</td>
+                    <td class="bg-yellow">Medium</td>
+                    <td class="bg-red">High</td>
+                    <td class="bg-red">High</td>
+                </tr>
+                <tr>
+                    <td>Availability</td>
+                    <td class="bg-green">Ready</td>
+                    <td class="bg-red">Unclear</td>
+                    <td class="bg-red">Unclear</td>
+                    <td class="bg-green">Ready</td>
+                    <td class="bg-red">Months</td>
+                    <td class="bg-red">Months</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>
+
+
+### Web API Extension wins:
+
+* **Killer feature Context Binding:** Standard MCP servers (vendor, custom, or Postman) live on a server; they are blind to what the user is currently doing. Web API Extension lives in the browser. It sees the active dashboard and the API commands simultaneously, creating a true "co-pilot" experience rather than just a remote-control bot.
+* **Zero-infrastructure scalability:** Meaning *client-side scaling*. The extension executes logic locally in the user's browser. No central backend server needed. The compute is decentralized to the end-user.
+* **Domain-specific Quality of Life (QoL):** Generic solutions like Postman or raw scripts just fire JSON payloads. Web API Extension understands the *business*. Features like glossary, shortcode mappings, and built-in job pausing/resuming/export elevate it from "tool" to "Virtual SDK." 
+* **The Postman trap:** Postman is the easiest direct competitor, for the price of ... cost, but also depth. As a generic HTTP wrapper, it forces a business dependency, carries high enterprise licensing costs for AI features, and ultimately lacks the domain-specific nuances (like API quirks workarounds) that a dedicated adapter handles out-of-the-box.
+
+### Web API Extension vs. Alternatives
+
+Focus:  
+- **Deployment & maintenance**  
+- **Security & privacy**  
+- **User experience (UX)**  
+- **Domain-specific value (QoL)**  
