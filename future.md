@@ -1,4 +1,6 @@
-Items outstanding:
+# 2026-03-22
+
+## Missing items:
 
 - Glossary runtime integration: not implemented.
 - Recipes runtime integration: not implemented at all.
