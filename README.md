@@ -56,10 +56,10 @@ The extension is a *Client-Side Adapter*. The <a href="https://github.com/snlr30
 
 **Non-goals (v1):**
 
-- Does not replace the SaaS dashboard UI for human-only workflows.
+- Does not replace the SaaS dashboard UI for human-only workflows. It complements it.
 - Does not support offline or disconnected operation.
 - No mobile browser support.
-- No multi-tenant or multi-PSP profile switching (deferred).
+- No multi-tenant profile switching. Dual-env: yes.
 - No built-in LLM or chat UI. Extension is a tool provider, not an agent host.
 
 ## Install
