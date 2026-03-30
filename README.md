@@ -171,7 +171,10 @@ VS Code Insiders does have WebMCP support.
 
 ### Practical flow example
 
-1. User prompts: "Delete all Contacts from this Entity"
+<details>
+  <summary>Walkthrough of what technically happens for a common prompt: "Delete x from y" ...</summary>
+
+1. User prompts: *"Delete all Contacts from this Entity."*
 2. Agent sees which Entity, gets confirmation from user
 3. The tool `manage_contact` supports list and delete, but not “delete all” as one atomic action. The agent would either:
     - Call manage_contact with action: "list" to get all contacts for entity X, then call manage_contact with action: "delete" once per contact.
@@ -223,7 +226,7 @@ That call goes into the WebMCP registration callback in `register-main.ts`.
     - timestamp
 12. The result is returned to the agent: The isolated-world bridge posts a `webmcp:tool-result` message back to the main world in `bridge.ts`. Then `register-main.ts` resolves the pending tool promise, and the external agent receives the result.
 
-
+</details>
 
 ### History
 
