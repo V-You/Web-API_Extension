@@ -36,5 +36,3 @@ sequenceDiagram
         MW-->>A: delete result
     end
 ```
-
-Note over A,H: Jobs tab is not used here unless execution goes through execute_workflow + job runner.

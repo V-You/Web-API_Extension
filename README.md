@@ -239,13 +239,10 @@ The user's LLM agent does not call the Web API. It calls the extension's WebMCP 
 
 ### Jobs
 
-Jobs are created when Extension's explicit job system is used, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`.
+Jobs are created when Extension's explicit job system is used, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`. Jobs are only used via execute_workflow + job runner, they are independent from History.
 
 
 ### History / Jobs diagram
-
-<details>
-    <summary>Diagram: ...</summary>
 
 ```mermaid
 sequenceDiagram
@@ -274,9 +271,8 @@ sequenceDiagram
         EXT-->>AG: delete result
     end
 
-    Note over EXT,H: History is updated here. Jobs are only used via execute_workflow + job runner.
+    Note over EXT,H: History updated here (but not Jobs).
 ```
-</details>
 
 
 
