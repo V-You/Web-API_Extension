@@ -242,7 +242,14 @@ The user's LLM agent does not call the Web API. It calls the extension's WebMCP 
 
 ### Jobs
 
-Jobs are created when Extension's explicit job system is used, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`. Jobs are only used via execute_workflow + job runner, they are independent from History.
+Long-running scripts (e.g. a hierarchy-wide settings audit at 9 req/s) run as background jobs:
+
+- **Progress monitor** in the Jobs tab shows state (running / paused / completed / failed), estimated time remaining, and call count.
+- **Pause/resume** -- user-initiated or automatic on tab close. State is persisted to `chrome.storage.local`.
+- **Browser restart recovery** -- on startup, incomplete jobs are marked as paused and offered for resume after re-authentication.
+- **Cancel** produces partial results.
+
+Jobs are created when Extension's job system is used explicitly, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`. Jobs are only used via execute_workflow + job runner, they are independent from History.
 
 
 ### History / Jobs diagram
@@ -310,7 +317,7 @@ Example flow in practice:
 - The sandbox supports `dryRun`, timeout, cancellation, logs, and captured results in sandbox.ts.
 - `dryRun` checks parseability, not business correctness.
 - The extension governs quality mainly through constrained SDK shape, typed discovery, validation, confirmation, timeout/cancel, and audit.
-- **There is no full compiler-grade or lint-grade quality gate.**
+- There is no full compiler-grade or lint-grade quality gate.
 - The sandbox uses a lightweight TypeScript-stripping step, then executes via `AsyncFunction` in sandbox.ts.
 - Semantic quality depends heavily on agent reasoning and the quality of the prompts and tool descriptions.
 
@@ -354,14 +361,6 @@ For complex operations (hierarchy-wide audits, bulk updates, cross-referencing),
 - `progress(pct, msg)` -- report progress to the job runner
 - `checkpoint(state)` -- persist state for pause/resume recovery
 
-### Jobs
-
-Long-running scripts (e.g. a hierarchy-wide settings audit at 9 req/s) run as background jobs:
-
-- **Progress monitor** in the Jobs tab shows state (running / paused / completed / failed), estimated time remaining, and call count.
-- **Pause/resume** -- user-initiated or automatic on tab close. State is persisted to `chrome.storage.local`.
-- **Browser restart recovery** -- on startup, incomplete jobs are marked as paused and offered for resume after re-authentication.
-- **Cancel** produces partial results.
 
 ### Environment switching
 
