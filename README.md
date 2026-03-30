@@ -43,7 +43,7 @@
 
 ## Overview
 
-The extension is a *Client-Side Adapter*. The legacy MCP server was a tool-wrapper &ndash; this is a *Virtual SDK*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the user's active browser session to interact with the SaaS:
+The extension is a *Client-Side Adapter*. The <a href="https://github.com/snlr308/Web_API_MCP2" alt="legacy">legacy MCP server</a> was a tool-wrapper &ndash; but *this* is a *Virtual SDK*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the active browser session to interact with the SaaS:
 
 - **Exposes the full Web API** to any WebMCP-compatible AI agent running in Chrome.  
 - **Automates the SaaS via its API** using only a browser extension: no backend proxy, no MCP server, no external credential files or secret stores.  
