@@ -4,7 +4,7 @@
 
 **Web API Extension** replaces the legacy "Web API MCP Server" with a browser-native, zero-infrastructure alternative that uses the active SaaS tab for context binding, executes logic locally, and minimizes data exposure to external LLM providers.
 
-**Web API Extension** represents a paradigm shift in SaaS API automation. Unlike traditional MCP servers or generic tools like Postman that require costly backend infrastructure and operate blindly, this extension acts as a zero-infrastructure "Virtual SDK" directly within the user's browser. By executing logic locally and binding to the active dashboard session, it securely bridges the gap between what your users see and what your AI agents can do. The result is immediate, domain-aware automation with unparalleled data privacy - all without the maintenance burden or security risks of a custom backend build.
+**Web API Extension** represents a paradigm shift in SaaS API automation. Unlike traditional MCP servers or generic tools like Postman that require costly backend infrastructure and operate blindly, this extension acts as a zero-infrastructure "Virtual SDK" directly within the user's browser. By executing logic locally and binding to the active dashboard session, it securely bridges the gap between what the users see and what the AI agents can do. The result is immediate, domain-aware automation with unparalleled data privacy - without the maintenance burden or security risks of a custom backend.
 
 <table>
     <thead>
