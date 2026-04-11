@@ -14,7 +14,8 @@ import "../webmcp/webmcp.d.ts";
 import { TOOL_SCHEMAS } from "./tool-schemas";
 import { getActiveEnv, getCredentials } from "../lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
-import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
+import { confirmIfMutating } from "../bridge/write-confirm-utils";
+import { recordWrite } from "../bridge/write-status";
 
 import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
@@ -46,75 +47,6 @@ function sessionOrError() {
   });
 }
 
-// -- Write confirmation for direct tool calls -----------------------------
-
-/** Actions that mutate data, keyed by tool name. */
-const MUTATING_ACTIONS: Record<string, Set<string>> = {
-  manage_entity: new Set(["create", "edit", "delete"]),
-  manage_contact: new Set(["create", "edit", "delete", "attach", "detach", "lock", "unlock", "reset_password"]),
-  manage_merchant_account: new Set(["create", "edit", "delete", "attach", "detach"]),
-  manage_settings: new Set(["set", "batch_set"]),
-};
-
-/** HTTP methods for mutating actions. */
-function httpMethod(action: string): "POST" | "DELETE" {
-  return action === "delete" || action === "detach" ? "DELETE" : "POST";
-}
-
-/** Build a human-readable description for a direct tool call. */
-function describeDirectWrite(tool: string, action: string, params: Record<string, unknown>): string {
-  const id = (params.entityId ?? params.contactId ?? params.merchantAccountId ?? params.attachedMerchantAccountId ?? "") as string;
-  const type = (params.entityType ?? "") as string;
-  switch (tool) {
-    case "manage_entity":
-      if (action === "create") return `Create ${params.childType ?? "entity"} under ${params.parentType} ${params.parentId}`;
-      if (action === "delete") return `Delete ${type} ${id}`;
-      return `Edit ${type} ${id}`;
-    case "manage_contact":
-      if (action === "create") return `Create contact on ${type} ${id}`;
-      if (action === "lock") return `Lock contact ${params.contactId}`;
-      if (action === "unlock") return `Unlock contact ${params.contactId}`;
-      if (action === "reset_password") return `Reset password for contact ${params.contactId}`;
-      if (action === "attach") return `Attach contact ${params.contactId} to ${type} ${id}`;
-      if (action === "detach") return `Detach contact ${params.contactId} from ${type} ${id}`;
-      if (action === "delete") return `Delete contact ${params.contactId}`;
-      return `Edit contact ${params.contactId}`;
-    case "manage_merchant_account":
-      if (action === "create") return `Create merchant account on ${type} ${id}`;
-      if (action === "attach") return `Attach merchant account to ${type} ${id}`;
-      if (action === "detach") return `Detach merchant account ${params.attachedMerchantAccountId}`;
-      if (action === "delete") return `Delete merchant account ${params.merchantAccountId}`;
-      return `Edit merchant account ${params.merchantAccountId}`;
-    case "manage_settings":
-      if (action === "set") return `Set setting ${params.key} on ${type} ${id}`;
-      return `Batch set ${Object.keys((params.settings as Record<string, unknown>) ?? {}).length} setting(s) on ${type} ${id}`;
-    default:
-      return `${action} on ${tool}`;
-  }
-}
-
-/**
- * Check whether a tool call is mutating; if so, request user confirmation.
- * Throws if the user cancels.
- */
-async function confirmIfMutating(tool: string, params: Record<string, unknown>, env: Environment) {
-  const actions = MUTATING_ACTIONS[tool];
-  if (!actions) return;
-  const action = params.action as string;
-  if (!actions.has(action)) return;
-
-  const preview: WritePreview = {
-    tool,
-    action,
-    method: httpMethod(action),
-    description: describeDirectWrite(tool, action, params),
-    params,
-    env,
-  };
-  const choice = await requestConfirm(preview);
-  if (choice === "cancel") throw new Error("Operation cancelled by user.");
-}
-
 // -- Tool definitions -----------------------------------------------------
 // Schemas (name, description, inputSchema) are imported from tool-schemas.ts.
 // Here we only define the execute callbacks and zip them with the schemas.
@@ -125,8 +57,8 @@ type ExecuteFn = (params: Record<string, unknown>) => Promise<unknown>;
 const EXECUTE_MAP: Record<string, ExecuteFn> = {
   manage_entity: async (params) => {
     const { creds, env } = await sessionOrError();
-    await confirmIfMutating("manage_entity", params, env);
-    return executeManageEntity(
+    const desc = await confirmIfMutating("manage_entity", params, env);
+    const result = await executeManageEntity(
       {
         action: params.action as "get",
         entityId: params.entityId as string | undefined,
@@ -140,6 +72,8 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
       creds,
       env,
     );
+    if (desc) recordWrite(desc);
+    return result;
   },
 
   get_hierarchy: async (params) => {
@@ -157,8 +91,8 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
 
   manage_contact: async (params) => {
     const { creds, env } = await sessionOrError();
-    await confirmIfMutating("manage_contact", params, env);
-    return executeManageContact(
+    const desc = await confirmIfMutating("manage_contact", params, env);
+    const result = await executeManageContact(
       {
         action: params.action as "get",
         contactId: params.contactId as string | undefined,
@@ -172,12 +106,14 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
       creds,
       env,
     );
+    if (desc) recordWrite(desc);
+    return result;
   },
 
   manage_merchant_account: async (params) => {
     const { creds, env } = await sessionOrError();
-    await confirmIfMutating("manage_merchant_account", params, env);
-    return executeManageMerchantAccount(
+    const desc = await confirmIfMutating("manage_merchant_account", params, env);
+    const result = await executeManageMerchantAccount(
       {
         action: params.action as "get",
         merchantAccountId: params.merchantAccountId as string | undefined,
@@ -192,6 +128,8 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
       creds,
       env,
     );
+    if (desc) recordWrite(desc);
+    return result;
   },
 
   lookup_clearing_institutes: async (params) => {
@@ -217,8 +155,8 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
 
   manage_settings: async (params) => {
     const { creds, env } = await sessionOrError();
-    await confirmIfMutating("manage_settings", params, env);
-    return executeManageSettings(
+    const desc = await confirmIfMutating("manage_settings", params, env);
+    const result = await executeManageSettings(
       {
         action: params.action as "get",
         entityId: params.entityId as string | undefined,
@@ -232,6 +170,8 @@ const EXECUTE_MAP: Record<string, ExecuteFn> = {
       creds,
       env,
     );
+    if (desc) recordWrite(desc);
+    return result;
   },
 
   get_audit_log: async (params) => {
@@ -268,6 +208,28 @@ const TOOL_DEFS = TOOL_SCHEMAS.map((schema) => ({
 // -- Registration ---------------------------------------------------------
 
 let registered = false;
+let registrationFailed = false;
+
+const registrationListeners = new Set<() => void>();
+
+function notifyRegistrationListeners() {
+  for (const fn of registrationListeners) fn();
+}
+
+/** Subscribe to registration state changes. Returns an unsubscribe function. */
+export function subscribeRegistration(listener: () => void): () => void {
+  registrationListeners.add(listener);
+  return () => { registrationListeners.delete(listener); };
+}
+
+export type RegistrationState = "pending" | "registered" | "failed";
+
+/** Get the current registration state snapshot. */
+export function getRegistrationState(): RegistrationState {
+  if (registered) return "registered";
+  if (registrationFailed) return "failed";
+  return "pending";
+}
 
 /**
  * Attempt to register all tools with the WebMCP runtime.
@@ -297,6 +259,7 @@ function tryRegister(): boolean {
 
   registered = true;
   console.log(`[webmcp] Registered ${TOOL_DEFS.length} tools.`);
+  notifyRegistrationListeners();
   return true;
 }
 
@@ -322,6 +285,8 @@ export function registerAllTools(): boolean {
       clearInterval(interval);
       if (!registered) {
         console.warn("[webmcp] Gave up waiting for navigator.modelContext after retries.");
+        registrationFailed = true;
+        notifyRegistrationListeners();
       }
     }
   }, RETRY_INTERVAL_MS);

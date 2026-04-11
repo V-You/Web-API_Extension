@@ -10,6 +10,7 @@
  */
 
 import { createJob, updateJob, getJob, type JobRecord, type JobProgress } from "../src/jobs/job-store";
+import { compileSandboxScript, type WriteRecord, type LogEntry } from "../src/sandbox";
 import { executeManageEntity } from "../src/tools/manage-entity";
 import { executeGetHierarchy } from "../src/tools/get-hierarchy";
 import { executeManageContact } from "../src/tools/manage-contact";
@@ -47,29 +48,7 @@ async function flushProgress(jobId: string, force = false) {
   });
 }
 
-// -- TS annotation stripping (same as sandbox.ts) -------------------------
-
-function stripTypeAnnotations(src: string): string {
-  let code = src.replace(/^[ \t]*(export\s+)?(interface|type)\s+\w[\s\S]*?^[ \t]*}/gm, "");
-  code = code.replace(/\bas\s+\w+(\[\])?(\s*[<][^>]*[>])?\b/g, "");
-  code = code.replace(
-    /(\w)\s*:\s*(string|number|boolean|any|unknown|void|never|null|undefined|Record<[^>]+>|Array<[^>]+>|\w+\[\]|\w+)(\s*[,)=;\n])/g,
-    "$1$3",
-  );
-  code = code.replace(/(\w+)\s*<[^>]+>\s*\(/g, "$1(");
-  return code;
-}
-
 // -- SDK facade for SW (no confirm bridge) --------------------------------
-
-interface WriteRecord {
-  tool: string;
-  action: string;
-  entityId: string;
-  entityType: string;
-  params: Record<string, unknown>;
-  timestamp: string;
-}
 
 function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord[]) {
   const ctx: SdkContext = { creds, env };
@@ -231,12 +210,6 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as
 
 // -- Job execution --------------------------------------------------------
 
-interface LogEntry {
-  level: "log" | "warn" | "error";
-  args: unknown[];
-  timestamp: string;
-}
-
 export interface SwJobStartInput {
   jobId?: string; // existing job id for resume, or undefined for new
   label: string;
@@ -390,7 +363,21 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
     checkpoint: job.checkpoint ?? null,
   };
 
-  const jsCode = stripTypeAnnotations(job.script);
+  // Parser-backed TS stripping (shared with sandbox.ts)
+  const compiled = await compileSandboxScript(job.script);
+  if (!compiled.ok) {
+    const segmentElapsed = Date.now() - segmentStart;
+    await updateJob(jobId, {
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      elapsedMs: job.elapsedMs + segmentElapsed,
+      error: compiled.error,
+    });
+    cleanup();
+    return;
+  }
+
+  const jsCode = compiled.jsCode;
 
   try {
     const fn = new AsyncFunction(

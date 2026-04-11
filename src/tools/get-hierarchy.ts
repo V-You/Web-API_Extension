@@ -31,6 +31,60 @@ interface HierarchyNode {
   children: HierarchyNode[];
 }
 
+/** Fetch child entities and map each to a HierarchyNode. */
+async function fetchChildren(
+  parentPath: string,
+  childType: string,
+  idField: string,
+  creds: ApiCredentials,
+  env: Environment
+): Promise<{ raw: Record<string, unknown>[]; nodes: HierarchyNode[] }> {
+  const res = await apiRequest<Record<string, unknown>[]>(creds, env, { path: parentPath });
+  const items = res.ok && Array.isArray(res.data) ? res.data : [];
+  const nodes = items.map((item) => ({
+    id: String(item[idField] ?? item.id ?? ""),
+    type: childType,
+    name: String(item.name ?? ""),
+    data: item,
+    children: [] as HierarchyNode[],
+  }));
+  return { raw: items, nodes };
+}
+
+/** Build a division node with its merchant (and optionally channel) children. */
+async function buildDivisionNode(
+  div: Record<string, unknown>,
+  depth: number,
+  creds: ApiCredentials,
+  env: Environment
+): Promise<HierarchyNode> {
+  const divId = String(div.id ?? div.divisionId ?? "");
+  const node: HierarchyNode = {
+    id: divId,
+    type: "division",
+    name: String(div.name ?? ""),
+    data: div,
+    children: [],
+  };
+
+  if (depth >= 2 && divId) {
+    const { nodes: merchants } = await fetchChildren(
+      `/divisions/${divId}/merchants`, "merchant", "merchantId", creds, env
+    );
+    for (const m of merchants) {
+      if (depth >= 3 && m.id) {
+        const { nodes: channels } = await fetchChildren(
+          `/merchants/${m.id}/channels`, "channel", "channel", creds, env
+        );
+        m.children = channels;
+      }
+    }
+    node.children = merchants;
+  }
+
+  return node;
+}
+
 export async function executeGetHierarchy(
   input: GetHierarchyInput,
   creds: ApiCredentials,
@@ -79,60 +133,8 @@ export async function executeGetHierarchy(
     id: input.pspId,
     type: "psp",
     data: {},
-    children: [],
+    children: await Promise.all(divisions.map((div) => buildDivisionNode(div, depth, creds, env))),
   };
-
-  for (const div of divisions) {
-    const divId = String(div.id ?? div.divisionId ?? "");
-    const divNode: HierarchyNode = {
-      id: divId,
-      type: "division",
-      name: String(div.name ?? ""),
-      data: div,
-      children: [],
-    };
-
-    if (depth >= 2 && divId) {
-      const merchRes = await apiRequest<Record<string, unknown>[]>(creds, env, {
-        path: `/divisions/${divId}/merchants`,
-      });
-      const merchants = merchRes.ok && Array.isArray(merchRes.data) ? merchRes.data : [];
-
-      for (const merch of merchants) {
-        const merchId = String(merch.id ?? merch.merchantId ?? "");
-        const merchNode: HierarchyNode = {
-          id: merchId,
-          type: "merchant",
-          name: String(merch.name ?? ""),
-          data: merch,
-          children: [],
-        };
-
-        if (depth >= 3 && merchId) {
-          const chanRes = await apiRequest<Record<string, unknown>[]>(creds, env, {
-            path: `/merchants/${merchId}/channels`,
-          });
-          const channels = chanRes.ok && Array.isArray(chanRes.data) ? chanRes.data : [];
-
-          for (const ch of channels) {
-            // Quirk: channel field is the entity ID, not id
-            const chanId = String(ch.channel ?? ch.id ?? "");
-            merchNode.children.push({
-              id: chanId,
-              type: "channel",
-              name: String(ch.name ?? ""),
-              data: ch,
-              children: [],
-            });
-          }
-        }
-
-        divNode.children.push(merchNode);
-      }
-    }
-
-    tree.children.push(divNode);
-  }
 
   // Actual counts
   const actualMerchants = tree.children.reduce((n, d) => n + d.children.length, 0);

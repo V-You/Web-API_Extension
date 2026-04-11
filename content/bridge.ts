@@ -11,7 +11,7 @@
 
 import { getActiveEnv, getCredentials } from "../src/lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../src/lib/types";
-import { requestConfirm, type WritePreview } from "../src/bridge/confirm-bridge";
+import { confirmIfMutating } from "../src/bridge/write-confirm-utils";
 
 import { executeManageEntity } from "../src/tools/manage-entity";
 import { executeGetHierarchy } from "../src/tools/get-hierarchy";
@@ -41,68 +41,6 @@ function sessionOrError() {
     if (!s) throw new Error("Session not unlocked. Open the side panel and enter your PIN first.");
     return s;
   });
-}
-
-// -- Write confirmation ---------------------------------------------------
-
-const MUTATING_ACTIONS: Record<string, Set<string>> = {
-  manage_entity: new Set(["create", "edit", "delete"]),
-  manage_contact: new Set(["create", "edit", "delete", "attach", "detach", "lock", "unlock", "reset_password"]),
-  manage_merchant_account: new Set(["create", "edit", "delete", "attach", "detach"]),
-  manage_settings: new Set(["set", "batch_set"]),
-};
-
-function httpMethod(action: string): "POST" | "DELETE" {
-  return action === "delete" || action === "detach" ? "DELETE" : "POST";
-}
-
-function describeDirectWrite(tool: string, action: string, params: Record<string, unknown>): string {
-  const id = (params.entityId ?? params.contactId ?? params.merchantAccountId ?? params.attachedMerchantAccountId ?? "") as string;
-  const type = (params.entityType ?? "") as string;
-  switch (tool) {
-    case "manage_entity":
-      if (action === "create") return `Create ${params.childType ?? "entity"} under ${params.parentType} ${params.parentId}`;
-      if (action === "delete") return `Delete ${type} ${id}`;
-      return `Edit ${type} ${id}`;
-    case "manage_contact":
-      if (action === "create") return `Create contact on ${type} ${id}`;
-      if (action === "lock") return `Lock contact ${params.contactId}`;
-      if (action === "unlock") return `Unlock contact ${params.contactId}`;
-      if (action === "reset_password") return `Reset password for contact ${params.contactId}`;
-      if (action === "attach") return `Attach contact ${params.contactId} to ${type} ${id}`;
-      if (action === "detach") return `Detach contact ${params.contactId} from ${type} ${id}`;
-      if (action === "delete") return `Delete contact ${params.contactId}`;
-      return `Edit contact ${params.contactId}`;
-    case "manage_merchant_account":
-      if (action === "create") return `Create merchant account on ${type} ${id}`;
-      if (action === "attach") return `Attach merchant account to ${type} ${id}`;
-      if (action === "detach") return `Detach merchant account ${params.attachedMerchantAccountId}`;
-      if (action === "delete") return `Delete merchant account ${params.merchantAccountId}`;
-      return `Edit merchant account ${params.merchantAccountId}`;
-    case "manage_settings":
-      if (action === "set") return `Set setting ${params.key} on ${type} ${id}`;
-      return `Batch set ${Object.keys((params.settings as Record<string, unknown>) ?? {}).length} setting(s) on ${type} ${id}`;
-    default:
-      return `${action} on ${tool}`;
-  }
-}
-
-async function confirmIfMutating(tool: string, params: Record<string, unknown>, env: Environment) {
-  const actions = MUTATING_ACTIONS[tool];
-  if (!actions) return;
-  const action = params.action as string;
-  if (!actions.has(action)) return;
-
-  const preview: WritePreview = {
-    tool,
-    action,
-    method: httpMethod(action),
-    description: describeDirectWrite(tool, action, params),
-    params,
-    env,
-  };
-  const choice = await requestConfirm(preview);
-  if (choice === "cancel") throw new Error("Operation cancelled by user.");
 }
 
 // -- Tool execution routing -----------------------------------------------
