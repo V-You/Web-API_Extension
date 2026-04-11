@@ -174,7 +174,7 @@ class SdkConfig {
       for (const sdkPath of sdkPaths) {
         try {
           results[entityId][sdkPath] = await this.get(entityType, entityId, sdkPath);
-        } catch (err) {
+        } catch (_err) {
           results[entityId][sdkPath] = {
             sdkPath,
             flatKey: sdkPathToKey(sdkPath) ?? sdkPath,

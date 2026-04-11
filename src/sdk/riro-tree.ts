@@ -161,7 +161,7 @@ function insertIntoTree(root: TreeNode, sdkPath: string, meta: SettingMeta) {
 }
 
 /** Convert a RiRo type string to a Zod schema. */
-function riroTypeToZod(riroType: string, defaultValue: string): ZodTypeAny {
+function riroTypeToZod(riroType: string, _defaultValue: string): ZodTypeAny {
   switch (riroType.toLowerCase()) {
     case "boolean":
       return z.boolean();

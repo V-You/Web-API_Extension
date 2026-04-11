@@ -80,6 +80,28 @@ npm install
 npm run build      # production build
 ```
 
+### Developer workflow
+
+Use the standard quality gates before shipping changes:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+Formatting commands:
+
+```bash
+npm run format
+npm run format:check
+```
+
+Repository note:
+
+- Before changing an existing file, create a dated backup copy in `bak/` using the existing `*.bak.YYYYMMDD` pattern.
+
 ### Load the extension in Chrome
 
 1. Open `chrome://extensions`

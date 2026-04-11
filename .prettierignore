@@ -1,0 +1,10 @@
+bak/
+base_data/
+dist/
+img/
+icons/
+md/
+node_modules/
+src_data/
+tmp/
+web-api-extension.git/

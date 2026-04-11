@@ -12,7 +12,6 @@
 import {
   getTreeRoot,
   type TreeNode,
-  type SettingMeta,
   getByPath,
 } from "./riro-tree";
 

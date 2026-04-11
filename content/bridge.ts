@@ -9,7 +9,6 @@
  * script via chrome.scripting.executeScript (bypasses page CSP).
  */
 
-import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
 import { getActiveEnv, getCredentials } from "../src/lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../src/lib/types";
 import { requestConfirm, type WritePreview } from "../src/bridge/confirm-bridge";

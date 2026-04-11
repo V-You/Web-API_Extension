@@ -16,7 +16,6 @@ import { executeManageContact } from "../src/tools/manage-contact";
 import { executeManageMerchantAccount } from "../src/tools/manage-merchant-account";
 import { executeLookupClearingInstitutes } from "../src/tools/lookup-clearing-institutes";
 import { executeDescribeSettings } from "../src/tools/describe-settings";
-import { executeManageSettings } from "../src/tools/manage-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
 import type { EntityType } from "../src/lib/entity-types";

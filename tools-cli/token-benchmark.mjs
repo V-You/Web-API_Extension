@@ -37,7 +37,7 @@ function measureLegacy() {
     toolCodeBytes = 298_326;
   }
 
-  let riroBytes = 0;
+  let riroBytes;
   try {
     riroBytes = statSync(RIRO_DATA).size;
   } catch {
@@ -62,7 +62,7 @@ function measureExtension() {
   // The actual handler code and data stay in the extension.
 
   // Measure the actual tool registration surface
-  let registrationChars = 0;
+  let registrationChars;
   try {
     const src = readFileSync("src/webmcp/register-tools.ts", "utf-8");
     // Extract just the schema-visible parts (name + description + inputSchema)

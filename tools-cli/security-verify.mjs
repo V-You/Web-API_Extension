@@ -14,7 +14,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from "fs";
-import { join, extname } from "path";
+import { join } from "path";
 
 let passed = 0;
 let failed = 0;

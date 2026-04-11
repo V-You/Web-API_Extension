@@ -239,8 +239,8 @@ async function resetPassword(
 
 async function findByUsername(
   input: ManageContactInput,
-  creds: ApiCredentials,
-  env: Environment
+  _creds: ApiCredentials,
+  _env: Environment
 ) {
   if (!input.username) return { error: "username is required for find_by_username." };
 
