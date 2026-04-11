@@ -1,0 +1,20 @@
+# User
+tmp/
+md/
+.venv/
+.github/
+.vscode/
+bak/
+base_data/
+img
+
+# Ignore build artifacts
+build/
+dist/
+
+# Ignore dependencies
+node_modules/
+vendor/
+
+# Ignore logs
+*.log
