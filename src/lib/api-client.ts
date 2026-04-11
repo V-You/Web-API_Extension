@@ -16,6 +16,14 @@ import type { ApiCredentials, AuditEntry, AuditEventType, Environment } from "./
 
 const limiter = new RateLimiter(9);
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 500;
+
+/** Check if a status code is retryable (server error or rate limit). */
+function isRetryableStatus(status: number): boolean {
+  return status >= 500 || status === 429;
+}
+
 export interface ApiResponse<T = unknown> {
   ok: boolean;
   status: number;
@@ -29,6 +37,34 @@ export interface RequestOptions {
   path: string;
   /** Form fields for POST requests (url-encoded). */
   params?: Record<string, string>;
+}
+
+/**
+ * Fetch with exponential backoff retry for transient failures.
+ * Retries on network errors and 5xx/429 responses.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (!isRetryableStatus(res.status) || attempt === MAX_RETRIES) {
+        return res;
+      }
+      // Retryable status -- wait and try again
+    } catch (err) {
+      lastError = err;
+      if (attempt === MAX_RETRIES) break;
+      // Network error -- wait and try again
+    }
+    const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+    await new Promise((r) => setTimeout(r, delay));
+    await limiter.acquire(); // re-acquire rate limit token
+  }
+  throw lastError ?? new Error(`Request failed after ${MAX_RETRIES + 1} attempts`);
 }
 
 /**
@@ -56,7 +92,7 @@ export async function apiRequest<T = unknown>(
     body = new URLSearchParams(opts.params).toString();
   }
 
-  const res = await fetch(url, { method, headers, body });
+  const res = await fetchWithRetry(url, { method, headers, body });
 
   let data: T;
   const contentType = res.headers.get("content-type") ?? "";

@@ -12,6 +12,28 @@
 import { getJob, type JobRecord } from "./job-store";
 import type { ApiCredentials, Environment } from "../lib/types";
 
+// -- SW message helper with retry -----------------------------------------
+// chrome.runtime.sendMessage can fail transiently if the SW is waking up.
+
+const SW_MSG_RETRIES = 3;
+const SW_MSG_RETRY_DELAY_MS = 500;
+
+async function sendToSw<T = unknown>(message: unknown): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < SW_MSG_RETRIES; attempt++) {
+    try {
+      const res = await chrome.runtime.sendMessage(message);
+      return res as T;
+    } catch (err) {
+      lastError = err;
+      if (attempt < SW_MSG_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, SW_MSG_RETRY_DELAY_MS));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // -- Active job tracking (kept in sync via storage changes) ---------------
 
 let activeJobId: string | null = null;
@@ -38,7 +60,7 @@ export function getActiveJobId(): string | null {
 /** Ask the SW for the current active job. */
 async function syncActiveJobId(): Promise<void> {
   try {
-    const res = await chrome.runtime.sendMessage({ type: "job_status" });
+    const res = await sendToSw<{ activeJobId?: string }>({ type: "job_status" });
     const newId = res?.activeJobId ?? null;
     if (newId !== activeJobId) {
       activeJobId = newId;
@@ -80,7 +102,7 @@ export interface StartJobInput {
  * Returns the job record.
  */
 export async function startJob(input: StartJobInput): Promise<JobRecord> {
-  const res = await chrome.runtime.sendMessage({
+  const res = await sendToSw<{ ok: boolean; jobId?: string; error?: string }>({
     type: "job_start",
     payload: {
       label: input.label,
@@ -94,7 +116,7 @@ export async function startJob(input: StartJobInput): Promise<JobRecord> {
     },
   });
 
-  if (!res?.ok) {
+  if (!res?.ok || !res.jobId) {
     throw new Error(res?.error ?? "Failed to start job.");
   }
 
@@ -119,7 +141,7 @@ export async function resumeJob(
   const job = await getJob(jobId);
   if (!job) return null;
 
-  const res = await chrome.runtime.sendMessage({
+  const res = await sendToSw<{ ok: boolean; error?: string }>({
     type: "job_resume",
     payload: {
       jobId,
@@ -150,7 +172,7 @@ export async function resumeJob(
  */
 export async function pauseJob(): Promise<void> {
   if (!activeJobId) return;
-  await chrome.runtime.sendMessage({ type: "job_pause" });
+  await sendToSw({ type: "job_pause" });
   activeJobId = null;
   notifyState();
 }
@@ -162,7 +184,7 @@ export async function pauseJob(): Promise<void> {
  */
 export async function cancelJob(): Promise<void> {
   if (!activeJobId) return;
-  await chrome.runtime.sendMessage({ type: "job_cancel" });
+  await sendToSw({ type: "job_cancel" });
   activeJobId = null;
   notifyState();
 }
@@ -174,5 +196,5 @@ export async function cancelJobById(jobId: string): Promise<void> {
   if (activeJobId === jobId) {
     return cancelJob();
   }
-  await chrome.runtime.sendMessage({ type: "job_cancel", jobId });
+  await sendToSw({ type: "job_cancel", jobId });
 }
