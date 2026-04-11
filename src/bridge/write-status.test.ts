@@ -59,10 +59,15 @@ describe("write-status", () => {
     expect(getWriteStatuses()).toHaveLength(0);
   });
 
-  it("auto-expires entries after propagation window", () => {
+  it("transitions to likely_propagated then auto-expires", () => {
     recordWrite("Auto-expiring");
-    // 3 min + 5 sec = 185_000 ms
-    vi.advanceTimersByTime(185_001);
+    // At 180s: transitions to likely_propagated
+    vi.advanceTimersByTime(180_001);
+    const statuses = getWriteStatuses();
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0].status).toBe("likely_propagated");
+    // At 190s: auto-removed
+    vi.advanceTimersByTime(10_000);
     expect(getWriteStatuses()).toHaveLength(0);
   });
 

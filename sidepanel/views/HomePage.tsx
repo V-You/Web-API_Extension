@@ -54,15 +54,16 @@ export function HomePage() {
           }`}
         />
         <span className="text-slate-500">
-          {connStatus === "ok" && "Connected"}
-          {connStatus === "fail" && "Connection failed"}
-          {connStatus === "checking" && "Checking..."}
+          {connStatus === "ok" && "Connected to Web API"}
+          {connStatus === "fail" && "Connection failed -- check credentials in Connections tab"}
+          {connStatus === "checking" && "Checking connection..."}
           {connStatus === null && "Not connected"}
         </span>
       </div>
 
       <p className="text-slate-500 text-xs">
-        Use the sidebar tools to manage entities, settings, and contacts.
+        Your AI agent can use the exposed tools to manage entities, settings,
+        and contacts via the Web API.
       </p>
 
       <div className="grid gap-3">

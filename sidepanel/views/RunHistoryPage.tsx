@@ -71,6 +71,9 @@ export function RunHistoryPage() {
     return (
       <div className="text-center py-12 text-slate-500">
         <p className="text-sm">No operations recorded yet.</p>
+        <p className="text-xs mt-1 text-slate-400">
+          API calls made through the extension will appear here.
+        </p>
       </div>
     );
   }

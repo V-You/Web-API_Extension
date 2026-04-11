@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { encrypt, decrypt, type EncryptedBlob } from "./crypto";
+import { encrypt, decrypt } from "./crypto";
 
 describe("crypto", () => {
   const pin = "1234";

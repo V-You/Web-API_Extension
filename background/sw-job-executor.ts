@@ -353,7 +353,8 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
 
   const progress = (completedCalls: number, totalCalls: number, checkpoint?: unknown) => {
     pendingProgress = { completedCalls, totalCalls, checkpoint };
-    flushProgress(jobId);
+    // Force-flush immediately when a checkpoint is set (resume safety)
+    flushProgress(jobId, checkpoint !== undefined);
   };
 
   const context = {

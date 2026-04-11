@@ -40,6 +40,9 @@ export function JobMonitor() {
     return (
       <div className="text-center py-8 text-slate-500">
         <p className="text-sm">No active or recoverable jobs.</p>
+        <p className="text-xs mt-1 text-slate-400">
+          Jobs are created when your AI agent runs a workflow script.
+        </p>
       </div>
     );
   }
@@ -72,6 +75,7 @@ export function JobMonitor() {
 }
 
 function ActiveJobCard({ job }: { job: JobRecord }) {
+  const [actionError, setActionError] = useState<string | null>(null);
   const pct = job.totalCalls > 0
     ? Math.min(100, Math.round((job.completedCalls / job.totalCalls) * 100))
     : 0;
@@ -83,6 +87,18 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
       })()
     : 0;
   const elapsed = formatDuration(job.elapsedMs + liveElapsed);
+
+  async function handlePause() {
+    setActionError(null);
+    try { await pauseJob(); }
+    catch (err) { setActionError(err instanceof Error ? err.message : "Failed to pause job"); }
+  }
+
+  async function handleCancel() {
+    setActionError(null);
+    try { await cancelJob(); }
+    catch (err) { setActionError(err instanceof Error ? err.message : "Failed to cancel job"); }
+  }
 
   return (
     <div className="border border-slate-200 rounded-lg p-3 space-y-2">
@@ -119,18 +135,24 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
         </div>
       )}
 
+      {actionError && (
+        <div className="text-xs text-red-600 bg-red-50 rounded p-1.5">
+          {actionError}
+        </div>
+      )}
+
       {/* Controls */}
       <div className="flex gap-2 pt-1">
         {job.state === "running" && (
           <>
             <button
-              onClick={() => pauseJob()}
+              onClick={handlePause}
               className="flex-1 px-2 py-1 text-xs font-medium rounded border border-amber-300 text-amber-700 hover:bg-amber-50"
             >
               Pause
             </button>
             <button
-              onClick={() => cancelJob()}
+              onClick={handleCancel}
               className="flex-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
             >
               Cancel
@@ -141,7 +163,7 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
           <>
             <ResumeButton jobId={job.id} />
             <button
-              onClick={() => cancelJobById(job.id)}
+              onClick={() => cancelJobById(job.id).catch((err) => setActionError(err instanceof Error ? err.message : "Failed to cancel job"))}
               className="flex-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
             >
               Cancel
@@ -154,6 +176,7 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
 }
 
 function RecoverableJobCard({ job }: { job: JobRecord }) {
+  const [actionError, setActionError] = useState<string | null>(null);
   const pct = job.totalCalls > 0
     ? Math.round((job.completedCalls / job.totalCalls) * 100)
     : 0;
@@ -170,10 +193,13 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
       {job.error && (
         <div className="text-xs text-red-600">{job.error}</div>
       )}
+      {actionError && (
+        <div className="text-xs text-red-600">{actionError}</div>
+      )}
       <div className="flex gap-2">
         <ResumeButton jobId={job.id} />
         <button
-          onClick={() => cancelJobById(job.id)}
+          onClick={() => cancelJobById(job.id).catch((err) => setActionError(err instanceof Error ? err.message : "Failed to discard job"))}
           className="flex-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
         >
           Discard
@@ -255,29 +281,34 @@ function CompletedJobCard({ job }: { job: JobRecord }) {
 
 function ResumeButton({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleResume() {
     setBusy(true);
+    setError(null);
     try {
       const env = await getActiveEnv();
       if (!env) throw new Error("No active environment");
       const creds = await getCredentials(env);
       if (!creds) throw new Error("Session not unlocked");
       await resumeJob(jobId, creds, env);
-    } catch {
-      // swallow -- job store will reflect the state
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resume");
     }
     setBusy(false);
   }
 
   return (
-    <button
-      onClick={handleResume}
-      disabled={busy}
-      className="flex-1 px-2 py-1 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-    >
-      {busy ? "Resuming..." : "Resume"}
-    </button>
+    <div className="flex-1">
+      <button
+        onClick={handleResume}
+        disabled={busy}
+        className="w-full px-2 py-1 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+      >
+        {busy ? "Resuming..." : "Resume"}
+      </button>
+      {error && <div className="text-xs text-red-600 mt-0.5">{error}</div>}
+    </div>
   );
 }
 

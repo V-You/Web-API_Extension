@@ -49,11 +49,20 @@ export function recordWrite(description: string): string {
     }
   }, 1000);
 
-  // Auto-expire after propagation window
+  // Auto-transition to likely_propagated after the propagation window
   setTimeout(() => {
-    entries = entries.filter((x) => x.id !== entry.id);
-    notify();
-  }, PROPAGATION_WINDOW_MS + 5000);
+    const e2 = entries.find((x) => x.id === entry.id);
+    if (e2 && (e2.status === "pending_propagation" || e2.status === "accepted")) {
+      e2.status = "likely_propagated";
+      e2.elapsedMs = Date.now() - e2.timestamp;
+      notify();
+    }
+    // Remove after a short display period
+    setTimeout(() => {
+      entries = entries.filter((x) => x.id !== entry.id);
+      notify();
+    }, 10_000);
+  }, PROPAGATION_WINDOW_MS);
 
   notify();
   return entry.id;

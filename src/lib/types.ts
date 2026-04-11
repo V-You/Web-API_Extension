@@ -21,7 +21,7 @@ export const ENV_DEFAULTS: Record<Environment, { baseUrl: string; label: string 
 };
 
 /** Post-write status model per PRD section 13.1. */
-export type WriteStatus = "accepted" | "pending_propagation" | "verified";
+export type WriteStatus = "accepted" | "pending_propagation" | "likely_propagated" | "verified";
 
 /** Job lifecycle states per PRD section 8.3. */
 export type JobState =

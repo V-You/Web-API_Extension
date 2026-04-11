@@ -5,7 +5,7 @@
  * write operations, with a propagation timer.
  */
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useEffect, useState } from "react";
 import {
   subscribeWriteStatus,
   getWriteStatuses,
@@ -15,6 +15,13 @@ import {
 
 export function WriteStatusToast() {
   const statuses = useSyncExternalStore(subscribeWriteStatus, getWriteStatuses, getWriteStatuses);
+  // Tick every second so elapsed timers update while entries are visible
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (statuses.length === 0) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [statuses.length]);
 
   if (statuses.length === 0) return null;
 
@@ -33,11 +40,13 @@ function StatusCard({ entry }: { entry: WriteStatusEntry }) {
   const styles: Record<string, { bg: string; text: string; label: string }> = {
     accepted: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", label: "Accepted" },
     pending_propagation: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", label: "Pending propagation" },
+    likely_propagated: { bg: "bg-green-50 border-green-200", text: "text-green-600", label: "Likely propagated" },
     verified: { bg: "bg-green-50 border-green-200", text: "text-green-700", label: "Verified" },
   };
 
   const s = styles[status] ?? styles.accepted;
   const secs = Math.floor(elapsedMs / 1000);
+  const remainingSecs = Math.max(0, 180 - secs);
 
   return (
     <div className={`${s.bg} border rounded-lg p-2 text-xs flex items-start gap-2`}>
@@ -45,7 +54,7 @@ function StatusCard({ entry }: { entry: WriteStatusEntry }) {
         <div className="flex items-center gap-1.5">
           <span className={`font-semibold ${s.text}`}>{s.label}</span>
           {status === "pending_propagation" && (
-            <span className="text-amber-500">{secs}s</span>
+            <span className="text-amber-500">~{remainingSecs}s remaining</span>
           )}
         </div>
         <p className="text-slate-600 mt-0.5 truncate">{description}</p>

@@ -61,6 +61,12 @@ export function ConnectionsPage({ onChanged }: Props) {
         ))}
       </div>
 
+      {selectedEnv === "prod" && (
+        <p className="text-[10px] text-red-500">
+          Production environment -- all write operations require confirmation.
+        </p>
+      )}
+
       <CredentialForm
         env={selectedEnv}
         hasSaved={selectedEnv === "uat" ? uatSaved : prodSaved}
@@ -301,7 +307,8 @@ function ThrottleRateSetting() {
         </button>
       </div>
       <p className="text-[10px] text-slate-400">
-        Maximum API requests per second for jobs (default: 9).
+        Maximum API requests per second for jobs and batch operations (default: 9).
+        Higher values may trigger rate limiting.
       </p>
     </div>
   );

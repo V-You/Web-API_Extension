@@ -185,8 +185,15 @@ Config: <br>
 
 VS Code Insiders does have WebMCP support. 
 
-- Config needed to persist experimental flag and unpacked extension:
-- [add here]
+- Launch Chrome with the extension and WebMCP flag:
+
+```bash
+google-chrome-unstable \
+  --load-extension=/path/to/Web-API_Extension/dist/chrome-mv3-dev \
+  --enable-features=WebMCPTesting
+```
+
+- In VS Code Insiders, the agent can use the Chrome DevTools MCP server to interact with WebMCP tools exposed by the extension.
 
 
 ## Features
@@ -509,6 +516,18 @@ Edit `settings_family_profiles.json` to extend shortcode families.
 
 ### Privacy
 
+**Data-flow boundaries:**
+
+| Data | Where it lives | Exposed to LLM? |
+|------|----------------|-----------------|
+| API credentials | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never |
+| Tool call parameters | Extension memory only (not persisted) | Tool schema visible; parameter values visible to the calling agent |
+| API responses | Returned to calling agent as tool results | Yes -- the agent sees the structured result |
+| Audit log | `chrome.storage.local` (capped at 500 entries) | Only via `get_audit_log` tool (agent must explicitly request) |
+| Job scripts | `chrome.storage.local` as part of job record | Script text visible when created by the agent |
+| Job results | `chrome.storage.local` until downloaded or discarded | Only final summary returned to agent; intermediate API responses stay local |
+| Code-mode execution | Local `AsyncFunction` sandbox in SW | Intermediate results never leave the browser |
+
 Code mode provides strong privacy by default: the LLM writes the script once, the script executes locally for the duration of the job (which can run for hours), and only the final summary is returned to the LLM. Intermediate API responses never leave the browser.
 
 v1 assumes a local or trusted LLM. No data redaction is applied. A one-time notice informs the user that chat content and tool results are available to their configured LLM provider.
@@ -521,6 +540,21 @@ Credentials are never exposed to the LLM context, the DOM, content scripts, or a
 - `chrome.storage.session` holds decrypted credentials for the active browser session only (cleared on browser close).
 - Audit log exports and diagnostic dumps are guaranteed to exclude credentials.
 - UAT and Prod credential storage is fully isolated (separate encrypted blobs).
+
+### Known limitations (v1)
+
+| Area | Limitation | Mitigation |
+|------|-----------|------------|
+| Rollback | No undo for writes | Preview-confirm dialog shows exact changes before execution |
+| Eventual consistency | Writes may take up to 3 minutes to propagate through API cache | Post-write toast shows propagation countdown; "likely propagated" after 3 minutes |
+| Prod safety | No granular policy beyond preview-confirm | All Prod writes show red "PROD" badge; separate environment credentials |
+| Data redaction | No content redaction applied to LLM context | Privacy notice shown; credentials excluded from all outputs |
+| Settings coverage | ~627 of 1,225 settings lack full type information (tier B) | Tier B settings are searchable and readable; writes accepted with warning |
+| PSP-level settings | GET /setting unavailable at PSP level | POST /setting works at all levels; documented in API quirks |
+| WebMCP support | Requires Chrome 146+ with experimental flag | Flag documented in install prerequisites |
+| Long-running jobs | No automatic resume after browser restart | Jobs marked as paused on restart; manual resume available |
+| Rate limiting | Fixed 9 req/s default; hierarchy-wide queries can take hours | Configurable throttle rate; progress bar and time estimate in Jobs tab |
+| Offline | No disconnected or offline operation | Extension requires active browser session |
 
 
 ## Links
