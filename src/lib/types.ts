@@ -6,6 +6,8 @@ export interface ApiCredentials {
   baseUrl: string;
   username: string;
   password: string;
+  /** Highest entity (PSP) the Web API user is attached to. */
+  pspId?: string;
 }
 
 /** Environments with their default base URLs. */

@@ -54,6 +54,7 @@ describe("storage", () => {
     baseUrl: "https://api.test",
     username: "testuser",
     password: "testpass",
+    pspId: "psp-123",
   };
   const pin = "5678";
 
@@ -73,6 +74,13 @@ describe("storage", () => {
     expect(await hasStoredCredentials()).toBe(true);
     const retrieved = await getCredentials("uat");
     expect(retrieved).toEqual(creds);
+  });
+
+  it("persists the PSP ID with credentials", async () => {
+    await saveCredentials("uat", creds, pin);
+
+    const retrieved = await getCredentials("uat");
+    expect(retrieved?.pspId).toBe("psp-123");
   });
 
   it("unlocks credentials with correct PIN", async () => {

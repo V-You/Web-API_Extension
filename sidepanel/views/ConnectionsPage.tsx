@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Environment, ApiCredentials } from "../../src/lib/types";
 import { ENV_DEFAULTS } from "../../src/lib/types";
+import { buildConnectionProbeUrl, classifyConnectionProbeResponse } from "../../src/lib/connection-probe";
 import {
   saveCredentials,
   getCredentials,
@@ -14,6 +15,8 @@ import {
 interface Props {
   onChanged: () => void;
 }
+
+const TEST_COOLDOWN_MS = 2000;
 
 export function ConnectionsPage({ onChanged }: Props) {
   const [selectedEnv, setSelectedEnv] = useState<Environment>("uat");
@@ -99,26 +102,50 @@ function CredentialForm({
   onDeleted: () => void;
 }) {
   const defaults = ENV_DEFAULTS[env];
+  const testBusyRef = useRef(false);
   const [baseUrl, setBaseUrl] = useState(defaults.baseUrl);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [pspId, setPspId] = useState("");
   const [pin, setPin] = useState("");
+  const [savedCreds, setSavedCreds] = useState<ApiCredentials | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
+  const [testCooldownMs, setTestCooldownMs] = useState(0);
 
-  // Reset form when env changes
   useEffect(() => {
-    setBaseUrl(ENV_DEFAULTS[env].baseUrl);
-    setUsername("");
-    setPassword("");
-    setPin("");
-    setError(null);
-    setTestResult(null);
+    if (testCooldownMs <= 0) return;
+    const interval = setInterval(() => {
+      setTestCooldownMs((current) => Math.max(0, current - 100));
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [testCooldownMs]);
+
+  // Reset or hydrate the form when env changes
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const saved = await getCredentials(env);
+      if (cancelled) return;
+      setSavedCreds(saved);
+      setBaseUrl(saved?.baseUrl ?? ENV_DEFAULTS[env].baseUrl);
+      setUsername(saved?.username ?? "");
+      setPassword("");
+      setPspId(saved?.pspId ?? "");
+      setPin("");
+      setError(null);
+      setTestResult(null);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [env]);
 
   async function handleSave() {
-    if (!username || !password || !pin) {
+    if (!username || !password || !pspId || !pin) {
       setError("All fields are required.");
       return;
     }
@@ -130,10 +157,10 @@ function CredentialForm({
     setBusy(true);
     setError(null);
     try {
-      const creds: ApiCredentials = { baseUrl, username, password };
+      const creds: ApiCredentials = { baseUrl, username, password, pspId: pspId.trim() };
       await saveCredentials(env, creds, pin);
+      setSavedCreds(creds);
       await setActiveEnv(env);
-      setUsername("");
       setPassword("");
       setPin("");
       onSaved();
@@ -148,6 +175,14 @@ function CredentialForm({
     setBusy(true);
     try {
       await forgetCredentials(env);
+      setSavedCreds(null);
+      setBaseUrl(ENV_DEFAULTS[env].baseUrl);
+      setUsername("");
+      setPassword("");
+      setPspId("");
+      setPin("");
+      setError(null);
+      setTestResult(null);
       onDeleted();
     } finally {
       setBusy(false);
@@ -155,38 +190,99 @@ function CredentialForm({
   }
 
   async function handleTest() {
-    if (!username || !password) {
-      setError("Username and password are required to test.");
-      return;
-    }
+    if (testBusyRef.current || testCooldownMs > 0) return;
+    testBusyRef.current = true;
     setBusy(true);
     setError(null);
     setTestResult(null);
     try {
-      const url = `${baseUrl}/divisions`;
+      const probeCreds: ApiCredentials = {
+        baseUrl,
+        username: username || savedCreds?.username || "",
+        password: password || savedCreds?.password || "",
+        pspId: pspId || savedCreds?.pspId,
+      };
+
+      if (!probeCreds.username || !probeCreds.password || !probeCreds.pspId) {
+        setError("Username, password, and PSP ID are required to test.");
+        return;
+      }
+
+      const url = buildConnectionProbeUrl(probeCreds);
+      if (!url) {
+        setError("PSP ID is required to test.");
+        return;
+      }
+
       const res = await fetch(url, {
         method: "GET",
-        headers: { credentials: `${username}:${password}` },
+        headers: { credentials: `${probeCreds.username}:${probeCreds.password}` },
       });
-      if (res.status === 401 || res.status === 403) {
-        setTestResult("fail");
-        setError(`Authentication failed (${res.status}).`);
-      } else if (res.ok) {
+
+      const result = await classifyConnectionProbeResponse(res);
+      if (result.ok) {
         setTestResult("ok");
       } else {
         setTestResult("fail");
-        setError(`Unexpected response: ${res.status}`);
+        setError(result.message);
       }
     } catch (e) {
       setTestResult("fail");
       setError(e instanceof Error ? e.message : "Connection failed.");
     } finally {
+      setTestCooldownMs(TEST_COOLDOWN_MS);
       setBusy(false);
+      testBusyRef.current = false;
     }
   }
 
+  const effectiveTestConfig = useMemo(() => {
+    const effectivePasswordSource = password
+      ? "Typed password"
+      : savedCreds?.password
+        ? "Saved password"
+        : "Missing password";
+
+    return {
+      baseUrl: baseUrl || savedCreds?.baseUrl || ENV_DEFAULTS[env].baseUrl,
+      username: username || savedCreds?.username || "Not set",
+      pspId: pspId || savedCreds?.pspId || "Not set",
+      passwordSource: effectivePasswordSource,
+      probeUrl: buildConnectionProbeUrl({
+        baseUrl: baseUrl || savedCreds?.baseUrl || ENV_DEFAULTS[env].baseUrl,
+        pspId: pspId || savedCreds?.pspId,
+      }) ?? "Unavailable until PSP ID is set",
+    };
+  }, [baseUrl, env, password, pspId, savedCreds, username]);
+
+  const testCooldownPct = testCooldownMs > 0
+    ? Math.max(0, Math.min(100, (testCooldownMs / TEST_COOLDOWN_MS) * 100))
+    : 0;
+
   return (
     <div className="space-y-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <ConfigSummaryCard
+          title="Saved configuration"
+          emptyMessage="No saved credentials for this environment yet."
+          rows={savedCreds ? [
+            { label: "Username", value: savedCreds.username },
+            { label: "Base URL", value: savedCreds.baseUrl },
+            { label: "PSP ID", value: savedCreds.pspId ?? "Not set" },
+          ] : []}
+        />
+        <ConfigSummaryCard
+          title="Connection test target"
+          rows={[
+            { label: "Username", value: effectiveTestConfig.username },
+            { label: "Base URL", value: effectiveTestConfig.baseUrl },
+            { label: "PSP ID", value: effectiveTestConfig.pspId },
+            { label: "Password", value: effectiveTestConfig.passwordSource },
+            { label: "Probe", value: effectiveTestConfig.probeUrl },
+          ]}
+        />
+      </div>
+
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">
           Base URL
@@ -227,6 +323,23 @@ function CredentialForm({
 
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">
+          PSP ID
+        </label>
+        <input
+          type="text"
+          value={pspId}
+          onChange={(e) => setPspId(e.target.value)}
+          autoComplete="off"
+          placeholder="Highest PSP entity ID for this user"
+          className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+        />
+        <p className="text-[10px] text-slate-400 mt-1">
+          The Web API user is attached at this PSP. Connection tests use it to call a valid PSP-scoped endpoint.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-slate-600 mb-1">
           Encryption PIN
         </label>
         <input
@@ -243,14 +356,15 @@ function CredentialForm({
         <p className="text-xs text-green-600">Connection successful.</p>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={handleTest}
-          disabled={busy}
-          className="bg-slate-100 text-slate-700 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-slate-200 disabled:opacity-50 transition-colors"
-        >
-          {busy ? "Testing..." : "Test"}
-        </button>
+      <div className="space-y-1.5">
+        <div className="flex gap-2">
+          <button
+            onClick={handleTest}
+            disabled={busy || testCooldownMs > 0}
+            className="bg-slate-100 text-slate-700 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-slate-200 disabled:opacity-50 transition-colors"
+          >
+            {busy ? "Testing..." : testCooldownMs > 0 ? `Wait ${Math.ceil(testCooldownMs / 1000)}s` : "Test"}
+          </button>
         <button
           onClick={handleSave}
           disabled={busy}
@@ -267,7 +381,44 @@ function CredentialForm({
             Remove
           </button>
         )}
+        </div>
+        {testCooldownMs > 0 && (
+          <div className="h-1 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-slate-400 transition-[width] duration-100"
+              style={{ width: `${testCooldownPct}%` }}
+            />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function ConfigSummaryCard({
+  title,
+  rows,
+  emptyMessage,
+}: {
+  title: string;
+  rows: Array<{ label: string; value: string }>;
+  emptyMessage?: string;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
+      <h3 className="font-semibold text-slate-700">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="mt-1 text-slate-500">{emptyMessage ?? "No values available."}</p>
+      ) : (
+        <dl className="mt-1 space-y-1">
+          {rows.map((row) => (
+            <div key={row.label}>
+              <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{row.label}</dt>
+              <dd className="break-all text-slate-700">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </div>
   );
 }

@@ -14,14 +14,9 @@
  */
 
 import { encrypt, decrypt, type EncryptedBlob } from "./crypto";
+import type { ApiCredentials, Environment } from "./types";
 
-export type Environment = "uat" | "prod";
-
-export interface ApiCredentials {
-  baseUrl: string;
-  username: string;
-  password: string;
-}
+export type { ApiCredentials, Environment } from "./types";
 
 const STORAGE_KEY = (env: Environment) => `cred:${env}`;
 const SESSION_KEY = (env: Environment) => `session:${env}`;

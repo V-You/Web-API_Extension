@@ -98,6 +98,8 @@ npm run format
 npm run format:check
 ```
 
+CI runs the same gates (typecheck, lint, test, build) automatically on every push and pull request via GitHub Actions. The `base_data/` files are gitignored, so CI creates minimal JSON stubs for the typecheck step.
+
 Repository note:
 
 - Before changing an existing file, create a dated backup copy in `bak/` using the existing `*.bak.YYYYMMDD` pattern.

@@ -1,26 +1,43 @@
 import { useState, useEffect } from "react";
 import { useCredentialStore } from "../../src/hooks/useCredentialStore";
 import { getCredentials } from "../../src/lib/storage";
+import { buildConnectionProbeUrl, classifyConnectionProbeResponse } from "../../src/lib/connection-probe";
 
 export function HomePage() {
   const { isUnlocked, activeEnv } = useCredentialStore();
   const [connStatus, setConnStatus] = useState<"checking" | "ok" | "fail" | null>(null);
+  const [connMessage, setConnMessage] = useState("Not connected");
 
   // Check connection status when unlocked
   useEffect(() => {
     if (!isUnlocked || !activeEnv) {
       setConnStatus(null);
+      setConnMessage("Not connected");
       return;
     }
     setConnStatus("checking");
+    setConnMessage("Checking connection...");
     getCredentials(activeEnv).then((creds) => {
-      if (!creds) { setConnStatus("fail"); return; }
-      fetch(`${creds.baseUrl}/divisions`, {
+      const url = creds ? buildConnectionProbeUrl(creds) : null;
+      if (!creds || !url) {
+        setConnStatus("fail");
+        setConnMessage("Connection not configured -- add username, password, and PSP ID in Connections.");
+        return;
+      }
+
+      fetch(url, {
         method: "GET",
         headers: { credentials: `${creds.username}:${creds.password}` },
       })
-        .then((res) => setConnStatus(res.ok ? "ok" : "fail"))
-        .catch(() => setConnStatus("fail"));
+        .then(async (res) => {
+          const result = await classifyConnectionProbeResponse(res);
+          setConnStatus(result.ok ? "ok" : "fail");
+          setConnMessage(result.ok ? "Connected to Web API" : result.message);
+        })
+        .catch((err) => {
+          setConnStatus("fail");
+          setConnMessage(err instanceof Error ? err.message : "Connection failed.");
+        });
     });
   }, [isUnlocked, activeEnv]);
 
@@ -54,10 +71,7 @@ export function HomePage() {
           }`}
         />
         <span className="text-slate-500">
-          {connStatus === "ok" && "Connected to Web API"}
-          {connStatus === "fail" && "Connection failed -- check credentials in Connections tab"}
-          {connStatus === "checking" && "Checking connection..."}
-          {connStatus === null && "Not connected"}
+          {connMessage}
         </span>
       </div>
 
