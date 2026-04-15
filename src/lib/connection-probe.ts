@@ -1,6 +1,5 @@
 import type { EntityType } from "./entity-types";
 import { ENTITY_PLURAL } from "./entity-types";
-import type { ApiCredentials } from "./types";
 
 export interface ConnectionProbeResult {
   ok: boolean;

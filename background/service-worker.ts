@@ -10,8 +10,10 @@
  */
 
 import { swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
+import { clearChatContext, upsertChatContext } from "../src/chat/context-store";
 import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
 import type { ToolSchema } from "../src/webmcp/tool-schemas";
+import type { EntityType } from "../src/lib/entity-types";
 
 // -- Side panel activation ------------------------------------------------
 
@@ -81,7 +83,30 @@ export interface JobControlMessage {
   jobId?: string;
 }
 
-export type ServiceWorkerMessage = ApiMessage | JobControlMessage | { type: string; [key: string]: unknown };
+export interface ChatContextUpdateMessage {
+  type: "chat:context-update";
+  payload: {
+    entityId: string;
+    entityType: EntityType;
+    confidence: number;
+    source: "url" | "anchor";
+  };
+}
+
+export interface ChatContextClearMessage {
+  type: "chat:context-clear";
+}
+
+export interface ChatGeminiGenerateMessage {
+  type: "chat:gemini-generate";
+  payload: {
+    apiKey: string;
+    model: string;
+    body: Record<string, unknown>;
+  };
+}
+
+export type ServiceWorkerMessage = ApiMessage | JobControlMessage | ChatContextUpdateMessage | ChatContextClearMessage | ChatGeminiGenerateMessage | { type: string; [key: string]: unknown };
 
 export interface ApiMessageResponse {
   ok: boolean;
@@ -147,6 +172,48 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
+    if (message.type === "chat:context-update") {
+      const tabId = _sender.tab?.id;
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: false, error: "No tab ID" });
+        return false;
+      }
+
+      const payload = (message as ChatContextUpdateMessage).payload;
+      upsertChatContext({
+        tabId,
+        frameId: _sender.frameId ?? 0,
+        timestamp: Date.now(),
+        entityId: payload.entityId,
+        entityType: payload.entityType,
+        confidence: payload.confidence,
+        source: payload.source,
+      })
+        .then((context) => sendResponse({ ok: true, context }))
+        .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      return true;
+    }
+
+    if (message.type === "chat:context-clear") {
+      const tabId = _sender.tab?.id;
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: false, error: "No tab ID" });
+        return false;
+      }
+
+      clearChatContext(tabId)
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      return true;
+    }
+
+    if (message.type === "chat:gemini-generate") {
+      handleChatGeminiGenerate((message as ChatGeminiGenerateMessage).payload)
+        .then(sendResponse)
+        .catch((err) => sendResponse({ ok: false, status: 0, error: err instanceof Error ? err.message : String(err) }));
+      return true;
+    }
+
     // -- Main-world WebMCP tool registration (bypasses page CSP) ----------
 
     if (message.type === "webmcp:inject-main") {
@@ -204,6 +271,32 @@ async function handleApiRequest(
   }
 
   return { ok: res.ok, status: res.status, data };
+}
+
+async function handleChatGeminiGenerate(
+  payload: ChatGeminiGenerateMessage["payload"],
+): Promise<{ ok: boolean; status: number; data?: unknown; error?: string }> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(payload.model)}:generateContent`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": payload.apiKey,
+    },
+    body: JSON.stringify(payload.body),
+  });
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data,
+    error: response.ok ? undefined : typeof data === "string" ? data : JSON.stringify(data),
+  };
 }
 
 // -- Main-world registration function (injected via chrome.scripting) -----

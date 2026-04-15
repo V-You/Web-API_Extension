@@ -60,7 +60,7 @@ The extension is a *Client-Side Adapter*. The <a href="https://github.com/snlr30
 - Does not support offline or disconnected operation.
 - No mobile browser support.
 - No multi-tenant profile switching. Dual-env: yes.
-- Extension is primarily a tool provider. The built-in chat tab is a BYOK fallback for environments where no WebMCP-compatible agent is available.
+- Extension is primarily a tool provider. The built-in Chat Tab is a BYOK fallback for environments where no WebMCP-compatible agent is available.
 
 ## Install
 
@@ -198,7 +198,7 @@ google-chrome-unstable \
 - In VS Code Insiders, the agent can use the Chrome DevTools MCP server to interact with WebMCP tools exposed by the extension.
 
 
-### The agent gap (why we added a chat tab)
+### The agent gap (why we added a Chat Tab)
 
 The extension exposes 9 tools via WebMCP, but consuming those tools requires an AI agent that supports WebMCP tool calling. As of 2026-04, no readily available browser-side agent fills that role for a simple demo:
 
@@ -209,34 +209,38 @@ The extension exposes 9 tools via WebMCP, but consuming those tools requires an 
 | **IDE + CDP bridge** | IDE + MCP thin wrapper + dedicated Chrome instance (persistent user dir) | Full (via CDP) | Works perfectly, but nobody is going to do that for a demo |
 | **Chat tab (BYOK)** | Enter LLM API key in extension | Entity-level (via content script) | Self-contained, no external tooling |
 
-The chat tab bridges this gap: the user installs the extension, enters API credentials and an LLM API key, and talks to the SaaS immediately. It is a pragmatic fallback -- not a replacement for a proper WebMCP-native agent. When Chrome's built-in AI or Gemini adds WebMCP support, the chat tab becomes optional.
+The Chat Tab bridges this gap: the user installs the extension, enters API credentials and an LLM API key, and talks to the SaaS immediately. It is a pragmatic fallback -- not a replacement for a proper WebMCP-native agent. When Chrome's built-in AI or Gemini adds WebMCP support, the Chat Tab becomes optional.
 
-### Example workflow using the built-in chat tab
+### Example workflow using the built-in Chat Tab
 
 1. Open the side panel -> **Chat** tab
-2. Open provider settings (gear icon), select a provider (Gemini, Anthropic, OpenAI, or Ollama), enter API key
+2. Open provider settings (gear icon), keep `Gemini` selected, enter API key
 3. Navigate to an entity page on the BIP dashboard
 4. The context bar shows the detected entity (e.g. "Division 8ac7...95")
 5. Prompt: "What is my dupe check set to here?"
 6. The agent calls `describe_settings` and `manage_settings` using the detected entity context, then returns a human-readable summary
 
-Tool calls appear as collapsible badges in the chat. Write operations trigger the same confirmation dialog as all other tool paths.
+Tool calls appear as collapsible badges in the chat. v1 chat runs in **safe mode**: read-only, no writes, no code execution.
 
-**What's implemented (v1):** Gemini adapter, context scraper (entityId + entityType from dashboard frames), encrypted LLM key storage, tool bridge to all 9 handlers, confirmation bridge integration.
+**Planned v1:** Gemini adapter, context scraper (entityId + entityType only), encrypted LLM key storage integrated with PIN unlock, bounded multi-step read loops, chat-specific read-only tool catalog, explicit exclusion of `execute_workflow`.
 
-**Planned (v1.1+):** Anthropic and OpenAI adapters, multi-turn tool chains, Ollama/local model support, streaming responses, richer context extraction (entity name, BIP section).
+**Planned v1.1:** Anthropic and OpenAI adapters, in-memory conversation history, explicit per-session `Enable write tools` opt-in, confirmation bridge reuse for any enabled writes.
 
-**Deferred:** Conversation persistence, system prompt customization, advanced DOM context beyond entity identification, cost tracking.
+**Planned v1.2:** Explicit `Enable automation mode` opt-in, optional workflow drafting or execution after review, richer context extraction (entity name, current BIP section), streaming responses.
 
-**Ideal future state:** WebMCP becomes widely supported by browser-native agents (Gemini, Chrome built-in AI). The extension reverts to being a pure tool provider. The chat tab remains as a fallback for environments without WebMCP agent support.
+**Deferred:** Local model support such as Ollama, conversation persistence or export, system prompt customization, advanced DOM context beyond entity identification, cost tracking.
+
+**Ideal future state:** WebMCP becomes widely supported by browser-native agents (Gemini, Chrome built-in AI). The extension reverts to being a pure tool provider. The Chat Tab remains as a fallback for environments without WebMCP agent support.
 
 ### Note on IDE+CDP vs "simple chat wrapper"
 
-The chat tab exctracts IDs. Gettting `entityId` is not an example use case - it's the key that unlocks all available tools in context. For the prompt: "What's my dupe check set to?", the context gives the agent entityId=8ac7... + entityType=merchant. From that anchor, the agent can call describe_settings({ query: "dupe" }), then manage_settings({ action: "get", ... }), then reason about the result. That's not one example use case - that's the full settings domain, the full contacts domain, hierarchy traversal, all context-bound.
+The Chat Tab extracts IDs. Getting `entityId` is not an example use case - it's the key that unlocks all available tools in context. For the prompt: "What's my dupe check set to?", the context gives the agent entityId=8ac7... + entityType=merchant. From that anchor, the agent can call `describe_settings({ query: "dupe" })`, then `manage_settings({ action: "get", ... })`, then reason about the result. That's not one example use case - that's the full settings domain, the full contacts domain, hierarchy traversal, all context-bound.
 
-What the chat tab can *not* possibly replicate compared to CDP: screenshots, full DOM reading, clicking UI buttons, navigating pages. The context scraper just tells the agent which entity to call the API about - "saving the user from copy-pasting hex IDs" if phrased dismissively, or "v1" otherwise. Our hope is that the chat tab will vanish once WebMCP is supported universally.
+What the Chat Tab can *not* replicate compared to CDP: screenshots, full DOM reading, clicking UI buttons, navigating pages. The context scraper tells the agent which entity to call the API about. That is enough for the core product promise - context-bound API reasoning with near-zero onboarding - even if it is not full browser control.
 
-What's extracted: entityId, entity type, entity name, the current dashboard section (settings, contacts, MAs) - all from URLs and frame anchors. That's enough to make the agent context-aware for all practical prompts.
+In v1, what's extracted is intentionally narrow: `entityId` and entity type. Entity name and current dashboard section are planned follow-up improvements, not part of the first release.
+
+In other words: the IDE + CDP flow has not spoiled us - it really can do more. The Chat Tab will not match CDP for screenshots, navigation, click automation, or full-page inspection. That is not the bar that the Chat Tab needs to clear. The Chat Tab only proves the core product value: context-bound API reasoning with near-zero onboarding. For that, entity-level context plus good tool use is enough.
 
 ## Features
 
@@ -491,7 +495,7 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 | **Storage** | `src/lib/storage.ts` | Manages encrypted credentials in `chrome.storage.local` and decrypted session cache in `chrome.storage.session`. |
 | **Service worker** | `background/service-worker.ts` | Side panel activation, API request relay, startup recovery (marks interrupted jobs as paused), tab-close detection. |
 | **Side panel** | `sidepanel/App.tsx`, `views/*.tsx` | React 19 + Tailwind CSS. Tabs: Home, Jobs, History, Chat, Connections. Mounts the confirm dialog overlay. PIN gate on startup. |
-| **Chat agent** | `src/chat/`, `sidepanel/views/ChatPage.tsx` | BYOK chat tab with LLM adapter pattern. Calls tool handlers directly, injects dashboard context. Gemini adapter in v1. |
+| **Chat agent** | `src/chat/`, `sidepanel/views/ChatPage.tsx` | BYOK Chat Tab with LLM adapter pattern. Calls tool handlers directly, injects dashboard context. Gemini adapter in v1. |
 
 ### Technology stack
 

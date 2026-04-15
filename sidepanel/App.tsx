@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useCredentialStore } from "../src/hooks/useCredentialStore";
 import { HomePage } from "./views/HomePage";
 import { ConnectionsPage } from "./views/ConnectionsPage";
+import { ChatPage } from "./views/ChatPage";
 import { RunHistoryPage } from "./views/RunHistoryPage";
 import { PinEntryPage } from "./views/PinEntryPage";
 import { ConfirmDialog } from "./views/ConfirmDialog";
@@ -10,7 +11,7 @@ import { PrivacyNotice } from "./views/PrivacyNotice";
 import { WriteStatusToast } from "./views/WriteStatusToast";
 import type { Environment } from "../src/lib/types";
 
-type View = "home" | "connections" | "history" | "jobs";
+type View = "home" | "connections" | "history" | "jobs" | "chat";
 
 export function App() {
   const [view, setView] = useState<View>("home");
@@ -35,6 +36,7 @@ export function App() {
         {view === "connections" && (
           <ConnectionsPage onChanged={() => checkState()} />
         )}
+        {view === "chat" && <ChatPage />}
         {view === "history" && <RunHistoryPage />}
         {view === "jobs" && <JobMonitor />}
       </main>
@@ -75,6 +77,7 @@ function Nav({
     { id: "home", label: "Home" },
     { id: "jobs", label: "Jobs" },
     { id: "history", label: "History" },
+    { id: "chat", label: "Chat" },
     { id: "connections", label: "Connections" },
   ];
 

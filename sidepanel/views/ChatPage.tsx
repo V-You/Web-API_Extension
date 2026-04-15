@@ -1,0 +1,429 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { EntityType } from "../../src/lib/entity-types";
+import {
+  DEFAULT_CHAT_PROVIDER,
+  DEFAULT_GEMINI_MODEL,
+  dismissProviderNotice,
+  forgetLlmProviderSettings,
+  getLlmProviderSettings,
+  isProviderNoticeDismissed,
+  saveLlmProviderSettings,
+  type LlmProviderSettings,
+} from "../../src/lib/llm-storage";
+import { getActiveChatContext, getActiveBipTabId, type ChatContextRecord } from "../../src/chat/context-store";
+import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
+import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
+
+type DisplayMessage =
+  | { id: string; role: "user" | "assistant"; text: string }
+  | { id: string; role: "tool"; toolName: string; args: Record<string, unknown>; result: unknown };
+
+const PROMPT_CHIPS = [
+  "What entity am I looking at?",
+  "What is my dupe check set to here?",
+  "List contacts for this entity.",
+];
+
+export function ChatPage() {
+  const [history, setHistory] = useState<GeminiContent[]>([]);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savedSettings, setSavedSettings] = useState<LlmProviderSettings | null>(null);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [modelInput, setModelInput] = useState(DEFAULT_GEMINI_MODEL);
+  const [pinInput, setPinInput] = useState("");
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [noticeDismissed, setNoticeDismissed] = useState(true);
+  const [detectedContext, setDetectedContext] = useState<ChatContextRecord | null>(null);
+  const [manualEntityType, setManualEntityType] = useState<EntityType>("merchant");
+  const [manualEntityId, setManualEntityId] = useState("");
+
+  const refreshContext = useCallback(async () => {
+    const context = await getActiveChatContext();
+    setDetectedContext(context);
+  }, []);
+
+  useEffect(() => {
+    getLlmProviderSettings(DEFAULT_CHAT_PROVIDER).then((settings) => {
+      setSavedSettings(settings);
+      setModelInput(settings?.model ?? DEFAULT_GEMINI_MODEL);
+    });
+    isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
+    refreshContext();
+
+    const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === "session") {
+        void refreshContext();
+      }
+      if (area === "local" && changes["llmNotice:gemini"]) {
+        void isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
+      }
+    };
+
+    const handleTabChange = () => {
+      void refreshContext();
+    };
+
+    const handleTabUpdated = (_tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+      if (changeInfo.status === "complete" || changeInfo.url) {
+        void refreshContext();
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    chrome.tabs.onActivated.addListener(handleTabChange);
+    chrome.tabs.onUpdated.addListener(handleTabUpdated);
+
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+      chrome.tabs.onActivated.removeListener(handleTabChange);
+      chrome.tabs.onUpdated.removeListener(handleTabUpdated);
+    };
+  }, [refreshContext]);
+
+  const effectiveContext = useMemo(() => {
+    if (manualEntityId.trim()) {
+      return {
+        entityId: manualEntityId.trim(),
+        entityType: manualEntityType,
+        source: "manual" as const,
+      };
+    }
+
+    if (detectedContext) {
+      return {
+        entityId: detectedContext.entityId,
+        entityType: detectedContext.entityType,
+        source: "detected" as const,
+      };
+    }
+
+    return null;
+  }, [detectedContext, manualEntityId, manualEntityType]);
+
+  const contextState = effectiveContext?.source ?? "missing";
+
+  async function handleSaveSettings() {
+    const apiKey = apiKeyInput.trim() || savedSettings?.apiKey;
+    if (!apiKey) {
+      setSettingsError("Gemini API key is required.");
+      return;
+    }
+    if (!pinInput) {
+      setSettingsError("PIN is required to save provider settings.");
+      return;
+    }
+
+    setSettingsBusy(true);
+    setSettingsError(null);
+    try {
+      const settings = {
+        apiKey,
+        model: modelInput.trim() || DEFAULT_GEMINI_MODEL,
+      };
+      await saveLlmProviderSettings(DEFAULT_CHAT_PROVIDER, settings, pinInput);
+      setSavedSettings(settings);
+      setApiKeyInput("");
+      setPinInput("");
+      setSettingsOpen(false);
+    } catch (saveError) {
+      setSettingsError(saveError instanceof Error ? saveError.message : "Failed to save Gemini settings.");
+    } finally {
+      setSettingsBusy(false);
+    }
+  }
+
+  async function handleForgetSettings() {
+    await forgetLlmProviderSettings(DEFAULT_CHAT_PROVIDER);
+    setSavedSettings(null);
+    setApiKeyInput("");
+    setModelInput(DEFAULT_GEMINI_MODEL);
+    setPinInput("");
+  }
+
+  async function handleDismissNotice() {
+    await dismissProviderNotice(DEFAULT_CHAT_PROVIDER);
+    setNoticeDismissed(true);
+  }
+
+  async function handleSend() {
+    const trimmed = input.trim();
+    if (!trimmed || busy) return;
+    if (!savedSettings?.apiKey) {
+      setError("Save Gemini settings first.");
+      setSettingsOpen(true);
+      return;
+    }
+    if (!noticeDismissed) {
+      setError("Review and dismiss the Gemini privacy notice before sending a prompt.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    const userMessage: DisplayMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: trimmed,
+    };
+    setMessages((current) => [...current, userMessage]);
+    setInput("");
+
+    const contextText = effectiveContext
+      ? `Current dashboard context: ${effectiveContext.entityType} ${effectiveContext.entityId}. Use this as the default target unless the user says otherwise.`
+      : "No dashboard context is available. Ask for explicit entity identifiers when needed.";
+
+    try {
+      const result = await runGeminiTurn({
+        apiKey: savedSettings.apiKey,
+        model: savedSettings.model,
+        history,
+        userText: `${contextText}\n\nUser request: ${trimmed}`,
+        systemPrompt: [
+          "You are the Web API Extension assistant for ACI BIP.",
+          "This chat runs in safe mode.",
+          "You may only use read-only tools.",
+          "Never attempt writes or code execution.",
+          "If the user asks for a write or automation task, explain that safe mode does not support it yet.",
+        ].join("\n"),
+        tools: getChatToolDeclarations(),
+        executeTool: executeChatTool,
+      });
+
+      setHistory(result.history);
+      setMessages((current) => [
+        ...current,
+        ...result.toolEvents.map((event) => ({
+          id: `tool-${event.id}`,
+          role: "tool" as const,
+          toolName: event.name,
+          args: event.args,
+          result: event.result,
+        })),
+        {
+          id: crypto.randomUUID(),
+          role: "assistant" as const,
+          text: result.assistantText,
+        },
+      ]);
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "Chat request failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-base font-semibold">Chat</h2>
+        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+          Safe mode
+        </span>
+        <button
+          onClick={() => setSettingsOpen((open) => !open)}
+          className="ml-auto text-xs text-slate-500 hover:text-slate-700"
+        >
+          Settings
+        </button>
+      </div>
+
+      <p className="text-xs text-slate-500">
+        Read-only in v1. No writes, no code execution.
+      </p>
+
+      {!noticeDismissed && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p>
+            Prompts and tool results for this chat will be sent to Gemini. API credentials are never shared.
+          </p>
+          <button
+            onClick={handleDismissNotice}
+            className="mt-2 font-medium text-amber-700 underline underline-offset-2"
+          >
+            Understood
+          </button>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
+          <div>
+            <label className="mb-1 block font-medium text-slate-600">Provider</label>
+            <select className="w-full rounded-md border border-slate-200 px-2 py-1.5" value="gemini" disabled>
+              <option value="gemini">Gemini</option>
+              <option value="anthropic">Anthropic (planned)</option>
+              <option value="openai">OpenAI (planned)</option>
+              <option value="ollama">Ollama (planned)</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-slate-600">Gemini API key</label>
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(event) => setApiKeyInput(event.target.value)}
+              placeholder={savedSettings ? "Leave blank to keep the saved key" : "AI..."}
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-slate-600">Model</label>
+            <input
+              type="text"
+              value={modelInput}
+              onChange={(event) => setModelInput(event.target.value)}
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-medium text-slate-600">PIN</label>
+            <input
+              type="password"
+              value={pinInput}
+              onChange={(event) => setPinInput(event.target.value)}
+              placeholder="Required to encrypt the Gemini key"
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5"
+            />
+          </div>
+          {settingsError && <p className="text-red-600">{settingsError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => void handleSaveSettings()}
+              disabled={settingsBusy}
+              className="rounded-md bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {settingsBusy ? "Saving..." : "Save Gemini settings"}
+            </button>
+            {savedSettings && (
+              <button
+                onClick={() => void handleForgetSettings()}
+                className="rounded-md px-3 py-1.5 text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-slate-600">Context</span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 border border-slate-200">
+            {contextState}
+          </span>
+        </div>
+        {detectedContext ? (
+          <p className="text-slate-700">
+            Detected: {detectedContext.entityType} {detectedContext.entityId}
+          </p>
+        ) : (
+          <p className="text-slate-500">No entity detected from the current BIP tab.</p>
+        )}
+        <div className="flex gap-2">
+          <select
+            value={manualEntityType}
+            onChange={(event) => setManualEntityType(event.target.value as EntityType)}
+            className="rounded-md border border-slate-200 px-2 py-1.5"
+          >
+            <option value="psp">PSP</option>
+            <option value="division">Division</option>
+            <option value="merchant">Merchant</option>
+            <option value="channel">Channel</option>
+          </select>
+          <input
+            type="text"
+            value={manualEntityId}
+            onChange={(event) => setManualEntityId(event.target.value)}
+            placeholder="Manual entity ID override"
+            className="flex-1 rounded-md border border-slate-200 px-2 py-1.5"
+          />
+          <button
+            onClick={async () => {
+              const tabId = await getActiveBipTabId();
+              if (!tabId) return;
+              const context = await getActiveChatContext();
+              if (context) {
+                setManualEntityType(context.entityType);
+                setManualEntityId(context.entityId);
+              }
+            }}
+            className="rounded-md border border-slate-200 px-2 py-1.5 text-slate-600 hover:bg-white"
+          >
+            Use detected
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {PROMPT_CHIPS.map((chip) => (
+          <button
+            key={chip}
+            onClick={() => setInput(chip)}
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            {chip}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 min-h-[260px] max-h-[420px] overflow-y-auto">
+        {messages.length === 0 ? (
+          <p className="text-xs text-slate-500">Ask a read-only question about the current entity.</p>
+        ) : (
+          messages.map((message) => {
+            if (message.role === "tool") {
+              return (
+                <details key={message.id} className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
+                  <summary className="cursor-pointer font-medium text-slate-700">
+                    tool: {message.toolName}
+                  </summary>
+                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] text-slate-600">
+{JSON.stringify({ args: message.args, result: message.result }, null, 2)}
+                  </pre>
+                </details>
+              );
+            }
+
+            return (
+              <div
+                key={message.id}
+                className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap ${
+                  message.role === "user"
+                    ? "ml-8 bg-blue-50 text-blue-900"
+                    : "mr-8 bg-slate-50 text-slate-800"
+                }`}
+              >
+                {message.text}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
+      <div className="flex gap-2">
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Ask a read-only question about the current entity..."
+          rows={3}
+          className="flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+        />
+        <button
+          onClick={() => void handleSend()}
+          disabled={busy || !input.trim()}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy ? "Sending..." : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}

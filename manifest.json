@@ -9,11 +9,13 @@
     "sidePanel",
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://eu-test.oppwa.com/*",
-    "https://eu-prod.oppwa.com/*"
+    "https://eu-prod.oppwa.com/*",
+    "https://generativelanguage.googleapis.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.ts"
@@ -26,6 +28,15 @@
       ],
       "js": ["content/bridge.ts"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://eu-test.oppwa.com/*",
+        "https://eu-prod.oppwa.com/*"
+      ],
+      "js": ["content/context-scraper.ts"],
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "side_panel": {

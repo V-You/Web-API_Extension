@@ -14,6 +14,31 @@ module.exports = {
       path: false,
     };
 
+    // The browser bundle includes the vendored TypeScript runtime for sandbox
+    // parsing/transpilation. Keep Node globals mocked, but suppress the known
+    // webpack-compatible warnings emitted from typescript.js itself.
+    config.node = {
+      ...config.node,
+      __dirname: "mock",
+      __filename: "mock",
+    };
+
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      (warning) => {
+        const resource = warning?.module?.resource || "";
+        const message = warning?.message || "";
+        const isTypeScriptRuntime = resource.includes("node_modules/typescript/lib/typescript.js")
+          || message.includes("node_modules/typescript/lib/typescript.js");
+
+        if (!isTypeScriptRuntime) return false;
+
+        return message.includes("__filename")
+          || message.includes("__dirname")
+          || message.includes("the request of a dependency is an expression");
+      },
+    ];
+
     // Inject build timestamp as a global constant.
     const { DefinePlugin } = require("@rspack/core");
     config.plugins = config.plugins || [];

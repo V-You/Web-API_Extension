@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Environment, ApiCredentials } from "../../src/lib/types";
 import { ENV_DEFAULTS } from "../../src/lib/types";
 import type { EntityType } from "../../src/lib/entity-types";
-import { ENTITY_PLURAL } from "../../src/lib/entity-types";
 import { buildConnectionProbeUrl, classifyConnectionProbeResponse } from "../../src/lib/connection-probe";
 import {
   saveCredentials,

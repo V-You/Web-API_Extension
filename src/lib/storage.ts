@@ -14,6 +14,7 @@
  */
 
 import { encrypt, decrypt, type EncryptedBlob } from "./crypto";
+import { unlockLlmProviderSettingsWithPin } from "./llm-storage";
 import type { ApiCredentials, Environment } from "./types";
 
 export type { ApiCredentials, Environment } from "./types";
@@ -72,6 +73,8 @@ export async function unlockWithPin(pin: string): Promise<boolean> {
       return false;
     }
   }
+
+  await unlockLlmProviderSettingsWithPin(pin);
 
   return anyDecrypted;
 }
