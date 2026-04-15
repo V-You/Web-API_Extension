@@ -7,18 +7,22 @@
  */
 
 interface ModelContextClient {
-  requestUserInteraction(callback: () => void): void;
+  requestUserInteraction(callback: () => unknown | Promise<unknown>): Promise<unknown>;
+}
+
+interface ModelContextRegisterToolOptions {
+  signal?: AbortSignal;
 }
 
 interface ModelContextTool {
   /** Tool name -- must be unique per registration context. */
   name: string;
+  /** Human-readable label for display in user interfaces. */
+  title?: string;
   /** Plain-language description for the agent. */
   description: string;
   /** JSON Schema object describing the tool's input parameters. */
   inputSchema?: object;
-  /** JSON Schema object describing the tool's output shape. */
-  outputSchema?: object;
   /** Optional hints for the agent about the tool's behavior. */
   annotations?: {
     readOnlyHint?: boolean;
@@ -32,9 +36,7 @@ interface ModelContextTool {
 
 interface ModelContext {
   /** Register a tool with the WebMCP runtime. */
-  registerTool(tool: ModelContextTool): void;
-  /** Unregister a previously registered tool by name. */
-  unregisterTool(name: string): void;
+  registerTool(tool: ModelContextTool, options?: ModelContextRegisterToolOptions): void;
 }
 
 /** Testing API -- only available with #enable-webmcp-testing flag. */

@@ -21,7 +21,7 @@ export function HomePage() {
       const url = creds ? buildConnectionProbeUrl(creds) : null;
       if (!creds || !url) {
         setConnStatus("fail");
-        setConnMessage("Connection not configured -- add username, password, and PSP ID in Connections.");
+        setConnMessage("Connection not configured -- add credentials and entity scope in Connections.");
         return;
       }
 

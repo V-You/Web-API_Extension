@@ -70,3 +70,7 @@ No. It is an automation/tooling layer, not a full UI replacement.
 ## How to report issues?
 
 Include: tool name, action, input used, environment (UAT/Prod), console logs, extension build timestamp, and expected vs actual result.
+
+## Details on user / Contact / entity situation
+
+"Contact" is a synonym for User. "Web API", expects a Header named "credentials" for auth, with value "email:password" in plain text. "Email" is the username of a user that is of kind "WEB_API". The SaaS is organized in entities: PSP > Division > Merchant > Channel. A user is "created" at any entity level, and can be "attached" at that level or any level below it. The user logs in at the level it's attached at. If it's not attached, logging in is not possible. The WEB_API user *has* to be created on PSP level, and can then be attached at or below PSP.

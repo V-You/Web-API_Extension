@@ -1,3 +1,5 @@
+import type { EntityType } from "./entity-types";
+import { ENTITY_PLURAL } from "./entity-types";
 import type { ApiCredentials } from "./types";
 
 export interface ConnectionProbeResult {
@@ -5,11 +7,25 @@ export interface ConnectionProbeResult {
   message: string;
 }
 
-export function buildConnectionProbeUrl(creds: Pick<ApiCredentials, "baseUrl" | "pspId">): string | null {
-  const pspId = creds.pspId?.trim();
-  if (!pspId) return null;
+export interface ConnectionProbeParams {
+  baseUrl: string;
+  scopeEntityId?: string;
+  scopeEntityType?: EntityType;
+  /** @deprecated Fallback for legacy saved credentials. */
+  pspId?: string;
+}
+
+/**
+ * Build the probe URL using GET /{entityPlural}/{entityId}/ownedContacts.
+ * Works at all entity levels (PSP, division, merchant, channel).
+ */
+export function buildConnectionProbeUrl(creds: ConnectionProbeParams): string | null {
+  const entityType = creds.scopeEntityType ?? "psp";
+  const entityId = (creds.scopeEntityId ?? creds.pspId)?.trim();
+  if (!entityId) return null;
   const baseUrl = creds.baseUrl.replace(/\/$/, "");
-  return `${baseUrl}/psps/${encodeURIComponent(pspId)}/divisions`;
+  const plural = ENTITY_PLURAL[entityType];
+  return `${baseUrl}/${plural}/${encodeURIComponent(entityId)}/ownedContacts`;
 }
 
 export async function classifyConnectionProbeResponse(res: Response): Promise<ConnectionProbeResult> {
@@ -36,7 +52,7 @@ export async function classifyConnectionProbeResponse(res: Response): Promise<Co
   }
 
   if (res.status === 404) {
-    return { ok: false, message: "Probe endpoint not found. Check base URL and PSP ID." };
+    return { ok: false, message: "Entity not found. Check entity type and ID." };
   }
 
   if (res.ok) {

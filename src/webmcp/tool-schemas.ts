@@ -8,6 +8,7 @@
 
 export interface ToolSchema {
   name: string;
+  title: string;
   description: string;
   inputSchema: Record<string, unknown>;
   annotations?: {
@@ -19,6 +20,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 1. manage_entity
   {
     name: "manage_entity",
+    title: "Manage entity",
     description:
       "Manage payment hierarchy entities (PSP, division, merchant, channel). " +
       "Actions: get, search, list_children, create, edit, delete.",
@@ -64,6 +66,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 2. get_hierarchy
   {
     name: "get_hierarchy",
+    title: "Get hierarchy",
     description:
       "Fetch the entity hierarchy tree starting from a PSP. " +
       "Set estimateOnly=true to preview the number of API calls before executing.",
@@ -90,6 +93,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 3. manage_contact
   {
     name: "manage_contact",
+    title: "Manage contact",
     description:
       "Manage contacts (users) on entities. " +
       "Actions: get, list, create, edit, delete, attach, detach, lock, unlock, reset_password, find_by_username.",
@@ -132,6 +136,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 4. manage_merchant_account
   {
     name: "manage_merchant_account",
+    title: "Manage merchant account",
     description:
       "Manage merchant accounts. " +
       "Actions: get, list, create, edit, delete, attach, detach, three_d_check.",
@@ -177,6 +182,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 5. lookup_clearing_institutes
   {
     name: "lookup_clearing_institutes",
+    title: "Lookup clearing institutes",
     description:
       "Search clearing institutes by keyword, get required field mappings for a CI, " +
       "or list live CIs from the API.",
@@ -200,6 +206,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 6. describe_settings
   {
     name: "describe_settings",
+    title: "Describe settings",
     description:
       "Search RiRo settings by keyword, setting shortcode, or glossary and family alias. Returns TypeScript interface snippets for " +
       "matching settings -- the type-on-demand pattern.",
@@ -222,6 +229,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 7. manage_settings
   {
     name: "manage_settings",
+    title: "Manage settings",
     description:
       "Get or set RiRo settings on entities. " +
       "Actions: get, set, batch_get, batch_set, list_non_default.",
@@ -264,6 +272,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 8. get_audit_log
   {
     name: "get_audit_log",
+    title: "Get audit log",
     description:
       "Retrieve entries from the local audit log. Supports filtering by event type, " +
       "entity ID, and time range.",
@@ -292,6 +301,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
   // 9. execute_workflow
   {
     name: "execute_workflow",
+    title: "Execute workflow",
     description:
       "Execute a TypeScript/JS script in the local sandbox with the virtual SDK. " +
       "The agent writes code; this tool runs it locally. The script has access to " +

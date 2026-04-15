@@ -17,6 +17,12 @@ describe("tool schema definitions", () => {
     ]);
   });
 
+  it("defines a non-empty title for each tool", () => {
+    for (const schema of TOOL_SCHEMAS) {
+      expect(schema.title.trim().length).toBeGreaterThan(0);
+    }
+  });
+
   it("marks the read-only tools explicitly", () => {
     const readOnlyTools = TOOL_SCHEMAS.filter((schema) => schema.annotations?.readOnlyHint)
       .map((schema) => schema.name)

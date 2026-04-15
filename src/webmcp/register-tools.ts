@@ -242,6 +242,7 @@ function tryRegister(): boolean {
   for (const def of TOOL_DEFS) {
     navigator.modelContext.registerTool({
       name: def.name,
+      title: def.title,
       description: def.description,
       inputSchema: def.inputSchema,
       ...(def.annotations ? { annotations: def.annotations } : {}),

@@ -1,13 +1,19 @@
 /** Shared types for the Web API Extension. */
 
+import type { EntityType } from "./entity-types";
+
 export type Environment = "uat" | "prod";
 
 export interface ApiCredentials {
   baseUrl: string;
   username: string;
   password: string;
-  /** Highest entity (PSP) the Web API user is attached to. */
+  /** @deprecated Use scopeEntityId + scopeEntityType instead. Kept for migration. */
   pspId?: string;
+  /** Entity ID the Web API user is attached to. */
+  scopeEntityId?: string;
+  /** Entity type the user is attached to (default: "psp"). */
+  scopeEntityType?: EntityType;
 }
 
 /** Environments with their default base URLs. */

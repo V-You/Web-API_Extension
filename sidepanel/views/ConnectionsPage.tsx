@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Environment, ApiCredentials } from "../../src/lib/types";
 import { ENV_DEFAULTS } from "../../src/lib/types";
+import type { EntityType } from "../../src/lib/entity-types";
+import { ENTITY_PLURAL } from "../../src/lib/entity-types";
 import { buildConnectionProbeUrl, classifyConnectionProbeResponse } from "../../src/lib/connection-probe";
 import {
   saveCredentials,
@@ -106,7 +108,8 @@ function CredentialForm({
   const [baseUrl, setBaseUrl] = useState(defaults.baseUrl);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [pspId, setPspId] = useState("");
+  const [scopeEntityType, setScopeEntityType] = useState<EntityType>("psp");
+  const [scopeEntityId, setScopeEntityId] = useState("");
   const [pin, setPin] = useState("");
   const [savedCreds, setSavedCreds] = useState<ApiCredentials | null>(null);
   const [busy, setBusy] = useState(false);
@@ -133,7 +136,8 @@ function CredentialForm({
       setBaseUrl(saved?.baseUrl ?? ENV_DEFAULTS[env].baseUrl);
       setUsername(saved?.username ?? "");
       setPassword("");
-      setPspId(saved?.pspId ?? "");
+      setScopeEntityType(saved?.scopeEntityType ?? "psp");
+      setScopeEntityId(saved?.scopeEntityId ?? saved?.pspId ?? "");
       setPin("");
       setError(null);
       setTestResult(null);
@@ -145,7 +149,7 @@ function CredentialForm({
   }, [env]);
 
   async function handleSave() {
-    if (!username || !password || !pspId || !pin) {
+    if (!username || !password || !scopeEntityId || !pin) {
       setError("All fields are required.");
       return;
     }
@@ -157,7 +161,14 @@ function CredentialForm({
     setBusy(true);
     setError(null);
     try {
-      const creds: ApiCredentials = { baseUrl, username, password, pspId: pspId.trim() };
+      const creds: ApiCredentials = {
+        baseUrl,
+        username,
+        password,
+        scopeEntityType,
+        scopeEntityId: scopeEntityId.trim(),
+        pspId: scopeEntityType === "psp" ? scopeEntityId.trim() : undefined,
+      };
       await saveCredentials(env, creds, pin);
       setSavedCreds(creds);
       await setActiveEnv(env);
@@ -179,7 +190,8 @@ function CredentialForm({
       setBaseUrl(ENV_DEFAULTS[env].baseUrl);
       setUsername("");
       setPassword("");
-      setPspId("");
+      setScopeEntityType("psp");
+      setScopeEntityId("");
       setPin("");
       setError(null);
       setTestResult(null);
@@ -200,17 +212,18 @@ function CredentialForm({
         baseUrl,
         username: username || savedCreds?.username || "",
         password: password || savedCreds?.password || "",
-        pspId: pspId || savedCreds?.pspId,
+        scopeEntityType: scopeEntityType,
+        scopeEntityId: scopeEntityId || savedCreds?.scopeEntityId || savedCreds?.pspId,
       };
 
-      if (!probeCreds.username || !probeCreds.password || !probeCreds.pspId) {
-        setError("Username, password, and PSP ID are required to test.");
+      if (!probeCreds.username || !probeCreds.password || !probeCreds.scopeEntityId) {
+        setError("Username, password, and entity ID are required to test.");
         return;
       }
 
       const url = buildConnectionProbeUrl(probeCreds);
       if (!url) {
-        setError("PSP ID is required to test.");
+        setError("Entity ID is required to test.");
         return;
       }
 
@@ -243,17 +256,22 @@ function CredentialForm({
         ? "Saved password"
         : "Missing password";
 
+    const effectiveEntityType = scopeEntityType;
+    const effectiveEntityId = scopeEntityId || savedCreds?.scopeEntityId || savedCreds?.pspId || "Not set";
+
     return {
       baseUrl: baseUrl || savedCreds?.baseUrl || ENV_DEFAULTS[env].baseUrl,
       username: username || savedCreds?.username || "Not set",
-      pspId: pspId || savedCreds?.pspId || "Not set",
+      entityType: effectiveEntityType,
+      entityId: effectiveEntityId,
       passwordSource: effectivePasswordSource,
       probeUrl: buildConnectionProbeUrl({
         baseUrl: baseUrl || savedCreds?.baseUrl || ENV_DEFAULTS[env].baseUrl,
-        pspId: pspId || savedCreds?.pspId,
-      }) ?? "Unavailable until PSP ID is set",
+        scopeEntityType: effectiveEntityType,
+        scopeEntityId: scopeEntityId || savedCreds?.scopeEntityId || savedCreds?.pspId,
+      }) ?? "Unavailable until entity ID is set",
     };
-  }, [baseUrl, env, password, pspId, savedCreds, username]);
+  }, [baseUrl, env, password, scopeEntityId, scopeEntityType, savedCreds, username]);
 
   const testCooldownPct = testCooldownMs > 0
     ? Math.max(0, Math.min(100, (testCooldownMs / TEST_COOLDOWN_MS) * 100))
@@ -268,7 +286,7 @@ function CredentialForm({
           rows={savedCreds ? [
             { label: "Username", value: savedCreds.username },
             { label: "Base URL", value: savedCreds.baseUrl },
-            { label: "PSP ID", value: savedCreds.pspId ?? "Not set" },
+            { label: "Scope", value: `${(savedCreds.scopeEntityType ?? "psp").toUpperCase()} ${savedCreds.scopeEntityId ?? savedCreds.pspId ?? "Not set"}` },
           ] : []}
         />
         <ConfigSummaryCard
@@ -276,7 +294,7 @@ function CredentialForm({
           rows={[
             { label: "Username", value: effectiveTestConfig.username },
             { label: "Base URL", value: effectiveTestConfig.baseUrl },
-            { label: "PSP ID", value: effectiveTestConfig.pspId },
+            { label: "Scope", value: `${effectiveTestConfig.entityType.toUpperCase()} ${effectiveTestConfig.entityId}` },
             { label: "Password", value: effectiveTestConfig.passwordSource },
             { label: "Probe", value: effectiveTestConfig.probeUrl },
           ]}
@@ -323,18 +341,30 @@ function CredentialForm({
 
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">
-          PSP ID
+          Attachment level
         </label>
-        <input
-          type="text"
-          value={pspId}
-          onChange={(e) => setPspId(e.target.value)}
-          autoComplete="off"
-          placeholder="Highest PSP entity ID for this user"
-          className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
-        />
+        <div className="flex gap-2">
+          <select
+            value={scopeEntityType}
+            onChange={(e) => setScopeEntityType(e.target.value as EntityType)}
+            className="border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          >
+            <option value="psp">PSP</option>
+            <option value="division">Division</option>
+            <option value="merchant">Merchant</option>
+            <option value="channel">Channel</option>
+          </select>
+          <input
+            type="text"
+            value={scopeEntityId}
+            onChange={(e) => setScopeEntityId(e.target.value)}
+            autoComplete="off"
+            placeholder={`${scopeEntityType.charAt(0).toUpperCase() + scopeEntityType.slice(1)} entity ID`}
+            className="flex-1 border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+        </div>
         <p className="text-[10px] text-slate-400 mt-1">
-          The Web API user is attached at this PSP. Connection tests use it to call a valid PSP-scoped endpoint.
+          The entity this Web API user is attached to. Connection test probes this entity.
         </p>
       </div>
 
