@@ -1,22 +1,27 @@
 /**
  * get_hierarchy tool handler.
  *
- * Fetches the full entity tree starting from a PSP, with configurable depth.
+ * Fetches the full entity tree starting from any hierarchy node, with
+ * configurable depth.
  * Before executing, estimates the number of API calls and expected runtime.
  *
- * Depth levels:
- *   1 = divisions only
- *   2 = divisions + merchants
- *   3 = divisions + merchants + channels (full tree)
+ * Depth levels are relative to the selected root:
+ *   1 = direct children only
+ *   2 = children + grandchildren
+ *   3 = full tree below the root
  */
 
 import { apiRequest } from "../lib/api-client";
-import { ENTITY_PLURAL } from "../lib/entity-types";
+import { ENTITY_PLURAL, entityPath, type EntityType } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 export interface GetHierarchyInput {
-  /** The PSP entity ID (root of the tree). */
-  pspId: string;
+  /** Legacy PSP root ID. */
+  pspId?: string;
+  /** Root entity ID when starting below PSP level. */
+  entityId?: string;
+  /** Root entity type when starting below PSP level. */
+  entityType?: EntityType;
   /** How deep to traverse (1-3, default 3). */
   depth?: number;
   /** If true, only return the call estimate -- do not execute. */
@@ -25,64 +30,210 @@ export interface GetHierarchyInput {
 
 interface HierarchyNode {
   id: string;
-  type: string;
+  type: EntityType;
   name?: string;
   data: Record<string, unknown>;
   children: HierarchyNode[];
 }
 
-/** Fetch child entities and map each to a HierarchyNode. */
-async function fetchChildren(
-  parentPath: string,
-  childType: string,
-  idField: string,
-  creds: ApiCredentials,
-  env: Environment
-): Promise<{ raw: Record<string, unknown>[]; nodes: HierarchyNode[] }> {
-  const res = await apiRequest<Record<string, unknown>[]>(creds, env, { path: parentPath });
-  const items = res.ok && Array.isArray(res.data) ? res.data : [];
-  const nodes = items.map((item) => ({
-    id: String(item[idField] ?? item.id ?? ""),
-    type: childType,
-    name: String(item.name ?? ""),
-    data: item,
-    children: [] as HierarchyNode[],
-  }));
-  return { raw: items, nodes };
+interface HierarchyRoot {
+  id: string;
+  type: EntityType;
+  node: HierarchyNode;
 }
 
-/** Build a division node with its merchant (and optionally channel) children. */
-async function buildDivisionNode(
-  div: Record<string, unknown>,
-  depth: number,
-  creds: ApiCredentials,
-  env: Environment
-): Promise<HierarchyNode> {
-  const divId = String(div.id ?? div.divisionId ?? "");
-  const node: HierarchyNode = {
-    id: divId,
-    type: "division",
-    name: String(div.name ?? ""),
-    data: div,
-    children: [],
-  };
+const CHILD_TYPE_BY_PARENT: Partial<Record<EntityType, EntityType>> = {
+  psp: "division",
+  division: "merchant",
+  merchant: "channel",
+};
 
-  if (depth >= 2 && divId) {
-    const { nodes: merchants } = await fetchChildren(
-      `/divisions/${divId}/merchants`, "merchant", "merchantId", creds, env
-    );
-    for (const m of merchants) {
-      if (depth >= 3 && m.id) {
-        const { nodes: channels } = await fetchChildren(
-          `/merchants/${m.id}/channels`, "channel", "channel", creds, env
-        );
-        m.children = channels;
-      }
-    }
-    node.children = merchants;
+function getRootSelection(input: GetHierarchyInput): { id: string; type: EntityType } | null {
+  if (input.entityId && input.entityType) {
+    return { id: input.entityId, type: input.entityType };
   }
 
-  return node;
+  if (input.pspId) {
+    return { id: input.pspId, type: "psp" };
+  }
+
+  return null;
+}
+
+function entityIdFromRecord(type: EntityType, item: Record<string, unknown>): string {
+  switch (type) {
+    case "psp":
+      return String(item.id ?? item.pspId ?? "");
+    case "division":
+      return String(item.id ?? item.divisionId ?? "");
+    case "merchant":
+      return String(item.id ?? item.merchantId ?? "");
+    case "channel":
+      return String(item._entityId ?? item.channel ?? item.id ?? "");
+  }
+}
+
+function toNode(type: EntityType, item: Record<string, unknown>, fallbackId: string): HierarchyNode {
+  return {
+    id: entityIdFromRecord(type, item) || fallbackId,
+    type,
+    name: String(item.name ?? item.description ?? ""),
+    data: item,
+    children: [],
+  };
+}
+
+/** Fetch child entities and map each to a HierarchyNode. */
+async function fetchChildren(
+  parentType: EntityType,
+  parentId: string,
+  childType: EntityType,
+  creds: ApiCredentials,
+  env: Environment
+): Promise<{ ok: boolean; status: number; data: unknown; nodes: HierarchyNode[] }> {
+  const path = `/${ENTITY_PLURAL[parentType]}/${parentId}/${ENTITY_PLURAL[childType]}`;
+  const res = await apiRequest<Record<string, unknown>[]>(creds, env, { path });
+  const items = res.ok && Array.isArray(res.data) ? res.data : [];
+  const nodes = items.map((item) => toNode(childType, item, ""));
+  return {
+    ok: res.ok,
+    status: res.status,
+    data: res.data,
+    nodes,
+  };
+}
+
+async function buildHierarchyChildren(
+  node: HierarchyNode,
+  remainingDepth: number,
+  creds: ApiCredentials,
+  env: Environment
+): Promise<void> {
+  if (remainingDepth <= 0) return;
+
+  const childType = CHILD_TYPE_BY_PARENT[node.type];
+  if (!childType || !node.id) return;
+
+  const childRes = await fetchChildren(node.type, node.id, childType, creds, env);
+  node.children = childRes.nodes;
+
+  if (remainingDepth <= 1) return;
+
+  for (const child of node.children) {
+    await buildHierarchyChildren(child, remainingDepth - 1, creds, env);
+  }
+}
+
+async function resolveRootNode(
+  input: GetHierarchyInput,
+  creds: ApiCredentials,
+  env: Environment,
+): Promise<HierarchyRoot | { error: string; status?: number; data?: unknown }> {
+  const root = getRootSelection(input);
+  if (!root) {
+    return { error: "Provide either pspId or entityId + entityType." };
+  }
+
+  if (root.type === "psp") {
+    return {
+      id: root.id,
+      type: root.type,
+      node: {
+        id: root.id,
+        type: root.type,
+        data: {},
+        children: [],
+      },
+    };
+  }
+
+  const res = await apiRequest<Record<string, unknown>>(creds, env, {
+    path: entityPath(root.type, root.id),
+  });
+
+  if (!res.ok || !res.data || Array.isArray(res.data)) {
+    return {
+      error: `Failed to fetch ${root.type} ${root.id}.`,
+      status: res.status,
+      data: res.data,
+    };
+  }
+
+  return {
+    id: root.id,
+    type: root.type,
+    node: toNode(root.type, res.data as Record<string, unknown>, root.id),
+  };
+}
+
+function estimateHierarchy(rootType: EntityType, depth: number) {
+  if (rootType === "psp") {
+    const estDivisions = 3;
+    const estMerchants = depth >= 2 ? estDivisions * 3 : 0;
+    const estChannels = depth >= 3 ? estMerchants * 2 : 0;
+    const estimatedApiCalls = 1 + (depth >= 2 ? estDivisions : 0) + (depth >= 3 ? estMerchants : 0);
+
+    return {
+      estimatedApiCalls,
+      estimatedRuntime: `~${Math.ceil(estimatedApiCalls / 9)}s (${Math.ceil(Math.ceil(estimatedApiCalls / 9) / 60)}min at 9 req/s)`,
+      estimatedDivisions: estDivisions,
+      estimatedMerchants: estMerchants,
+      estimatedChannels: estChannels,
+    };
+  }
+
+  if (rootType === "division") {
+    const estMerchants = depth >= 1 ? 3 : 0;
+    const estChannels = depth >= 2 ? estMerchants * 2 : 0;
+    const estimatedApiCalls = 1 + (depth >= 1 ? 1 : 0) + (depth >= 2 ? estMerchants : 0);
+
+    return {
+      estimatedApiCalls,
+      estimatedRuntime: `~${Math.ceil(estimatedApiCalls / 9)}s (${Math.ceil(Math.ceil(estimatedApiCalls / 9) / 60)}min at 9 req/s)`,
+      estimatedDivisions: 0,
+      estimatedMerchants: estMerchants,
+      estimatedChannels: estChannels,
+    };
+  }
+
+  if (rootType === "merchant") {
+    const estChannels = depth >= 1 ? 2 : 0;
+    const estimatedApiCalls = 1 + (depth >= 1 ? 1 : 0);
+
+    return {
+      estimatedApiCalls,
+      estimatedRuntime: `~${Math.ceil(estimatedApiCalls / 9)}s (${Math.ceil(Math.ceil(estimatedApiCalls / 9) / 60)}min at 9 req/s)`,
+      estimatedDivisions: 0,
+      estimatedMerchants: 0,
+      estimatedChannels: estChannels,
+    };
+  }
+
+  const estimatedApiCalls = 1;
+  return {
+    estimatedApiCalls,
+    estimatedRuntime: `~${Math.ceil(estimatedApiCalls / 9)}s (${Math.ceil(Math.ceil(estimatedApiCalls / 9) / 60)}min at 9 req/s)`,
+    estimatedDivisions: 0,
+    estimatedMerchants: 0,
+    estimatedChannels: 0,
+  };
+}
+
+function countNodesByType(node: HierarchyNode): { divisions: number; merchants: number; channels: number } {
+  const counts = { divisions: 0, merchants: 0, channels: 0 };
+
+  for (const child of node.children) {
+    if (child.type === "division") counts.divisions += 1;
+    if (child.type === "merchant") counts.merchants += 1;
+    if (child.type === "channel") counts.channels += 1;
+
+    const nested = countNodesByType(child);
+    counts.divisions += nested.divisions;
+    counts.merchants += nested.merchants;
+    counts.channels += nested.channels;
+  }
+
+  return counts;
 }
 
 export async function executeGetHierarchy(
@@ -91,65 +242,37 @@ export async function executeGetHierarchy(
   env: Environment
 ) {
   const depth = Math.min(Math.max(input.depth ?? 3, 1), 3);
-
-  // Step 1: fetch divisions to get an estimate
-  const divRes = await apiRequest<Record<string, unknown>[]>(creds, env, {
-    path: `/${ENTITY_PLURAL.psp}/${input.pspId}/${ENTITY_PLURAL.division}`,
-  });
-
-  if (!divRes.ok) {
-    return { error: "Failed to list divisions.", status: divRes.status, data: divRes.data };
+  const rootSelection = getRootSelection(input);
+  if (!rootSelection) {
+    return { error: "Provide either pspId or entityId + entityType." };
   }
 
-  const divisions = Array.isArray(divRes.data) ? divRes.data : [];
+  const root = await resolveRootNode(input, creds, env);
+  if ("error" in root) {
+    return root;
+  }
 
-  // Estimate API calls
-  // 1 (list divs) + divs * 1 (get each) + divs * 1 (list merchants per div if depth>=2)
-  // For depth 3, add merchants * 1 (list channels per merchant)
-  // We don't know merchant/channel counts yet, so use the legacy heuristic (avg 3 merchants/div, 2 channels/merchant)
-  const divCount = divisions.length;
-  let estimatedCalls = 1; // Already made: list divisions
-  if (depth >= 1) estimatedCalls += divCount; // Get each division
-  const estMerchants = divCount * 3;
-  if (depth >= 2) estimatedCalls += divCount + estMerchants; // List + get merchants
-  const estChannels = estMerchants * 2;
-  if (depth >= 3) estimatedCalls += estMerchants + estChannels; // List + get channels
-
-  const estimatedSeconds = Math.ceil(estimatedCalls / 9);
+  const estimateBase = estimateHierarchy(root.type, depth);
   const estimate = {
-    divisions: divCount,
-    estimatedMerchants: depth >= 2 ? estMerchants : 0,
-    estimatedChannels: depth >= 3 ? estChannels : 0,
-    estimatedApiCalls: estimatedCalls,
-    estimatedRuntime: `~${estimatedSeconds}s (${Math.ceil(estimatedSeconds / 60)}min at 9 req/s)`,
+    rootType: root.type,
+    rootId: root.id,
+    estimatedDivisions: estimateBase.estimatedDivisions,
+    estimatedMerchants: estimateBase.estimatedMerchants,
+    estimatedChannels: estimateBase.estimatedChannels,
+    estimatedApiCalls: estimateBase.estimatedApiCalls,
+    estimatedRuntime: estimateBase.estimatedRuntime,
   };
 
   if (input.estimateOnly) {
     return { estimate };
   }
 
-  // Step 2: traverse the tree
-  const tree: HierarchyNode = {
-    id: input.pspId,
-    type: "psp",
-    data: {},
-    children: await Promise.all(divisions.map((div) => buildDivisionNode(div, depth, creds, env))),
-  };
-
-  // Actual counts
-  const actualMerchants = tree.children.reduce((n, d) => n + d.children.length, 0);
-  const actualChannels = tree.children.reduce(
-    (n, d) => n + d.children.reduce((m, me) => m + me.children.length, 0),
-    0
-  );
+  await buildHierarchyChildren(root.node, depth, creds, env);
+  const actual = countNodesByType(root.node);
 
   return {
     estimate,
-    actual: {
-      divisions: tree.children.length,
-      merchants: actualMerchants,
-      channels: actualChannels,
-    },
-    tree,
+    actual,
+    tree: root.node,
   };
 }

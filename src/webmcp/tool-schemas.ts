@@ -68,25 +68,30 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     name: "get_hierarchy",
     title: "Get hierarchy",
     description:
-      "Fetch the entity hierarchy tree starting from a PSP. " +
+      "Fetch the entity hierarchy tree starting from a PSP, division, merchant, or channel. " +
       "Set estimateOnly=true to preview the number of API calls before executing.",
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
-        pspId: { type: "string", description: "The PSP entity ID (root of the tree)." },
+        pspId: { type: "string", description: "Legacy PSP root ID. Use entityId + entityType for any root." },
+        entityId: { type: "string", description: "Root entity ID for psp, division, merchant, or channel traversal." },
+        entityType: {
+          type: "string",
+          enum: ["psp", "division", "merchant", "channel"],
+          description: "Root entity type for the hierarchy traversal.",
+        },
         depth: {
           type: "number",
           minimum: 1,
           maximum: 3,
-          description: "Traversal depth: 1=divisions, 2=+merchants, 3=+channels. Default 3.",
+          description: "Traversal depth below the selected root: 1=direct children, 2=+grandchildren, 3=max available depth. Default 3.",
         },
         estimateOnly: {
           type: "boolean",
           description: "If true, return call estimate without executing.",
         },
       },
-      required: ["pspId"],
     },
   },
 

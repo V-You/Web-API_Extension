@@ -77,7 +77,9 @@ export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string
       const { creds, env } = await sessionOrError();
       return executeGetHierarchy(
         {
-          pspId: params.pspId as string,
+          pspId: params.pspId as string | undefined,
+          entityId: params.entityId as string | undefined,
+          entityType: params.entityType as EntityType | undefined,
           depth: params.depth as number | undefined,
           estimateOnly: params.estimateOnly as boolean | undefined,
         },
