@@ -9,7 +9,7 @@
  *   cred:prod -- encrypted Prod credentials blob
  *   session:uat  -- decrypted UAT credentials (session only)
  *   session:prod -- decrypted Prod credentials (session only)
- *   activeEnv    -- "uat" | "prod" (session only)
+ *   activeEnv    -- "uat" | "prod" (stored in session and local)
  *   pinInitialized -- boolean flag indicating PIN has been set
  */
 
@@ -21,6 +21,7 @@ export type { ApiCredentials, Environment } from "./types";
 
 const STORAGE_KEY = (env: Environment) => `cred:${env}`;
 const SESSION_KEY = (env: Environment) => `session:${env}`;
+const ACTIVE_ENV_KEY = "activeEnv";
 
 /** Check whether any encrypted credentials exist. */
 export async function hasStoredCredentials(): Promise<boolean> {
@@ -76,6 +77,10 @@ export async function unlockWithPin(pin: string): Promise<boolean> {
 
   await unlockLlmProviderSettingsWithPin(pin);
 
+  if (anyDecrypted) {
+    await getActiveEnv();
+  }
+
   return anyDecrypted;
 }
 
@@ -87,13 +92,39 @@ export async function getCredentials(env: Environment): Promise<ApiCredentials |
 
 /** Get the active environment from session storage. */
 export async function getActiveEnv(): Promise<Environment | null> {
-  const result = await chrome.storage.session.get("activeEnv");
-  return (result.activeEnv as Environment) ?? null;
+  const [sessionResult, localResult] = await Promise.all([
+    chrome.storage.session.get([ACTIVE_ENV_KEY, SESSION_KEY("uat"), SESSION_KEY("prod")]),
+    chrome.storage.local.get(ACTIVE_ENV_KEY),
+  ]);
+
+  const sessionActive = sessionResult[ACTIVE_ENV_KEY] as Environment | undefined;
+  if (sessionActive) {
+    return sessionActive;
+  }
+
+  const localActive = localResult[ACTIVE_ENV_KEY] as Environment | undefined;
+  if (localActive && sessionResult[SESSION_KEY(localActive)]) {
+    await chrome.storage.session.set({ [ACTIVE_ENV_KEY]: localActive });
+    return localActive;
+  }
+
+  const fallbackEnv = (["uat", "prod"] as Environment[]).find((env) => !!sessionResult[SESSION_KEY(env)]) ?? null;
+  if (fallbackEnv) {
+    await Promise.all([
+      chrome.storage.session.set({ [ACTIVE_ENV_KEY]: fallbackEnv }),
+      chrome.storage.local.set({ [ACTIVE_ENV_KEY]: fallbackEnv }),
+    ]);
+  }
+
+  return fallbackEnv;
 }
 
 /** Set the active environment. */
 export async function setActiveEnv(env: Environment): Promise<void> {
-  await chrome.storage.session.set({ activeEnv: env });
+  await Promise.all([
+    chrome.storage.session.set({ [ACTIVE_ENV_KEY]: env }),
+    chrome.storage.local.set({ [ACTIVE_ENV_KEY]: env }),
+  ]);
 }
 
 /** Get the user's configured throttle rate (requests per second). */
@@ -123,8 +154,25 @@ export async function forgetCredentials(env: Environment): Promise<void> {
   await chrome.storage.local.remove(STORAGE_KEY(env));
   await chrome.storage.session.remove(SESSION_KEY(env));
 
+  const remaining = await chrome.storage.local.get(["cred:uat", "cred:prod", ACTIVE_ENV_KEY]);
+
+  if ((remaining[ACTIVE_ENV_KEY] as Environment | undefined) === env) {
+    const fallbackEnv = (["uat", "prod"] as Environment[]).find((candidate) => candidate !== env && !!remaining[STORAGE_KEY(candidate)]) ?? null;
+
+    if (fallbackEnv) {
+      await Promise.all([
+        chrome.storage.session.set({ [ACTIVE_ENV_KEY]: fallbackEnv }),
+        chrome.storage.local.set({ [ACTIVE_ENV_KEY]: fallbackEnv }),
+      ]);
+    } else {
+      await Promise.all([
+        chrome.storage.session.remove(ACTIVE_ENV_KEY),
+        chrome.storage.local.remove(ACTIVE_ENV_KEY),
+      ]);
+    }
+  }
+
   // If no credentials remain, clear the initialized flag
-  const remaining = await chrome.storage.local.get(["cred:uat", "cred:prod"]);
   if (!remaining["cred:uat"] && !remaining["cred:prod"]) {
     await chrome.storage.local.remove("pinInitialized");
   }

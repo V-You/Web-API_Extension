@@ -87,10 +87,12 @@ describe("storage", () => {
     await saveCredentials("uat", creds, pin);
     // Clear session to simulate new session
     delete sessionStore["session:uat"];
+    delete sessionStore.activeEnv;
 
     const ok = await unlockWithPin(pin);
     expect(ok).toBe(true);
     expect(await getCredentials("uat")).toEqual(creds);
+    expect(await getActiveEnv()).toBe("uat");
   });
 
   it("rejects wrong PIN", async () => {
@@ -110,6 +112,21 @@ describe("storage", () => {
   it("manages active environment", async () => {
     expect(await getActiveEnv()).toBeNull();
     await setActiveEnv("prod");
+    expect(await getActiveEnv()).toBe("prod");
+    expect(localStore.activeEnv).toBe("prod");
+  });
+
+  it("restores the persisted active environment after unlock", async () => {
+    await saveCredentials("uat", creds, pin);
+    await saveCredentials("prod", { ...creds, baseUrl: "https://prod.test" }, pin);
+    await setActiveEnv("prod");
+
+    delete sessionStore["session:uat"];
+    delete sessionStore["session:prod"];
+    delete sessionStore.activeEnv;
+
+    const ok = await unlockWithPin(pin);
+    expect(ok).toBe(true);
     expect(await getActiveEnv()).toBe("prod");
   });
 
@@ -137,9 +154,11 @@ describe("storage", () => {
   it("keeps other env credentials when forgetting one", async () => {
     await saveCredentials("uat", creds, pin);
     await saveCredentials("prod", { ...creds, baseUrl: "https://prod.test" }, pin);
+    await setActiveEnv("uat");
     await forgetCredentials("uat");
 
     expect(await hasStoredCredentials()).toBe(true);
     expect(await getCredentials("prod")).not.toBeNull();
+    expect(await getActiveEnv()).toBe("prod");
   });
 });

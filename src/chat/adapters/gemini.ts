@@ -55,6 +55,14 @@ interface RunGeminiTurnInput {
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
 }
 
+interface GeminiErrorPayload {
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+  };
+}
+
 function buildRequestBody(contents: GeminiContent[], tools: ChatToolDeclaration[]) {
   return {
     contents,
@@ -84,6 +92,32 @@ function extractFunctionCalls(parts: GeminiPart[]) {
     .filter((call): call is NonNullable<GeminiPart["functionCall"]> => Boolean(call));
 }
 
+function formatGeminiError(result: GeminiGenerateResult): string {
+  let payload: GeminiErrorPayload | null = null;
+
+  if (result.error) {
+    try {
+      payload = JSON.parse(result.error) as GeminiErrorPayload;
+    } catch {
+      payload = null;
+    }
+  }
+
+  const code = payload?.error?.code ?? result.status;
+  const status = payload?.error?.status ?? "";
+  const message = payload?.error?.message ?? result.error ?? "Gemini request failed.";
+
+  if (code === 503 || status === "UNAVAILABLE") {
+    return "Gemini is temporarily unavailable due to high demand. Please try again in a moment.";
+  }
+
+  if (code === 400 || status === "INVALID_ARGUMENT") {
+    return `Gemini rejected the request payload: ${message}`;
+  }
+
+  return `Gemini request failed (${code}): ${message}`;
+}
+
 async function generateContent(
   apiKey: string,
   model: string,
@@ -95,7 +129,7 @@ async function generateContent(
   });
 
   if (!result.ok || !result.data) {
-    throw new Error(result.error ?? `Gemini request failed (${result.status}).`);
+    throw new Error(formatGeminiError(result));
   }
 
   return result.data;

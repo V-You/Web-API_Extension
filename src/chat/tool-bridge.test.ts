@@ -10,6 +10,7 @@ describe("chat tool bridge", () => {
   it("filters mutating actions out of mixed tool schemas", () => {
     const manageEntity = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_entity");
     const manageContact = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_contact");
+    const manageMerchantAccount = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_merchant_account");
     const manageSettings = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_settings");
 
     expect((manageEntity?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toEqual([
@@ -22,11 +23,33 @@ describe("chat tool bridge", () => {
       "list",
       "find_by_username",
     ]);
+    expect((manageMerchantAccount?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toEqual([
+      "get",
+      "list",
+    ]);
     expect((manageSettings?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toEqual([
       "get",
       "batch_get",
       "list_non_default",
     ]);
+  });
+
+  it("removes write-only dynamic object parameters from the Gemini-facing schema", () => {
+    const manageEntity = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_entity");
+    const manageContact = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_contact");
+    const manageMerchantAccount = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_merchant_account");
+    const manageSettings = CHAT_TOOL_SCHEMAS.find((schema) => schema.name === "manage_settings");
+
+    const manageEntityProperties = (manageEntity?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    const manageContactProperties = (manageContact?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    const manageMerchantAccountProperties = (manageMerchantAccount?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    const manageSettingsProperties = (manageSettings?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+
+    expect(manageEntityProperties.fields).toBeUndefined();
+    expect(manageContactProperties.fields).toBeUndefined();
+    expect(manageMerchantAccountProperties.fields).toBeUndefined();
+    expect(manageSettingsProperties.settings).toBeUndefined();
+    expect(manageSettingsProperties.value).toBeUndefined();
   });
 
   it("exposes Gemini-ready tool declarations", () => {
@@ -35,5 +58,9 @@ describe("chat tool bridge", () => {
 
     expect(describeSettings).toBeDefined();
     expect(describeSettings?.parameters).toBeTruthy();
+  });
+
+  it("does not emit unsupported additionalProperties in serialized declarations", () => {
+    expect(JSON.stringify(getChatToolDeclarations())).not.toContain("additionalProperties");
   });
 });

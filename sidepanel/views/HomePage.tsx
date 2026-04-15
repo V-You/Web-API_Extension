@@ -19,6 +19,12 @@ export function HomePage() {
     setConnMessage("Checking connection...");
     getCredentials(activeEnv).then((creds) => {
       const url = creds ? buildConnectionProbeUrl(creds) : null;
+      const scopeLabel = creds?.scopeEntityId
+        ? `${creds.scopeEntityType ?? "psp"} ${creds.scopeEntityId}`
+        : creds?.pspId
+          ? `psp ${creds.pspId}`
+          : "saved scope";
+
       if (!creds || !url) {
         setConnStatus("fail");
         setConnMessage("Connection not configured -- add credentials and entity scope in Connections.");
@@ -32,7 +38,11 @@ export function HomePage() {
         .then(async (res) => {
           const result = await classifyConnectionProbeResponse(res);
           setConnStatus(result.ok ? "ok" : "fail");
-          setConnMessage(result.ok ? "Connected to Web API" : result.message);
+          setConnMessage(
+            result.ok
+              ? `Connected to Web API (${activeEnv.toUpperCase()}, ${scopeLabel})`
+              : `${activeEnv.toUpperCase()} Web API check failed for ${scopeLabel}: ${result.message}`,
+          );
         })
         .catch((err) => {
           setConnStatus("fail");

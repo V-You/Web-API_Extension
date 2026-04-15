@@ -6,6 +6,7 @@ import {
   dismissProviderNotice,
   forgetLlmProviderSettings,
   getLlmProviderSettings,
+  hasInvalidLlmProviderSettings,
   isProviderNoticeDismissed,
   saveLlmProviderSettings,
   type LlmProviderSettings,
@@ -37,6 +38,7 @@ export function ChatPage() {
   const [pinInput, setPinInput] = useState("");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsWarning, setSettingsWarning] = useState<string | null>(null);
   const [noticeDismissed, setNoticeDismissed] = useState(true);
   const [detectedContext, setDetectedContext] = useState<ChatContextRecord | null>(null);
   const [manualEntityType, setManualEntityType] = useState<EntityType>("merchant");
@@ -52,6 +54,13 @@ export function ChatPage() {
       setSavedSettings(settings);
       setModelInput(settings?.model ?? DEFAULT_GEMINI_MODEL);
     });
+    hasInvalidLlmProviderSettings(DEFAULT_CHAT_PROVIDER).then((invalid) => {
+      setSettingsWarning(
+        invalid
+          ? "Saved Gemini settings could not be unlocked with the current PIN and were cleared. Re-enter the API key to continue."
+          : null,
+      );
+    });
     isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
     refreshContext();
 
@@ -61,6 +70,15 @@ export function ChatPage() {
       }
       if (area === "local" && changes["llmNotice:gemini"]) {
         void isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
+      }
+      if (area === "local" && changes["llmInvalid:gemini"]) {
+        void hasInvalidLlmProviderSettings(DEFAULT_CHAT_PROVIDER).then((invalid) => {
+          setSettingsWarning(
+            invalid
+              ? "Saved Gemini settings could not be unlocked with the current PIN and were cleared. Re-enter the API key to continue."
+              : null,
+          );
+        });
       }
     };
 
@@ -127,6 +145,7 @@ export function ChatPage() {
       };
       await saveLlmProviderSettings(DEFAULT_CHAT_PROVIDER, settings, pinInput);
       setSavedSettings(settings);
+      setSettingsWarning(null);
       setApiKeyInput("");
       setPinInput("");
       setSettingsOpen(false);
@@ -140,6 +159,7 @@ export function ChatPage() {
   async function handleForgetSettings() {
     await forgetLlmProviderSettings(DEFAULT_CHAT_PROVIDER);
     setSavedSettings(null);
+    setSettingsWarning(null);
     setApiKeyInput("");
     setModelInput(DEFAULT_GEMINI_MODEL);
     setPinInput("");
@@ -235,6 +255,12 @@ export function ChatPage() {
       <p className="text-xs text-slate-500">
         Read-only in v1. No writes, no code execution.
       </p>
+
+      {settingsWarning && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          {settingsWarning}
+        </div>
+      )}
 
       {!noticeDismissed && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
