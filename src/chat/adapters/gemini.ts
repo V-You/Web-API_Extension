@@ -136,7 +136,7 @@ async function generateContent(
 }
 
 export async function runGeminiTurn(input: RunGeminiTurnInput): Promise<GeminiTurnResult> {
-  const maxRounds = input.maxRounds ?? 6;
+  const maxRounds = input.maxRounds ?? 12;
   const toolEvents: ChatToolEvent[] = [];
   let history = [
     ...input.history,
