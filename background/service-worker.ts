@@ -36,7 +36,7 @@ if (chrome.sidePanel?.setPanelBehavior) {
 
 // Enable the side panel only on oppwa.com tabs so the extension icon
 // stays inactive on unrelated sites.
-if (chrome.sidePanel?.setOptions) {
+if (chrome.sidePanel) {
   if (chrome.tabs?.onUpdated) {
     chrome.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
       applySidePanelScope(tabId, tab.url);

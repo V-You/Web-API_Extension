@@ -2,6 +2,10 @@ import { TOOL_SCHEMAS, type ToolSchema } from "../webmcp/tool-schemas";
 import { createExecuteMap } from "../tools/internal-router";
 import type { ChatToolDeclaration } from "./llm-adapter";
 
+export interface ChatToolCatalogOptions {
+  writeToolsEnabled?: boolean;
+}
+
 const READ_ONLY_ACTIONS: Record<string, string[]> = {
   manage_entity: ["get", "search", "list_children"],
   manage_contact: ["get", "list", "find_by_username"],
@@ -65,28 +69,33 @@ function filterSchemaProperties(schema: ToolSchema): ToolSchema {
   return schema;
 }
 
-function toChatSchema(schema: ToolSchema): ToolSchema | null {
+function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}): ToolSchema | null {
   if (schema.name === "execute_workflow") return null;
 
-  const next = filterSchemaProperties(cloneSchema(schema));
+  const next = options.writeToolsEnabled ? cloneSchema(schema) : filterSchemaProperties(cloneSchema(schema));
   const allowedActions = READ_ONLY_ACTIONS[next.name];
   const actionProperty = (next.inputSchema as {
     properties?: Record<string, { enum?: string[] }>;
   }).properties?.action;
 
-  if (allowedActions && actionProperty?.enum) {
+  if (!options.writeToolsEnabled && allowedActions && actionProperty?.enum) {
     actionProperty.enum = actionProperty.enum.filter((action) => allowedActions.includes(action));
   }
 
   return sanitizeSchemaValue(next) as ToolSchema;
 }
 
-export const CHAT_TOOL_SCHEMAS = TOOL_SCHEMAS
-  .map(toChatSchema)
+export function getChatToolSchemas(options: ChatToolCatalogOptions = {}): ToolSchema[] {
+  return TOOL_SCHEMAS
+    .map((schema) => toChatSchema(schema, options))
+    .filter((schema): schema is ToolSchema => schema !== null);
+}
+
+export const CHAT_TOOL_SCHEMAS = getChatToolSchemas()
   .filter((schema): schema is ToolSchema => schema !== null);
 
-export function getChatToolDeclarations(): ChatToolDeclaration[] {
-  return CHAT_TOOL_SCHEMAS.map((schema) => ({
+export function getChatToolDeclarations(options: ChatToolCatalogOptions = {}): ChatToolDeclaration[] {
+  return getChatToolSchemas(options).map((schema) => ({
     name: schema.name,
     description: schema.description,
     parameters: schema.inputSchema,
@@ -96,15 +105,16 @@ export function getChatToolDeclarations(): ChatToolDeclaration[] {
 export async function executeChatTool(
   name: string,
   args: Record<string, unknown>,
+  options: ChatToolCatalogOptions = {},
 ): Promise<unknown> {
-  const schema = CHAT_TOOL_SCHEMAS.find((tool) => tool.name === name);
+  const schema = getChatToolSchemas(options).find((tool) => tool.name === name);
   if (!schema) {
     throw new Error(`Tool ${name} is not available in chat safe mode.`);
   }
 
   const allowedActions = READ_ONLY_ACTIONS[name];
   const requestedAction = args.action as string | undefined;
-  if (allowedActions && (!requestedAction || !allowedActions.includes(requestedAction))) {
+  if (!options.writeToolsEnabled && allowedActions && (!requestedAction || !allowedActions.includes(requestedAction))) {
     throw new Error(`Action ${requestedAction ?? "unknown"} is not available for ${name} in chat safe mode.`);
   }
 

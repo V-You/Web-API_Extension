@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CHAT_TOOL_SCHEMAS, getChatToolDeclarations } from "./tool-bridge";
+import { CHAT_TOOL_SCHEMAS, getChatToolDeclarations, getChatToolSchemas } from "./tool-bridge";
 
 describe("chat tool bridge", () => {
   it("excludes execute_workflow from the chat-safe catalog", () => {
@@ -53,6 +53,30 @@ describe("chat tool bridge", () => {
     expect(manageSettingsProperties.query).toBeDefined();
   });
 
+  it("expands the catalog when write tools are enabled", () => {
+    const writeSchemas = getChatToolSchemas({ writeToolsEnabled: true });
+    const manageEntity = writeSchemas.find((schema) => schema.name === "manage_entity");
+    const manageContact = writeSchemas.find((schema) => schema.name === "manage_contact");
+    const manageMerchantAccount = writeSchemas.find((schema) => schema.name === "manage_merchant_account");
+    const manageSettings = writeSchemas.find((schema) => schema.name === "manage_settings");
+
+    expect((manageEntity?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("delete");
+    expect((manageContact?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("reset_password");
+    expect((manageMerchantAccount?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("attach");
+    expect((manageSettings?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("set");
+
+    const manageEntityProperties = (manageEntity?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    const manageContactProperties = (manageContact?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    const manageMerchantAccountProperties = (manageMerchantAccount?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    const manageSettingsProperties = (manageSettings?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+
+    expect(manageEntityProperties.fields).toBeDefined();
+    expect(manageContactProperties.fields).toBeDefined();
+    expect(manageMerchantAccountProperties.fields).toBeDefined();
+    expect(manageSettingsProperties.settings).toBeDefined();
+    expect(manageSettingsProperties.value).toBeDefined();
+  });
+
   it("exposes Gemini-ready tool declarations", () => {
     const declarations = getChatToolDeclarations();
     const describeSettings = declarations.find((tool) => tool.name === "describe_settings");
@@ -63,5 +87,9 @@ describe("chat tool bridge", () => {
 
   it("does not emit unsupported additionalProperties in serialized declarations", () => {
     expect(JSON.stringify(getChatToolDeclarations())).not.toContain("additionalProperties");
+  });
+
+  it("still excludes execute_workflow even when write tools are enabled", () => {
+    expect(getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
   });
 });

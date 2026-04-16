@@ -22,6 +22,7 @@ import {
   ENTITY_PLURAL,
   entityPath,
   CREATABLE,
+  extractParentInfo,
 } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 
@@ -81,6 +82,20 @@ async function getEntity(
   const res = await apiRequest(creds, env, {
     path: entityPath(input.entityType, input.entityId),
   });
+
+  if (res.ok && res.data && !Array.isArray(res.data) && typeof res.data === "object") {
+    const entity = res.data as Record<string, unknown>;
+    const parent = extractParentInfo(entity);
+
+    return {
+      ...res,
+      data: {
+        ...entity,
+        ...(parent ? { _parent: parent } : {}),
+      },
+    };
+  }
+
   return res;
 }
 

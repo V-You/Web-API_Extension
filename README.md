@@ -220,11 +220,13 @@ The Chat Tab bridges this gap: the user installs the extension, enters API crede
 5. Prompt: "What is my dupe check set to here?"
 6. The agent calls `describe_settings` and `manage_settings` using the detected entity context, then returns a human-readable summary
 
-Tool calls appear as collapsible badges in the chat. v1 chat runs in **safe mode**: read-only, no writes, no code execution.
+Tool calls appear as collapsible badges in the chat. Chat starts in **safe mode** by default. A per-session `Enable write tools` toggle can expose mutating actions, but every write still goes through the existing preview-confirm flow. `execute_workflow` remains excluded from chat.
 
 **Planned v1:** Gemini adapter, context scraper (entityId + entityType only), encrypted LLM key storage integrated with PIN unlock, bounded multi-step read loops, chat-specific read-only tool catalog, explicit exclusion of `execute_workflow`.
 
-**Planned v1.1:** Anthropic and OpenAI adapters, in-memory conversation history, explicit per-session `Enable write tools` opt-in, confirmation bridge reuse for any enabled writes.
+**Current v1.1a:** Explicit per-session `Enable write tools` opt-in, session-scoped chat mode, dynamic chat tool catalog, and confirmation bridge reuse for any enabled writes.
+
+**Planned v1.1:** Anthropic and OpenAI adapters.
 
 **Planned v1.2:** Explicit `Enable automation mode` opt-in, optional workflow drafting or execution after review, richer context extraction (entity name, current BIP section), streaming responses.
 

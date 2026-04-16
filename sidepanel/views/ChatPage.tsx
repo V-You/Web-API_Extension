@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityType } from "../../src/lib/entity-types";
+import { CHAT_WRITE_TOOLS_KEY, isChatWriteToolsEnabled, setChatWriteToolsEnabled } from "../../src/chat/chat-mode";
 import {
   DEFAULT_CHAT_PROVIDER,
   DEFAULT_GEMINI_MODEL,
@@ -38,6 +39,8 @@ export function ChatPage() {
   const [detectedContext, setDetectedContext] = useState<ChatContextRecord | null>(null);
   const [manualEntityType, setManualEntityType] = useState<EntityType>("merchant");
   const [manualEntityId, setManualEntityId] = useState("");
+  const [writeToolsEnabled, setWriteToolsEnabledState] = useState(false);
+  const [modeBusy, setModeBusy] = useState(false);
 
   const refreshContext = useCallback(async () => {
     const context = await getActiveChatContext();
@@ -56,11 +59,15 @@ export function ChatPage() {
           : null,
       );
     });
+    isChatWriteToolsEnabled().then(setWriteToolsEnabledState);
     isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
     refreshContext();
 
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === "session") {
+        if (changes[CHAT_WRITE_TOOLS_KEY]) {
+          setWriteToolsEnabledState(changes[CHAT_WRITE_TOOLS_KEY].newValue === true);
+        }
         void refreshContext();
       }
       if (area === "local" && changes["llmNotice:gemini"]) {
@@ -165,6 +172,32 @@ export function ChatPage() {
     setNoticeDismissed(true);
   }
 
+  async function handleToggleWriteTools() {
+    const next = !writeToolsEnabled;
+
+    setModeBusy(true);
+    setError(null);
+    try {
+      await setChatWriteToolsEnabled(next);
+      setWriteToolsEnabledState(next);
+      setHistory([]);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: next
+            ? "Write tools are enabled for this browser session. New prompts may request confirmation before making changes."
+            : "Write tools are disabled. Chat is back in safe mode for new prompts.",
+        },
+      ]);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Failed to update chat mode.");
+    } finally {
+      setModeBusy(false);
+    }
+  }
+
   async function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || busy) return;
@@ -198,9 +231,9 @@ export function ChatPage() {
         model: savedSettings.model,
         history,
         userText: `${contextText}\n\nUser request: ${trimmed}`,
-        systemPrompt: buildChatSystemPrompt(),
-        tools: getChatToolDeclarations(),
-        executeTool: executeChatTool,
+        systemPrompt: buildChatSystemPrompt({ writeToolsEnabled }),
+        tools: getChatToolDeclarations({ writeToolsEnabled }),
+        executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled }),
       });
 
       setHistory(result.history);
@@ -230,8 +263,12 @@ export function ChatPage() {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <h2 className="text-base font-semibold">Chat</h2>
-        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-          Safe mode
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+          writeToolsEnabled
+            ? "bg-amber-50 text-amber-700"
+            : "bg-emerald-50 text-emerald-700"
+        }`}>
+          {writeToolsEnabled ? "Write tools enabled" : "Safe mode"}
         </span>
         <button
           onClick={() => setSettingsOpen((open) => !open)}
@@ -242,8 +279,44 @@ export function ChatPage() {
       </div>
 
       <p className="text-xs text-slate-500">
-        Read-only in v1, but built for discovery: inspect hierarchy, settings, contacts, merchant accounts, and risk configuration from the current entity.
+        {writeToolsEnabled
+          ? "Write tools are enabled for this browser session. Use chat for scoped changes, but every write still requires explicit confirmation."
+          : "Read-only by default, but built for discovery: inspect hierarchy, settings, contacts, merchant accounts, and risk configuration from the current entity."}
       </p>
+
+      <div className={`rounded-md border p-3 text-xs ${
+        writeToolsEnabled
+          ? "border-amber-200 bg-amber-50 text-amber-900"
+          : "border-emerald-200 bg-emerald-50 text-emerald-900"
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="font-medium">
+              {writeToolsEnabled ? "Write tools are enabled for this browser session." : "Safe mode is active by default."}
+            </p>
+            <p>
+              {writeToolsEnabled
+                ? "Mutating tools are now available in chat, but the existing preview-confirm flow still runs before any change is executed."
+                : "Chat can inspect and reason over the current SaaS context, but it will not attempt writes until you explicitly enable them for this browser session."}
+            </p>
+          </div>
+          <button
+            onClick={() => void handleToggleWriteTools()}
+            disabled={modeBusy || busy}
+            className={`rounded-md px-3 py-1.5 font-medium disabled:opacity-50 ${
+              writeToolsEnabled
+                ? "bg-white text-amber-700 hover:bg-amber-100"
+                : "bg-white text-emerald-700 hover:bg-emerald-100"
+            }`}
+          >
+            {modeBusy
+              ? "Updating..."
+              : writeToolsEnabled
+                ? "Disable write tools"
+                : "Enable write tools"}
+          </button>
+        </div>
+      </div>
 
       {settingsWarning && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
@@ -392,7 +465,11 @@ export function ChatPage() {
 
       <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 min-h-[260px] max-h-[420px] overflow-y-auto">
         {messages.length === 0 ? (
-          <p className="text-xs text-slate-500">Ask a read-only question about the current entity, its settings, hierarchy, contacts, or merchant accounts.</p>
+          <p className="text-xs text-slate-500">
+            {writeToolsEnabled
+              ? "Ask about the current entity, inspect configuration, or request a scoped change that can go through confirmation."
+              : "Ask a read-only question about the current entity, its settings, hierarchy, contacts, or merchant accounts."}
+          </p>
         ) : (
           messages.map((message) => {
             if (message.role === "tool") {
@@ -430,7 +507,9 @@ export function ChatPage() {
         <textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="Ask a read-only question about the current entity..."
+          placeholder={writeToolsEnabled
+            ? "Ask about the current entity or request a confirmed change..."
+            : "Ask a read-only question about the current entity..."}
           rows={3}
           className="flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         />
