@@ -156,6 +156,61 @@
         "pathStartsWithBoosts": [["Rating Method Scores >", -120]],
         "preferredKeyMismatchPenalty": -140
       }
+    },
+    {
+      "shortcode": "pb.ad",
+      "label": "Plausibility Check, Address Country equals IP Country",
+      "aliases": [
+        "plausibility check",
+        "plausibility checks",
+        "address country equals ip country",
+        "address country equals ip",
+        "pb.ad"
+      ]
+    },
+    {
+      "shortcode": "pb.ba",
+      "label": "Plausibility Check, BIN Country equals Address Country",
+      "aliases": [
+        "plausibility check",
+        "plausibility checks",
+        "bin country equals address country",
+        "bin country vs address country",
+        "pb.ba"
+      ]
+    },
+    {
+      "shortcode": "pb.bn",
+      "label": "Plausibility Check, BIN Country equals IP Country",
+      "aliases": [
+        "plausibility check",
+        "plausibility checks",
+        "bin country equals ip country",
+        "bin country vs ip country",
+        "pb.bn"
+      ]
+    },
+    {
+      "shortcode": "pb.st",
+      "label": "Plausibility Check, Customer Address State equals IP State",
+      "aliases": [
+        "plausibility check",
+        "plausibility checks",
+        "address state equals ip state",
+        "customer address state equals ip state",
+        "pb.st"
+      ]
+    },
+    {
+      "shortcode": "pb.ho",
+      "label": "Plausibility Check, Customer Name matches Account Holder Name",
+      "aliases": [
+        "plausibility check",
+        "plausibility checks",
+        "customer name matches account holder name",
+        "account holder name check",
+        "pb.ho"
+      ]
     }
   ]
 }

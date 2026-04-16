@@ -22,6 +22,8 @@ type DisplayMessage =
 const PROMPT_CHIPS = [
   "What entity am I looking at?",
   "What is my dupe check set to here?",
+  "List all Plausibility Checks for this entity.",
+  "What are the oddest settings on this channel?",
   "List contacts for this entity.",
 ];
 
@@ -207,6 +209,12 @@ export function ChatPage() {
           "You are the Web API Extension assistant for ACI BIP.",
           "This chat runs in safe mode.",
           "You may only use read-only tools.",
+          "Be proactive and ambitious in read-only mode -- inspect available data before saying something cannot be done.",
+          "When the user refers to UI labels, business terms, or shorthand, resolve them with describe_settings before asking for exact keys.",
+          "When the user asks what this entity has configured, use the current dashboard context automatically and inspect settings with manage_settings list_non_default when appropriate.",
+          "Subjective read-only questions are allowed if you ground the answer in retrieved results. You may rank, summarize, compare, and explain why something looks unusual.",
+          "Do not ask the user for an entity ID or setting key if the current dashboard context and read-only tools are enough to discover it.",
+          "If a request cannot be completed exactly, pivot to the most helpful read-only analysis you can provide.",
           "Never attempt writes or code execution.",
           "If the user asks for a write or automation task, explain that safe mode does not support it yet.",
         ].join("\n"),
@@ -253,7 +261,7 @@ export function ChatPage() {
       </div>
 
       <p className="text-xs text-slate-500">
-        Read-only in v1. No writes, no code execution.
+        Read-only in v1, but built for discovery: inspect hierarchy, settings, contacts, merchant accounts, and risk configuration from the current entity.
       </p>
 
       {settingsWarning && (
@@ -351,6 +359,9 @@ export function ChatPage() {
         ) : (
           <p className="text-slate-500">No entity detected from the current BIP tab.</p>
         )}
+        <p className="text-slate-500">
+          Tip: ask in UI language such as "plausibility checks", "dupe check", "blacklist", or "3DS" -- chat should resolve those labels to the underlying settings.
+        </p>
         <div className="flex gap-2">
           <select
             value={manualEntityType}
@@ -400,7 +411,7 @@ export function ChatPage() {
 
       <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 min-h-[260px] max-h-[420px] overflow-y-auto">
         {messages.length === 0 ? (
-          <p className="text-xs text-slate-500">Ask a read-only question about the current entity.</p>
+          <p className="text-xs text-slate-500">Ask a read-only question about the current entity, its settings, hierarchy, contacts, or merchant accounts.</p>
         ) : (
           messages.map((message) => {
             if (message.role === "tool") {

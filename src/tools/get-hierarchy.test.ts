@@ -1,20 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const apiRequest = vi.fn();
+const { apiRequestMock } = vi.hoisted(() => ({
+  apiRequestMock: vi.fn(),
+}));
 
 vi.mock("../lib/api-client", () => ({
-  apiRequest,
+  apiRequest: apiRequestMock,
 }));
 
 import { executeGetHierarchy } from "./get-hierarchy";
 
 describe("get_hierarchy", () => {
   beforeEach(() => {
-    apiRequest.mockReset();
+    apiRequestMock.mockReset();
   });
 
   it("builds a subtree starting from a division", async () => {
-    apiRequest.mockImplementation(async (_creds, _env, request: { path: string }) => {
+    apiRequestMock.mockImplementation(async (_creds, _env, request: { path: string }) => {
       if (request.path === "/divisions/div-1") {
         return {
           ok: true,

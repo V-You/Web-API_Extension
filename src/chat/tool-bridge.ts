@@ -17,7 +17,7 @@ const READ_ONLY_PROPERTIES: Record<string, string[]> = {
   manage_merchant_account: ["action", "merchantAccountId", "entityId", "entityType", "scope"],
   lookup_clearing_institutes: ["action", "query", "ciCode", "pspId"],
   describe_settings: ["query", "limit"],
-  manage_settings: ["action", "entityId", "entityType", "key", "entityIds", "keys"],
+  manage_settings: ["action", "entityId", "entityType", "key", "entityIds", "keys", "query"],
   get_audit_log: ["eventType", "entityId", "limit", "since"],
 };
 

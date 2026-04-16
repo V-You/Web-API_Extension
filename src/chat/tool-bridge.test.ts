@@ -50,6 +50,7 @@ describe("chat tool bridge", () => {
     expect(manageMerchantAccountProperties.fields).toBeUndefined();
     expect(manageSettingsProperties.settings).toBeUndefined();
     expect(manageSettingsProperties.value).toBeUndefined();
+    expect(manageSettingsProperties.query).toBeDefined();
   });
 
   it("exposes Gemini-ready tool declarations", () => {

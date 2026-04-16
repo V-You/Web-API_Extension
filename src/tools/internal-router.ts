@@ -1,4 +1,5 @@
 import { confirmIfMutating } from "../bridge/write-confirm-utils";
+import type { EntityType } from "../lib/entity-types";
 import { getActiveEnv, getCredentials } from "../lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
 import { executeDescribeSettings } from "./describe-settings";

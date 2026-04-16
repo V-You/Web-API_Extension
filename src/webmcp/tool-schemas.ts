@@ -269,6 +269,10 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           additionalProperties: { type: "string" },
           description: "Key-value pairs for batch_set.",
         },
+        query: {
+          type: "string",
+          description: "Keyword filter for list_non_default when exact keys are not known.",
+        },
       },
       required: ["action"],
     },
