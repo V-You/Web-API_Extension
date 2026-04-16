@@ -11,6 +11,7 @@ import {
   saveLlmProviderSettings,
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
+import { buildChatSystemPrompt, CHAT_DISCOVERY_PROMPT_CHIPS } from "../../src/chat/discovery-playbook";
 import { getActiveChatContext, getActiveBipTabId, type ChatContextRecord } from "../../src/chat/context-store";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
@@ -18,14 +19,6 @@ import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemin
 type DisplayMessage =
   | { id: string; role: "user" | "assistant"; text: string }
   | { id: string; role: "tool"; toolName: string; args: Record<string, unknown>; result: unknown };
-
-const PROMPT_CHIPS = [
-  "What entity am I looking at?",
-  "What is my dupe check set to here?",
-  "List all Plausibility Checks for this entity.",
-  "What are the oddest settings on this channel?",
-  "List contacts for this entity.",
-];
 
 export function ChatPage() {
   const [history, setHistory] = useState<GeminiContent[]>([]);
@@ -205,19 +198,7 @@ export function ChatPage() {
         model: savedSettings.model,
         history,
         userText: `${contextText}\n\nUser request: ${trimmed}`,
-        systemPrompt: [
-          "You are the Web API Extension assistant for ACI BIP.",
-          "This chat runs in safe mode.",
-          "You may only use read-only tools.",
-          "Be proactive and ambitious in read-only mode -- inspect available data before saying something cannot be done.",
-          "When the user refers to UI labels, business terms, or shorthand, resolve them with describe_settings before asking for exact keys.",
-          "When the user asks what this entity has configured, use the current dashboard context automatically and inspect settings with manage_settings list_non_default when appropriate.",
-          "Subjective read-only questions are allowed if you ground the answer in retrieved results. You may rank, summarize, compare, and explain why something looks unusual.",
-          "Do not ask the user for an entity ID or setting key if the current dashboard context and read-only tools are enough to discover it.",
-          "If a request cannot be completed exactly, pivot to the most helpful read-only analysis you can provide.",
-          "Never attempt writes or code execution.",
-          "If the user asks for a write or automation task, explain that safe mode does not support it yet.",
-        ].join("\n"),
+        systemPrompt: buildChatSystemPrompt(),
         tools: getChatToolDeclarations(),
         executeTool: executeChatTool,
       });
@@ -398,7 +379,7 @@ export function ChatPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {PROMPT_CHIPS.map((chip) => (
+        {CHAT_DISCOVERY_PROMPT_CHIPS.map((chip) => (
           <button
             key={chip}
             onClick={() => setInput(chip)}

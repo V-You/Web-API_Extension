@@ -554,6 +554,7 @@ The source metadata (`riro_consolidated_lookup.json`, 1,225 entries, schema vers
 | `base_data/riro_consolidated_lookup.json` | 1,225 RiRo settings with type, path, default values |
 | `base_data/ci_ma_lookup.json` | 195 clearing institute entries with required field mappings |
 | `base_data/glossary.json` | ACI business terms and aliases used for settings search synonym expansion |
+| `base_data/chat_discovery_playbook.json` | Curated read-only discovery heuristics and prompt chips used by the Chat tab |
 
 ### Glossary-backed search
 
@@ -562,6 +563,12 @@ The source metadata (`riro_consolidated_lookup.json`, 1,225 entries, schema vers
 `describe_settings` also resolves curated setting-family shortcodes and aliases such as `db.db`, `duplicate check`, `dupe check`, and `doublet check`, then returns both flat matches and grouped family output for those queries.
 
 Edit `settings_family_profiles.json` to extend shortcode families.
+
+### Chat discovery playbook
+
+The Chat tab loads `chat_discovery_playbook.json` through `src/chat/discovery-playbook.ts` to steer Gemini toward ambitious read-only discovery instead of early refusal. Use it for prompt-side retrieval habits, UI-language handling, and curated example prompts.
+
+Handle it conservatively: keep authoritative settings metadata in `riro_consolidated_lookup.json`, business vocabulary in `glossary.json`, and shortcode-family mappings in `settings_family_profiles.json`. Extend the playbook when the agent needs better retrieval behavior, not when the underlying data model itself is missing.
 
 ### Privacy
 
