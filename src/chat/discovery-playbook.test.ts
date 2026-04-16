@@ -10,11 +10,15 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Discovery playbook:");
     expect(prompt).toContain("UI label or business phrase:");
     expect(prompt).toContain("Subjective or comparative question:");
+    expect(prompt).toContain("Risk or fraud configuration question:");
+    expect(prompt).toContain("3DS or SCA question:");
+    expect(prompt).toContain("Merchant-account troubleshooting:");
     expect(prompt).toContain("Never attempt writes or code execution.");
   });
 
   it("exposes the curated prompt chips and purpose text", () => {
     expect(CHAT_DISCOVERY_PROMPT_CHIPS).toContain("List all Plausibility Checks for this entity.");
+    expect(CHAT_DISCOVERY_PROMPT_CHIPS).toContain("How is 3DS configured here?");
     expect(getDiscoveryPlaybookPurpose()).toContain("read-only exploration");
   });
 });
