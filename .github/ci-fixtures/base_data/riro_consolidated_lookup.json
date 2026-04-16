@@ -1,0 +1,40 @@
+{
+  "schema_version": 0,
+  "entries": [
+    {
+      "id": 1,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:plausibility/pb.ad:active",
+      "type": "boolean",
+      "path": "Plausibility Checks > Address Country equals IP Country (pb.ad)",
+      "default": "false"
+    },
+    {
+      "id": 2,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:plausibility/pb.ba:active",
+      "type": "boolean",
+      "path": "Plausibility Checks > BIN Country equals Address Country (pb.ba)",
+      "default": "false"
+    },
+    {
+      "id": 3,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:plausibility/pb.bn:active",
+      "type": "boolean",
+      "path": "Plausibility Checks > BIN Country equals IP Country (pb.bn)",
+      "default": "false"
+    },
+    {
+      "id": 4,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:plausibility/pb.st:active",
+      "type": "boolean",
+      "path": "Plausibility Checks > Customer Address State equals IP State (pb.st)",
+      "default": "false"
+    },
+    {
+      "id": 5,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:plausibility/pb.ho:active",
+      "type": "boolean",
+      "path": "Plausibility Checks > Customer Name matches Account Holder Name (pb.ho)",
+      "default": "false"
+    }
+  ]
+}

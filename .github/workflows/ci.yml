@@ -22,12 +22,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Stub private base_data (gitignored)
+      - name: Copy CI base_data fixtures
         run: |
           mkdir -p base_data
-          echo '{"schema_version":0,"entries":[]}' > base_data/ci_ma_lookup.json
-          echo '{"schema_version":0,"entries":[]}' > base_data/riro_consolidated_lookup.json
-          echo '{"schema_version":0,"entries":[]}' > base_data/glossary.json
+          cp .github/ci-fixtures/base_data/ci_ma_lookup.json base_data/ci_ma_lookup.json
+          cp .github/ci-fixtures/base_data/riro_consolidated_lookup.json base_data/riro_consolidated_lookup.json
+          cp .github/ci-fixtures/base_data/glossary.json base_data/glossary.json
+          cp .github/ci-fixtures/base_data/chat_discovery_playbook.json base_data/chat_discovery_playbook.json
 
       - name: Type check
         run: npm run typecheck

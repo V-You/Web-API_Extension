@@ -1,0 +1,71 @@
+{
+  "schema_version": "ci-fixture-1",
+  "purpose": "Guide the Chat tab toward ambitious, grounded read-only exploration in safe mode.",
+  "promptChips": [
+    "What entity am I looking at?",
+    "What is my dupe check set to here?",
+    "List all Plausibility Checks for this entity.",
+    "How is 3DS configured here?",
+    "Which blacklist checks are active here?"
+  ],
+  "principles": [
+    "Be proactive and ambitious in read-only mode - inspect available data before saying something cannot be done.",
+    "Use the current dashboard context automatically unless the user clearly overrides it.",
+    "When current BIP section context is available, use it to disambiguate scope-sensitive questions such as attached vs owned merchant accounts or contacts.",
+    "Resolve UI labels, business phrases, and shortcodes with describe_settings before asking for exact setting keys.",
+    "Resolve cheap read-only ambiguity by checking the two most likely interpretations before asking the user to clarify."
+  ],
+  "playbooks": [
+    {
+      "trigger": "UI label or business phrase",
+      "steps": [
+        "Start with describe_settings using the user's phrase.",
+        "Use family groups, glossary expansion, and BIP paths to identify the exact settings or families behind the label."
+      ]
+    },
+    {
+      "trigger": "Create another one like this",
+      "steps": [
+        "Treat sibling-creation prompts as an instruction to derive the parent from the current entity before asking the user."
+      ]
+    },
+    {
+      "trigger": "Payment brand or processing capability question",
+      "steps": [
+        "Check merchant accounts for both owned and attached scopes before assuming the question is only about settings."
+      ]
+    },
+    {
+      "trigger": "Subjective or comparative question",
+      "steps": [
+        "Gather a reasonable candidate set first with read-only tools."
+      ]
+    },
+    {
+      "trigger": "Risk or fraud configuration question",
+      "steps": [
+        "Start with describe_settings using the user's language, such as risk, fraud, velocity, dupe check, plausibility, blacklist, AVS, or CVV."
+      ]
+    },
+    {
+      "trigger": "3DS or SCA question",
+      "steps": [
+        "Use describe_settings for 3D Secure, 3DS, or SCA wording to resolve the entity-level settings involved."
+      ]
+    },
+    {
+      "trigger": "Merchant-account troubleshooting",
+      "steps": [
+        "Start with manage_merchant_account list for the current entity, checking both owned and attached scopes by default for generic merchant-account questions."
+      ]
+    }
+  ],
+  "responseStyle": [
+    "Lead with the answer, then cite the strongest supporting findings.",
+    "Prefer a concise synthesis over defensive disclaimers.",
+    "Only ask for missing identifiers after checking whether current context and read-only discovery can recover them."
+  ],
+  "maintenance": [
+    "Use this file for prompt-side retrieval behavior and exploratory heuristics, not for authoritative API or settings metadata."
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 0,
+  "entries": [
+    {
+      "term": "Merchant Account",
+      "aliases": ["MA", "MID", "Merchant Accounts"],
+      "definition": "Configuration entity representing a processing contract with an acquirer.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Available MA",
+      "aliases": [
+        "Created MA",
+        "Created Merchant Account",
+        "Created Merchant Accounts",
+        "Owned MA",
+        "Owned Merchant Account",
+        "Owned Merchant Accounts"
+      ],
+      "definition": "An MA that exists at an Entity but is not yet attached to a Channel.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Attached MA",
+      "aliases": [
+        "Attached Merchant Account",
+        "Attached Merchant Accounts",
+        "Attached MAs"
+      ],
+      "definition": "An MA that is linked to a Channel for processing transactions.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Subtype",
+      "aliases": [
+        "subType",
+        "sub type",
+        "processing subtype",
+        "card brand",
+        "payment brand"
+      ],
+      "definition": "Merchant Account processing subtype or card brand, such as VISA or MASTERCARD.",
+      "context": "Configuration"
+    }
+  ]
+}
