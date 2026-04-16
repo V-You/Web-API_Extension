@@ -116,7 +116,9 @@ export interface ChatContextUpdateMessage {
     entityId: string;
     entityType: EntityType;
     confidence: number;
-    source: "url" | "anchor";
+    source: "url" | "anchor" | "script" | "form";
+    entityName?: string;
+    section?: string;
   };
 }
 
@@ -215,6 +217,8 @@ chrome.runtime.onMessage.addListener(
         entityType: payload.entityType,
         confidence: payload.confidence,
         source: payload.source,
+        entityName: payload.entityName,
+        section: payload.section,
       })
         .then((context) => sendResponse({ ok: true, context }))
         .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));

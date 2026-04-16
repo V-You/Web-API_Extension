@@ -7,6 +7,7 @@ describe("chat discovery playbook", () => {
     const prompt = buildChatSystemPrompt();
 
     expect(prompt).toContain("This chat runs in safe mode.");
+    expect(prompt).toContain("When current BIP section context is available, use it to disambiguate scope-sensitive questions such as attached vs owned merchant accounts or contacts.");
     expect(prompt).toContain("Resolve cheap read-only ambiguity by checking the two most likely interpretations before asking the user to clarify.");
     expect(prompt).toContain("Discovery playbook:");
     expect(prompt).toContain("UI label or business phrase:");

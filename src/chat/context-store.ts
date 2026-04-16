@@ -1,5 +1,7 @@
 import type { EntityType } from "../lib/entity-types";
 
+export type ChatContextSource = "url" | "anchor" | "script" | "form";
+
 export interface ChatContextRecord {
   tabId: number;
   frameId: number;
@@ -7,7 +9,9 @@ export interface ChatContextRecord {
   entityId: string;
   entityType: EntityType;
   confidence: number;
-  source: "url" | "anchor";
+  source: ChatContextSource;
+  entityName?: string;
+  section?: string;
 }
 
 const KEY_PREFIX = "chat:context:";
@@ -27,6 +31,17 @@ export function shouldReplaceChatContext(
   return incoming.timestamp >= current.timestamp;
 }
 
+export function mergeChatContext(
+  current: ChatContextRecord | null,
+  incoming: ChatContextRecord,
+): ChatContextRecord {
+  return {
+    ...incoming,
+    ...(incoming.entityName ? {} : current?.entityName ? { entityName: current.entityName } : {}),
+    ...(incoming.section ? {} : current?.section ? { section: current.section } : {}),
+  };
+}
+
 export async function upsertChatContext(record: ChatContextRecord): Promise<ChatContextRecord> {
   const key = getChatContextStorageKey(record.tabId);
   const result = await chrome.storage.session.get(key);
@@ -36,8 +51,9 @@ export async function upsertChatContext(record: ChatContextRecord): Promise<Chat
     return current ?? record;
   }
 
-  await chrome.storage.session.set({ [key]: record });
-  return record;
+  const merged = mergeChatContext(current, record);
+  await chrome.storage.session.set({ [key]: merged });
+  return merged;
 }
 
 export async function getChatContext(tabId: number): Promise<ChatContextRecord | null> {

@@ -228,7 +228,9 @@ Tool calls appear as collapsible badges in the chat. Chat starts in **safe mode*
 
 **Planned v1.1:** Anthropic and OpenAI adapters.
 
-**Planned v1.2:** Explicit `Enable automation mode` opt-in, optional workflow drafting or execution after review, richer context extraction (entity name, current BIP section), streaming responses.
+**Current v1.2a:** Richer context extraction for Chat Tab turns, including best-effort entity name and current BIP section hints.
+
+**Planned v1.2:** Explicit `Enable automation mode` opt-in, optional workflow drafting or execution after review, and streaming responses.
 
 **Deferred:** Local model support such as Ollama, conversation persistence or export, system prompt customization, advanced DOM context beyond entity identification, cost tracking.
 

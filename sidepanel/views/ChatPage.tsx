@@ -21,6 +21,25 @@ type DisplayMessage =
   | { id: string; role: "user" | "assistant"; text: string }
   | { id: string; role: "tool"; toolName: string; args: Record<string, unknown>; result: unknown };
 
+function humanizeContextSection(section: string | undefined): string | null {
+  if (!section) return null;
+
+  switch (section) {
+    case "attachedMerchantAccounts":
+      return "attached merchant accounts";
+    case "ownedMerchantAccounts":
+      return "owned merchant accounts";
+    case "merchantAccounts":
+      return "merchant accounts";
+    case "attachedContacts":
+      return "attached contacts";
+    case "ownedContacts":
+      return "owned contacts";
+    default:
+      return section.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  }
+}
+
 export function ChatPage() {
   const [history, setHistory] = useState<GeminiContent[]>([]);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -222,7 +241,11 @@ export function ChatPage() {
     setInput("");
 
     const contextText = effectiveContext
-      ? `Current dashboard context: ${effectiveContext.entityType} ${effectiveContext.entityId}. Use this as the default target unless the user says otherwise.`
+        ? [
+            `Current dashboard context: ${effectiveContext.entityType} ${effectiveContext.entityId}${detectedContext?.entityName ? ` (${detectedContext.entityName})` : ""}.`,
+            detectedContext?.section ? `Current BIP section: ${detectedContext.section}.` : null,
+            "Use this as the default target unless the user says otherwise.",
+          ].filter(Boolean).join(" ")
       : "No dashboard context is available. Ask for explicit entity identifiers when needed.";
 
     try {
@@ -409,9 +432,15 @@ export function ChatPage() {
         {detectedContext ? (
           <p className="text-slate-700">
             Detected: {detectedContext.entityType} {detectedContext.entityId}
+            {detectedContext.entityName ? ` (${detectedContext.entityName})` : ""}
           </p>
         ) : (
           <p className="text-slate-500">No entity detected from the current BIP tab.</p>
+        )}
+        {detectedContext?.section && (
+          <p className="text-slate-500">
+            Current section: {humanizeContextSection(detectedContext.section)}
+          </p>
         )}
         <p className="text-slate-500">
           Tip: ask in UI language such as "plausibility checks", "dupe check", "blacklist", or "3DS" -- chat should resolve those labels to the underlying settings.

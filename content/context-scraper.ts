@@ -5,6 +5,8 @@ interface ContextCandidate {
   entityType: EntityType;
   confidence: number;
   source: "url" | "anchor" | "script" | "form";
+  entityName?: string;
+  section?: string;
 }
 
 const PATH_RE = /\/(psps|divisions|merchants|channels)\/([^/?#]+)/i;
@@ -24,6 +26,44 @@ const TYPE_MAP: Record<string, EntityType> = {
 
 let lastSignature = "";
 let reportTimer: ReturnType<typeof setTimeout> | null = null;
+
+const SECTION_PATTERNS: Array<{ section: string; patterns: RegExp[] }> = [
+  { section: "attachedMerchantAccounts", patterns: [/attachedmerchantaccounts/i, /attachedmerchantaccount/i] },
+  { section: "ownedMerchantAccounts", patterns: [/ownedmerchantaccounts/i, /ownedmerchantaccount/i] },
+  { section: "merchantAccounts", patterns: [/merchantaccounts/i, /merchantaccount/i] },
+  { section: "attachedContacts", patterns: [/attachedcontacts/i, /attachedcontact/i] },
+  { section: "ownedContacts", patterns: [/ownedcontacts/i, /ownedcontact/i] },
+  { section: "contacts", patterns: [/contacts/i, /contact/i] },
+  { section: "settings", patterns: [/\/setting(?:s)?\b/i, /settings/i] },
+];
+
+export function detectSectionFromUrl(rawUrl: string): string | undefined {
+  let haystack = rawUrl;
+
+  try {
+    const url = new URL(rawUrl, location.href);
+    haystack = `${url.pathname} ${url.search}`;
+  } catch {
+    // rawUrl may already be a relative or malformed fragment - fall back to the raw string.
+  }
+
+  for (const entry of SECTION_PATTERNS) {
+    if (entry.patterns.some((pattern) => pattern.test(haystack))) {
+      return entry.section;
+    }
+  }
+
+  return undefined;
+}
+
+export function normalizeDetectedName(rawName: string | null | undefined): string | undefined {
+  const trimmed = rawName?.replace(/\s+/g, " ").trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length < 3) return undefined;
+  if (/^[a-f0-9]{32}$/i.test(trimmed)) return undefined;
+  if (/^(web api extension|oppwa|merchant onboarding api)$/i.test(trimmed)) return undefined;
+  return trimmed;
+}
 
 function normalizeEntityType(rawType: string | null): EntityType | null {
   if (!rawType) return null;
@@ -52,6 +92,7 @@ function normalizeEditEntityType(rawType: string | null): EntityType | null {
 }
 
 function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], confidence: number): ContextCandidate | null {
+  const section = detectSectionFromUrl(rawUrl);
   const match = PATH_RE.exec(rawUrl);
   if (match) {
     const [, plural, entityId] = match;
@@ -63,6 +104,7 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
       entityType,
       confidence,
       source,
+      ...(section ? { section } : {}),
     };
   }
 
@@ -77,6 +119,7 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
         entityType: typedEntityType,
         confidence,
         source,
+        ...(section ? { section } : {}),
       };
     }
 
@@ -90,6 +133,7 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
           entityType,
           confidence: Math.max(40, confidence - 10),
           source,
+          ...(section ? { section } : {}),
         };
       }
     }
@@ -102,6 +146,7 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
         entityType,
         confidence: Math.max(35, confidence - 15),
         source,
+        ...(section ? { section } : {}),
       };
     }
   } catch {
@@ -109,6 +154,37 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
   }
 
   return null;
+}
+
+function detectEntityName(): string | undefined {
+  const candidates = [
+    document.querySelector<HTMLInputElement>('input[name="name"], input#name')?.value,
+    document.querySelector<HTMLElement>("h1")?.textContent,
+    document.querySelector<HTMLElement>("h2")?.textContent,
+    document.querySelector<HTMLElement>("[data-entity-name]")?.textContent,
+    document.querySelector<HTMLElement>(".headline, .title")?.textContent,
+    document.title,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeDetectedName(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return undefined;
+}
+
+function enrichCandidate(candidate: ContextCandidate): ContextCandidate {
+  const entityName = detectEntityName();
+  const section = candidate.section ?? detectSectionFromUrl(location.href);
+
+  return {
+    ...candidate,
+    ...(entityName ? { entityName } : {}),
+    ...(section ? { section } : {}),
+  };
 }
 
 function detectFromInlineState(): ContextCandidate | null {
@@ -144,6 +220,9 @@ function detectFromEntityForm(): ContextCandidate | null {
   const entityType = normalizeEntityType(
     (document.querySelector<HTMLInputElement>('input[name="kind"], input#kind')?.value ?? null),
   );
+  const entityName = normalizeDetectedName(
+    document.querySelector<HTMLInputElement>('input[name="name"], input#name')?.value,
+  );
 
   if (!entityId || !entityType) {
     return null;
@@ -154,6 +233,8 @@ function detectFromEntityForm(): ContextCandidate | null {
     entityType,
     confidence: 90,
     source: "form",
+    ...(entityName ? { entityName } : {}),
+    ...(detectSectionFromUrl(location.href) ? { section: detectSectionFromUrl(location.href) } : {}),
   };
 }
 
@@ -177,7 +258,8 @@ function detectFromAnchors(): ContextCandidate | null {
 }
 
 function detectContext(): ContextCandidate | null {
-  return detectFromLocation() ?? detectFromInlineState() ?? detectFromEntityForm() ?? detectFromAnchors();
+  const candidate = detectFromLocation() ?? detectFromInlineState() ?? detectFromEntityForm() ?? detectFromAnchors();
+  return candidate ? enrichCandidate(candidate) : null;
 }
 
 function scheduleReport() {
@@ -202,7 +284,7 @@ async function reportContext() {
     return;
   }
 
-  const signature = `${candidate.entityType}:${candidate.entityId}:${candidate.source}`;
+  const signature = `${candidate.entityType}:${candidate.entityId}:${candidate.source}:${candidate.section ?? ""}:${candidate.entityName ?? ""}`;
   if (signature === lastSignature) return;
 
   lastSignature = signature;

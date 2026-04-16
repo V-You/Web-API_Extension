@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getChatContextStorageKey, shouldReplaceChatContext, type ChatContextRecord } from "./context-store";
+import { getChatContextStorageKey, mergeChatContext, shouldReplaceChatContext, type ChatContextRecord } from "./context-store";
 
 describe("chat context store", () => {
   it("builds deterministic session storage keys", () => {
@@ -50,5 +50,33 @@ describe("chat context store", () => {
 
     expect(shouldReplaceChatContext(current, olderIncoming)).toBe(false);
     expect(shouldReplaceChatContext(current, newerIncoming)).toBe(true);
+  });
+
+  it("preserves richer optional context fields when a newer record omits them", () => {
+    const current: ChatContextRecord = {
+      tabId: 7,
+      frameId: 0,
+      timestamp: 100,
+      entityId: "channel-1",
+      entityType: "channel",
+      confidence: 100,
+      source: "url",
+      entityName: "Checkout Channel",
+      section: "attachedMerchantAccounts",
+    };
+
+    const incoming: ChatContextRecord = {
+      ...current,
+      timestamp: 101,
+      source: "anchor",
+      entityName: undefined,
+      section: undefined,
+    };
+
+    expect(mergeChatContext(current, incoming)).toEqual({
+      ...incoming,
+      entityName: "Checkout Channel",
+      section: "attachedMerchantAccounts",
+    });
   });
 });
