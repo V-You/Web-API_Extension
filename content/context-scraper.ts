@@ -299,21 +299,23 @@ async function reportContext() {
   }
 }
 
-window.addEventListener("load", scheduleReport);
-window.addEventListener("pageshow", scheduleReport);
-document.addEventListener("click", () => {
-  scheduleReport();
-}, true);
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  window.addEventListener("load", scheduleReport);
+  window.addEventListener("pageshow", scheduleReport);
+  document.addEventListener("click", () => {
+    scheduleReport();
+  }, true);
 
-const observer = new MutationObserver(() => {
-  scheduleReport();
-});
-
-if (document.documentElement) {
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
+  const observer = new MutationObserver(() => {
+    scheduleReport();
   });
-}
 
-scheduleReport();
+  if (document.documentElement) {
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  scheduleReport();
+}

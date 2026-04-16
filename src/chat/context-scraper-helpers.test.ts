@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { detectSectionFromUrl, normalizeDetectedName } from "./context-scraper";
+import { detectSectionFromUrl, normalizeDetectedName } from "../../content/context-scraper";
 
 describe("context scraper helpers", () => {
   it("detects section names from BIP URLs", () => {
