@@ -17,6 +17,14 @@ import type { EntityType } from "../src/lib/entity-types";
 
 // -- Side panel activation ------------------------------------------------
 
+const OPPWA_PATTERN = /^https:\/\/eu-(test|prod)\.oppwa\.com(\/|$)/;
+
+/** Set the side panel enabled/disabled for a given tab based on its URL. */
+function applySidePanelScope(tabId: number, url: string | undefined): void {
+  const enabled = OPPWA_PATTERN.test(url ?? "");
+  chrome.sidePanel.setOptions({ tabId, enabled }).catch(console.error);
+}
+
 if (chrome.sidePanel?.setPanelBehavior) {
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
@@ -24,6 +32,25 @@ if (chrome.sidePanel?.setPanelBehavior) {
 } else {
   // Keep worker alive even when sidePanel is unavailable on this Chrome build.
   console.warn("[sw] sidePanel API not available.");
+}
+
+// Enable the side panel only on oppwa.com tabs so the extension icon
+// stays inactive on unrelated sites.
+if (chrome.sidePanel?.setOptions) {
+  if (chrome.tabs?.onUpdated) {
+    chrome.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
+      applySidePanelScope(tabId, tab.url);
+    });
+  }
+  // Also handle tab switches -- onUpdated doesn't fire when the user
+  // activates an already-loaded tab.
+  if (chrome.tabs?.onActivated) {
+    chrome.tabs.onActivated.addListener(({ tabId }) => {
+      chrome.tabs.get(tabId).then((tab) => {
+        applySidePanelScope(tabId, tab.url);
+      }).catch(console.error);
+    });
+  }
 }
 
 // -- Browser restart recovery ---------------------------------------------
