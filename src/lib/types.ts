@@ -40,12 +40,21 @@ export type JobState =
   | "failed"
   | "completed";
 
-/** Audit event types per PRD section 4.5. */
+/**
+ * Audit event types.
+ *
+ * Derived from `src_data/webapi-operation-manifest.json` (per D13) plus two
+ * extension-only events: `setting_change` (local RiRo writes) and
+ * `env_switch` (UI environment toggles). A test asserts both sides stay
+ * in sync.
+ */
 export type AuditEventType =
   | "setting_change"
   | "entity_create"
+  | "entity_edit"
   | "entity_delete"
   | "contact_create"
+  | "contact_edit"
   | "contact_delete"
   | "contact_lock"
   | "contact_unlock"
@@ -54,6 +63,7 @@ export type AuditEventType =
   | "contact_password_reset"
   | "ma_create"
   | "ma_update"
+  | "ma_delete"
   | "ma_attach"
   | "ma_detach"
   | "env_switch";

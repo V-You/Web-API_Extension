@@ -73,6 +73,16 @@ function filterSchemaProperties(schema: ToolSchema): ToolSchema {
 function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}): ToolSchema | null {
   if (schema.name === "execute_workflow") return null;
 
+  // Generated per-action tools: skip writes in safe mode; pass-through reads.
+  const isGenerated = !(schema.name in READ_ONLY_PROPERTIES)
+    && !READ_ONLY_ACTIONS[schema.name]
+    && schema.name !== "execute_workflow";
+  if (isGenerated) {
+    const readOnly = schema.annotations?.readOnlyHint === true;
+    if (!options.writeToolsEnabled && !readOnly) return null;
+    return sanitizeSchemaValue(cloneSchema(schema)) as ToolSchema;
+  }
+
   const next = options.writeToolsEnabled ? cloneSchema(schema) : filterSchemaProperties(cloneSchema(schema));
   const allowedActions = READ_ONLY_ACTIONS[next.name];
   const actionProperty = (next.inputSchema as {

@@ -19,6 +19,7 @@
     "detach_merchant_account",
     "edit_contact",
     "edit_entity",
+    "edit_merchant_account",
     "get_contact",
     "get_entity",
     "get_merchant_account",
@@ -4163,6 +4164,609 @@
         ],
         "description": "Edit Channel",
         "auditEventType": "entity_edit",
+        "destructive": false
+      }
+    ],
+    "edit_merchant_account": [
+      {
+        "operationId": "updateMerchantAccount",
+        "toolName": "edit_merchant_account",
+        "parentEntityType": null,
+        "method": "POST",
+        "pathTemplate": "/merchantAccounts/{merchantAccountId}",
+        "pathParams": [
+          {
+            "name": "merchantAccountId",
+            "pattern": "^[a-f0-9]*$",
+            "required": true
+          }
+        ],
+        "request": [
+          {
+            "name": "supports3DSecure",
+            "logicalType": "boolean",
+            "required": "example_core",
+            "description": "Enable 3DS2 on your merchant account.",
+            "example": "true",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchant3DName",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": "The merchant name.",
+            "example": "ACI Worldwide Germany",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchant3DUrl",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": "The merchant website URL.",
+            "example": "http://threeD-secure-dummy-url.de",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchantIsoCountryCode",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "Merchant ISO country code. 276 is Germany.",
+            "example": "276",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchant3DId",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "Merchant identifier",
+            "example": "14275",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchant3DCategory",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "The Merchant category code",
+            "example": "5111",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "visaMerchantAcquirerBin_v2",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "The Visa acquirer BIN (3DS2).",
+            "example": "234234",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "visaRequestorId_v2",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "The Visa requestor id (3DS2).",
+            "example": 87654321,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "visaRequestorName",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": "The Visa requestor name (3DS2).",
+            "example": "Test Name",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "masterMerchantAcquirerBin_v2",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "The MasterCard acquirer BIN (3DS2).",
+            "example": "234234",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "masterRequestorId_v2",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "The MasterCard requestor id (3DS2).",
+            "example": 87654321,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "masterRequestorName",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": "The MasterCard requestor name (3DS2).",
+            "example": "Test Name",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "amexMerchantAcquirerBin_v2",
+            "logicalType": "integer",
+            "required": "example_core",
+            "description": "The AMEX acquirer BIN (3DS2).",
+            "example": "12345678901",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "amexRequestorId_v2",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": "The AMEX requestor id (3DS2).",
+            "example": "JCBAESK60193409387",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "amexRequestorName",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": "The AMEX requestor name (3DS2).",
+            "example": "Name",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "dinersMerchantId",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "dinersMerchantPwd",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "dinersMerchantAcquirerBin_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "dinersRequestorId_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "dinersRequestorName",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "bcmcMerchantAcquirerBin_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "bcmcRequestorId_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "bcmcRequestorName",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "jcbMerchantAcquirerBin_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "jcbRequestorId_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "jcbRequestorName",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "cashlinkMaltaMerchantAcquirerBin_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "cashlinkMaltaRequestorId_v2",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "cashlinkMaltaRequestorName",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "name",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "example": "MA-Acquirer-NAB",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "state",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": null,
+            "example": "LIVE",
+            "destructiveValues": [
+              "DELETED"
+            ],
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "clearingInstituteName",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": null,
+            "example": "EMC_NAB",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchantId",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": null,
+            "example": "aciecommerce1116",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "key",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "connectorSpecificParameter.MerchantKeyId",
+            "logicalType": "string",
+            "required": "example_core",
+            "description": null,
+            "example": "e5b933be-a929-426a-b839-97a28229c672",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "iban",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "cleaingInstituteId",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "terminalId",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "password",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "username",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "merchantCategory",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "transactionCategory",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "cvvInstruction",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "cvvRejectionPolicy",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "avsCheckActive",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "avsRejectionPolicy",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "avsReviewPolicy",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "debitAdviceProcedure",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "recurringCode",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "velocityDispachingActive",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "velocityDispatchingSetting",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "ticketSizeDispatchingActive",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "ticketSizeDispatchingSetting",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[A-Za-z0-9 _-]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "recurringDispatchingSetting",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "shopperDispatchingSetting",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "shopperDispatchingScope",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "shopperDispatchingValidity",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "pendingTimeoutInMins",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[0-9]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "pendingForAcquirerTimeoutInMins",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "pattern": "^[0-9]*$",
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "uploadUser",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          },
+          {
+            "name": "uploadPassword",
+            "logicalType": "string",
+            "required": "optional",
+            "description": null,
+            "provenance": [
+              "spec"
+            ]
+          }
+        ],
+        "description": "Update a merchant account. The Postman collection uses this same endpoint for both general merchant account edits and 3DS2 configuration, and the examples below capture both workflows.",
+        "auditEventType": "ma_update",
         "destructive": false
       }
     ],
@@ -9652,7 +10256,7 @@
     },
     {
       "operationId": "updateMerchantAccount",
-      "toolName": null,
+      "toolName": "edit_merchant_account",
       "parentEntityType": null,
       "method": "POST",
       "pathTemplate": "/merchantAccounts/{merchantAccountId}",
@@ -10248,7 +10852,7 @@
         }
       ],
       "description": "Update a merchant account. The Postman collection uses this same endpoint for both general merchant account edits and 3DS2 configuration, and the examples below capture both workflows.",
-      "auditEventType": null,
+      "auditEventType": "ma_update",
       "destructive": false
     },
     {
@@ -10353,7 +10957,6 @@
     "detachAllMerchantAccountsPspLevel",
     "getRiroChannelLevel",
     "getRiroMerchantLevel",
-    "updateMerchantAccount",
     "updateMerchantSettings",
     "updateRiroChannelLevel"
   ]

@@ -14,6 +14,7 @@ export type WebApiToolName =
   | "detach_merchant_account"
   | "edit_contact"
   | "edit_entity"
+  | "edit_merchant_account"
   | "get_contact"
   | "get_entity"
   | "get_merchant_account"

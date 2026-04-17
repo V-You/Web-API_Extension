@@ -4,6 +4,10 @@
  * This file is intentionally free of chrome, lib, bridge, or tool handler
  * imports so it can be safely imported from a main-world content script
  * (which has no access to extension APIs).
+ *
+ * The handwritten tool entries declared below are concatenated with the
+ * generated per-action tool schemas (from the operation manifest) in
+ * `GENERATED_TOOL_SCHEMAS` to form the published inventory.
  */
 
 export interface ToolSchema {
@@ -16,7 +20,12 @@ export interface ToolSchema {
   };
 }
 
-export const TOOL_SCHEMAS: ToolSchema[] = [
+// Imported after the interface so the generated module can re-use the type.
+// The import is type-safe for main-world use: GENERATED_TOOL_SCHEMAS only
+// depends on the committed manifest JSON and a tiny pure-data helpers module.
+import { GENERATED_TOOL_SCHEMAS } from "./generated-tool-schemas";
+
+const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
   // 1. manage_entity
   {
     name: "manage_entity",
@@ -303,10 +312,10 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         eventType: {
           type: "string",
           enum: [
-            "setting_change", "entity_create", "entity_delete",
-            "contact_create", "contact_delete", "contact_lock",
+            "setting_change", "entity_create", "entity_edit", "entity_delete",
+            "contact_create", "contact_edit", "contact_delete", "contact_lock",
             "contact_unlock", "contact_attach", "contact_detach",
-            "contact_password_reset", "ma_create", "ma_update",
+            "contact_password_reset", "ma_create", "ma_update", "ma_delete",
             "ma_attach", "ma_detach", "env_switch",
           ],
           description: "Filter by event type.",
@@ -374,3 +383,14 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 ];
+
+/**
+ * Full published WebMCP inventory: 10 handwritten umbrellas + generated
+ * per-action write/read tools derived from the operation manifest.
+ */
+export const TOOL_SCHEMAS: ToolSchema[] = [
+  ...HANDWRITTEN_TOOL_SCHEMAS,
+  ...GENERATED_TOOL_SCHEMAS,
+];
+
+export { HANDWRITTEN_TOOL_SCHEMAS };

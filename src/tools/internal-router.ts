@@ -2,6 +2,7 @@ import { confirmIfMutating } from "../bridge/write-confirm-utils";
 import type { EntityType } from "../lib/entity-types";
 import { getActiveEnv, getCredentials } from "../lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
+import { executeTypedTool, isReadOnlyTool } from "./adapter";
 import { executeDescribeSettings } from "./describe-settings";
 import { executeGetAuditLog } from "./get-audit-log";
 import { executeGetHierarchy } from "./get-hierarchy";
@@ -12,6 +13,7 @@ import { executeManageMerchantAccount } from "./manage-merchant-account";
 import { executeManageSettings } from "./manage-settings";
 import { executeWorkflow } from "./execute-workflow";
 import { describeOperation } from "./describe-operation";
+import { MANIFEST } from "./manifest-helpers";
 
 export interface ToolSession {
   creds: ApiCredentials;
@@ -53,6 +55,11 @@ function reportWriteAccepted(
 }
 
 export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string, ExecuteFn> {
+  const map = buildHandwrittenExecuteMap(options);
+  return registerGeneratedToolExecutors(map, options);
+}
+
+function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<string, ExecuteFn> {
   return {
     manage_entity: async (params) => {
       const { creds, env } = await sessionOrError();
@@ -203,4 +210,35 @@ export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string
       return describeOperation({ toolName: params.toolName as string | undefined });
     },
   };
+}
+
+/**
+ * Register each generated per-action tool (from the manifest) onto an
+ * existing execute-map. Typed writes go through the adapter which
+ * enforces required-field tiers, rejects unknown fields, coerces values,
+ * and routes destructive calls through the confirm bridge.
+ */
+export function registerGeneratedToolExecutors(
+  map: Record<string, ExecuteFn>,
+  options: ExecuteMapOptions = {},
+): Record<string, ExecuteFn> {
+  const handwrittenOverrides = new Set<string>(Object.keys(map));
+  const ignoredByWebMcp = new Set<string>(["list_clearing_institutes"]);
+
+  for (const toolName of MANIFEST.tools) {
+    if (handwrittenOverrides.has(toolName)) continue;
+    if (ignoredByWebMcp.has(toolName)) continue;
+
+    map[toolName] = async (params) => {
+      const { creds, env } = await sessionOrError();
+      return executeTypedTool(toolName, params, {
+        creds,
+        env,
+        confirm: params.confirm === true,
+        onWriteAccepted: isReadOnlyTool(toolName) ? undefined : options.onWriteAccepted,
+      });
+    };
+  }
+
+  return map;
 }
