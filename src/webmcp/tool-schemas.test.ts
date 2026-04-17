@@ -14,6 +14,7 @@ describe("tool schema definitions", () => {
       "manage_settings",
       "get_audit_log",
       "execute_workflow",
+      "describe_operation",
     ]);
   });
 
@@ -29,6 +30,7 @@ describe("tool schema definitions", () => {
       .sort();
 
     expect(readOnlyTools).toEqual([
+      "describe_operation",
       "describe_settings",
       "get_audit_log",
       "get_hierarchy",

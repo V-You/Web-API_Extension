@@ -11,6 +11,7 @@ import { executeManageEntity } from "./manage-entity";
 import { executeManageMerchantAccount } from "./manage-merchant-account";
 import { executeManageSettings } from "./manage-settings";
 import { executeWorkflow } from "./execute-workflow";
+import { describeOperation } from "./describe-operation";
 
 export interface ToolSession {
   creds: ApiCredentials;
@@ -196,6 +197,10 @@ export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string
         creds,
         env,
       );
+    },
+
+    describe_operation: async (params) => {
+      return describeOperation({ toolName: params.toolName as string | undefined });
     },
   };
 }

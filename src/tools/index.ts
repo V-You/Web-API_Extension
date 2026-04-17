@@ -21,3 +21,4 @@ export {
 } from "./manage-settings";
 export { executeGetAuditLog, type GetAuditLogInput } from "./get-audit-log";
 export { executeWorkflow, type ExecuteWorkflowInput } from "./execute-workflow";
+export { describeOperation, type DescribeOperationInput } from "./describe-operation";

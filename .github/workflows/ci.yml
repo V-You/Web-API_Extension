@@ -29,9 +29,13 @@ jobs:
           cp .github/ci-fixtures/base_data/riro_consolidated_lookup.json base_data/riro_consolidated_lookup.json
           cp .github/ci-fixtures/base_data/glossary.json base_data/glossary.json
           cp .github/ci-fixtures/base_data/chat_discovery_playbook.json base_data/chat_discovery_playbook.json
+          cp .github/ci-fixtures/base_data/ACI_Web-API_OpenAPI_tmp.yaml base_data/ACI_Web-API_OpenAPI_tmp.yaml
 
       - name: Type check
         run: npm run typecheck
+
+      - name: Check manifest is up to date
+        run: npm run generate:manifest:check
 
       - name: Lint
         run: npm run lint

@@ -60,6 +60,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         },
       },
       required: ["action"],
+      additionalProperties: false,
     },
   },
 
@@ -92,6 +93,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
           description: "If true, return call estimate without executing.",
         },
       },
+      additionalProperties: false,
     },
   },
 
@@ -139,6 +141,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         newPassword: { type: "string", description: "New password for reset_password." },
       },
       required: ["action"],
+      additionalProperties: false,
     },
   },
 
@@ -185,6 +188,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         },
       },
       required: ["action"],
+      additionalProperties: false,
     },
   },
 
@@ -209,6 +213,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         pspId: { type: "string", description: "PSP ID (for list_live)." },
       },
       required: ["action"],
+      additionalProperties: false,
     },
   },
 
@@ -232,6 +237,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         },
       },
       required: ["query"],
+      additionalProperties: false,
     },
   },
 
@@ -279,6 +285,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         },
       },
       required: ["action"],
+      additionalProperties: false,
     },
   },
 
@@ -308,6 +315,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         limit: { type: "number", description: "Max entries to return (default: 50)." },
         since: { type: "string", description: "ISO timestamp -- only entries after this time." },
       },
+      additionalProperties: false,
     },
   },
 
@@ -340,6 +348,29 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         },
       },
       required: ["script"],
+      additionalProperties: false,
+    },
+  },
+
+  // 10. describe_operation
+  {
+    name: "describe_operation",
+    title: "Describe operation",
+    description:
+      "Return the generated manifest entry for a typed Web API operation tool, " +
+      "including HTTP method, path template, required fields, patterns, enums, " +
+      "and conditional triggers. Use this to self-correct before invoking a write tool.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: "object",
+      properties: {
+        toolName: {
+          type: "string",
+          description: "Logical tool name, e.g. create_contact, attach_merchant_account, create_division.",
+        },
+      },
+      required: ["toolName"],
+      additionalProperties: false,
     },
   },
 ];

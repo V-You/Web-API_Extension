@@ -13,9 +13,9 @@
  *   DELETE /contacts/{id}                           -- delete
  *   POST /{plural}/{entityId}/attachedContacts/{id}  -- attach
  *   DELETE /{plural}/{entityId}/attachedContacts/{id} -- detach
- *   POST /contacts/{id}/lock                        -- lock
- *   POST /contacts/{id}/unlock                      -- unlock
- *   POST /contacts/{id}/resetPassword               -- reset password
+ *   POST /contacts/{id}/lockContact                 -- lock
+ *   POST /contacts/{id}/unlockContact               -- unlock
+ *   POST /contacts/{id}/setPassword                 -- reset password
  */
 
 import { apiRequest } from "../lib/api-client";
@@ -225,9 +225,10 @@ async function lockUnlock(
 ) {
   if (!input.contactId) return { error: `contactId is required for ${action}.` };
 
+  const pathSuffix = action === "lock" ? "lockContact" : "unlockContact";
   return apiRequest(creds, env, {
     method: "POST",
-    path: `/contacts/${input.contactId}/${action}`,
+    path: `/contacts/${input.contactId}/${pathSuffix}`,
   }, {
     eventType: action === "lock" ? "contact_lock" : "contact_unlock",
     entityId: input.contactId,
@@ -247,7 +248,7 @@ async function resetPassword(
 
   return apiRequest(creds, env, {
     method: "POST",
-    path: `/contacts/${input.contactId}/resetPassword`,
+    path: `/contacts/${input.contactId}/setPassword`,
     params: Object.keys(params).length > 0 ? params : undefined,
   }, {
     eventType: "contact_password_reset",

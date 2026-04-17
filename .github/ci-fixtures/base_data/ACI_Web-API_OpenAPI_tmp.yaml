@@ -1,0 +1,4301 @@
+openapi: 3.0.3
+info:
+  title: ACI Merchant Onboarding API
+  description: "Configure your entities and merchant accounts so that you are ready\
+    \ to process.\n\n## Hosts\n\n- UAT: [<u>https://eu-test.oppwa.com/bip/webapi/v1</u>](https://eu-test.oppwa.com/bip/webapi/v1)\n\
+    - LIVE: [<u>https://eu-prod.oppwa.com/bip/webapi/v1</u>](https://eu-prod.oppwa.com/bip/webapi/v1)\n\
+    \    \n\n## Authentication\n\nYou require to create a WEB_API administrator user\
+    \ in BIP and set it as ACTIVE for processing onboarding requests.\n\n- The user\
+    \ must provide valid API key with every request.\n- The API key would be sent\
+    \ as an authorization header with key=credentials, and value=username:password.\n\
+    \    \n\nEach request to the onboarding API would contain three headers:\n\n\\\
+    -h \"Accept: application/json\"  \n\\-h \"credentials: username:password\"  \n\
+    \\-h \"Content-Type: application/x-www-form-urlencoded\"\n\n### Authentication\
+    \ error response\n\nIf an API key is missing, malformed or invalid, you will receive\
+    \ the following response code.\n\n{\"error\": {\"message\": \"Unauthorized - Invalid\
+    \ credentials\"}}\n\n## Rate and usage limits\n\nWhen creating , deleting or changing\
+    \ an entity or configuration in BIP via the onboarding API you require to wait\
+    \ for a couple of seconds up to 3 minutes so that the change is reflected accordingly\
+    \ before processing. The reason for the waiting period is due to a caching mechanism\
+    \ activated to speed up transaction processing when handling all the configuration\
+    \ performed by the customer.\n\n## Versioning\n\nThe API version is indicated\
+    \ in the request URL, in `/webapi/v1/` it is version 1."
+  version: 1.0.0
+servers:
+- url: https://eu-test.oppwa.com/bip/webapi/v1
+- url: https://eu-prod.oppwa.com/bip/webapi/v1
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      name: credentials
+      in: header
+security:
+- apiKey: []
+tags:
+- name: Contacts
+  description: Manage your contacts, type of roles, password reset, locking / unlocking.
+- name: Clearing Institute operations
+  description: Get the list of all available connections (acquirers, alternative payment
+    methods, 3rd party providers etc).
+- name: Division operations
+  description: Manage all division entity operations (create, edit, delete, retrieve,
+    list etc)
+- name: Merchant operations
+  description: Manage all merchant entity operations (create, edit, delete, retrieve,
+    list etc)
+- name: Channel operations
+  description: Manage all channel entity operations (create, edit, delete, retrieve,
+    list etc)
+- name: Merchant Account operations
+  description: "Allows configuration of merchant accounts at different levels:\n\n\
+    - psps\n- divisions\n- merchants\n- channels\n    \n\nThe configuration may include\
+    \ 3D Secure parameters for different brands, or other processing relevant settings\
+    \ (CVV and AVS policies, different types of transaction dispatching etc)"
+- name: Settings operations
+  description: "The configuration settings in BIP UI can be set at different entity\
+    \ levels:\n\n- PSP\n- Division\n- Merchant\n- Channel\n    \n\nThe settings follow\
+    \ a hierarchy model. If a setting (RIRO) is set at a higher level, then it is\
+    \ inherited at the lower levels unless overwritten."
+paths:
+  /psps/{pspId}/ownedContacts:
+    post:
+      tags:
+      - Contacts
+      summary: Add Contact (PSP level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                email:
+                  type: string
+                  description: The user corporate email address
+                  example: callcenter_restricted{{email}}
+                name:
+                  type: string
+                  description: The first and last name
+                  example: Call Center Restricted
+                  pattern: ^[A-Za-z0-9_-]*$
+                role:
+                  type: string
+                  description: 'The role of the account. Could be:
+
+                    - CALLCENTER_RESTRICTED
+
+                    - ACCOUNTING_GLOBAL
+
+                    - ANALYSIS
+
+                    - CALLCENTER
+
+                    - OPERATOR'
+                  example: CALLCENTER_RESTRICTED
+                kind:
+                  type: string
+                  description: 'The kind of the created contact. Could be:
+
+                    - SEND
+
+                    - SYSTEM
+
+                    - SUPPORT
+
+                    - MOTO
+
+                    - WEB_API
+
+                    - OAUTH_APP'
+                  example: SEND
+                language:
+                  type: string
+                  description: 'The contact language should be a two-letter code.
+                    The available values are:
+
+                    - en (English)
+
+                    - de (German)
+
+                    - fr (French)
+
+                    - es (Spanish)
+
+                    - it (Italian)
+
+                    - ru (Russian)
+
+                    - pt (Portuguese)
+
+                    - nl (Nederlands)
+
+                    - cn (Chinese)'
+                  example: en
+                mobile:
+                  type: string
+                  description: The mobile phone number
+                autoAttach:
+                  type: boolean
+                  description: Automatically attach the user to the same entity.
+                  example: 'true'
+                description:
+                  type: string
+                  description: The contact description
+                  example: daily operations
+                  pattern: ^[A-Za-z0-9 _-]*$
+                oauthRedirectUrl:
+                  type: string
+                  description: Required for OAUTH kind contacts (BIP, developer portal,
+                    virtual terminal)
+                  example: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                sendCredentialsMail:
+                  type: boolean
+                  description: Send an email upon contact creation.
+                  example: 'true'
+                sendAuthenticatorMail:
+                  type: boolean
+                  description: Send authenticator email upon contact creation.
+                  example: 'true'
+              type: object
+            examples:
+              Add Contact (PSP level):
+                value:
+                  autoAttach: 'true'
+                  description: daily operations
+                  email: callcenter_restricted{{email}}
+                  kind: SEND
+                  language: en
+                  mobile: ''
+                  name: Call Center Restricted
+                  oauthRedirectUrl: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                  role: CALLCENTER_RESTRICTED
+                  sendAuthenticatorMail: 'true'
+                  sendCredentialsMail: 'true'
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Contact (PSP level)
+      operationId: addContactPspLevel
+    get:
+      tags:
+      - Contacts
+      summary: List Owned Contacts (PSP level)
+      parameters:
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Contacts (PSP level)
+      operationId: listOwnedContactsPspLevel
+  /divisions/{divisionId}/ownedContacts:
+    post:
+      tags:
+      - Contacts
+      summary: Add Contact (Division level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                email:
+                  type: string
+                  description: The user corporate email address
+                  example: callcenter_restricted{{email}}
+                name:
+                  type: string
+                  description: The first and last name
+                  example: Call Center Restricted
+                  pattern: ^[A-Za-z0-9_-]*$
+                role:
+                  type: string
+                  description: 'The role of the account. Could be:
+
+                    - CALLCENTER_RESTRICTED
+
+                    - ACCOUNTING_GLOBAL
+
+                    - ANALYSIS
+
+                    - CALLCENTER
+
+                    - OPERATOR'
+                  example: CALLCENTER_RESTRICTED
+                kind:
+                  type: string
+                  description: 'The kind of the created contact. Could be:
+
+                    - SEND
+
+                    - SYSTEM
+
+                    - SUPPORT
+
+                    - MOTO
+
+                    - WEB_API
+
+                    - OAUTH_APP'
+                  example: SEND
+                language:
+                  type: string
+                  description: 'The contact language should be a two-letter code.
+                    The available values are:
+
+                    - en (English)
+
+                    - de (German)
+
+                    - fr (French)
+
+                    - es (Spanish)
+
+                    - it (Italian)
+
+                    - ru (Russian)
+
+                    - pt (Portuguese)
+
+                    - nl (Nederlands)
+
+                    - cn (Chinese)'
+                  example: en
+                mobile:
+                  type: string
+                  description: The mobile phone number
+                autoAttach:
+                  type: boolean
+                  description: Automatically attach the user to the same entity.
+                  example: 'true'
+                description:
+                  type: string
+                  description: The contact description
+                  example: daily operations
+                  pattern: ^[A-Za-z0-9 _-]*$
+                oauthRedirectUrl:
+                  type: string
+                  description: Required for OAUTH kind contacts (BIP, developer portal,
+                    virtual terminal)
+                  example: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                sendCredentialsMail:
+                  type: boolean
+                  description: Send an email upon contact creation.
+                  example: 'true'
+                sendAuthenticatorMail:
+                  type: boolean
+                  description: Send authenticator email upon contact creation.
+                  example: 'true'
+              type: object
+            examples:
+              Add Contact (Division level):
+                value:
+                  autoAttach: 'true'
+                  description: daily operations
+                  email: callcenter_restricted{{email}}
+                  kind: SEND
+                  language: en
+                  mobile: ''
+                  name: Call Center Restricted
+                  oauthRedirectUrl: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                  role: CALLCENTER_RESTRICTED
+                  sendAuthenticatorMail: 'true'
+                  sendCredentialsMail: 'true'
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Contact (Division level)
+      operationId: addContactDivisionLevel
+    get:
+      tags:
+      - Contacts
+      summary: List Owned Contacts (Division level)
+      parameters:
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Contacts (Division level)
+      operationId: listOwnedContactsDivisionLevel
+  /merchants/{merchantId}/ownedContacts:
+    post:
+      tags:
+      - Contacts
+      summary: Add Contact (Merchant level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                email:
+                  type: string
+                  description: The user corporate email address
+                  example: callcenter_restricted{{email}}
+                name:
+                  type: string
+                  description: The first and last name
+                  example: Call Center Restricted
+                  pattern: ^[A-Za-z0-9_-]*$
+                role:
+                  type: string
+                  description: 'The role of the account. Could be:
+
+                    - CALLCENTER_RESTRICTED
+
+                    - ACCOUNTING_GLOBAL
+
+                    - ANALYSIS
+
+                    - CALLCENTER
+
+                    - OPERATOR'
+                  example: CALLCENTER_RESTRICTED
+                kind:
+                  type: string
+                  description: 'The kind of the created contact. Could be:
+
+                    - SEND
+
+                    - SYSTEM
+
+                    - SUPPORT
+
+                    - MOTO
+
+                    - WEB_API
+
+                    - OAUTH_APP'
+                  example: SEND
+                language:
+                  type: string
+                  description: 'The contact language should be a two-letter code.
+                    The available values are:
+
+                    - en (English)
+
+                    - de (German)
+
+                    - fr (French)
+
+                    - es (Spanish)
+
+                    - it (Italian)
+
+                    - ru (Russian)
+
+                    - pt (Portuguese)
+
+                    - nl (Nederlands)
+
+                    - cn (Chinese)'
+                  example: en
+                mobile:
+                  type: string
+                  description: The mobile phone number
+                autoAttach:
+                  type: boolean
+                  description: Automatically attach the user to the same entity.
+                  example: 'true'
+                description:
+                  type: string
+                  description: The contact description
+                  example: daily operations
+                  pattern: ^[A-Za-z0-9 _-]*$
+                oauthRedirectUrl:
+                  type: string
+                  description: Required for OAUTH kind contacts (BIP, developer portal,
+                    virtual terminal)
+                  example: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                sendCredentialsMail:
+                  type: boolean
+                  description: Send an email upon contact creation.
+                  example: 'true'
+                sendAuthenticatorMail:
+                  type: boolean
+                  description: Send authenticator email upon contact creation.
+                  example: 'true'
+              type: object
+            examples:
+              Add Contact (Merchant level):
+                value:
+                  autoAttach: 'true'
+                  description: daily operations
+                  email: callcenter_restricted{{email}}
+                  kind: SEND
+                  language: en
+                  mobile: ''
+                  name: Call Center Restricted
+                  oauthRedirectUrl: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                  role: CALLCENTER_RESTRICTED
+                  sendAuthenticatorMail: 'true'
+                  sendCredentialsMail: 'true'
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Contact (Merchant level)
+      operationId: addContactMerchantLevel
+    get:
+      tags:
+      - Contacts
+      summary: List Owned Contacts (Merchant level)
+      parameters:
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Contacts (Merchant level)
+      operationId: listOwnedContactsMerchantLevel
+  /contacts/{contactId}:
+    post:
+      tags:
+      - Contacts
+      summary: Edit Contact
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                email:
+                  type: string
+                  description: The user corporate email address
+                  example: callcenter_restricted{{email}}
+                name:
+                  type: string
+                  description: The first and last name
+                  example: Call Center Restricted
+                  pattern: ^[A-Za-z0-9_-]*$
+                role:
+                  type: string
+                  description: 'The role of the account. Could be:
+
+                    - CALLCENTER_RESTRICTED
+
+                    - ACCOUNTING_GLOBAL
+
+                    - ANALYSIS
+
+                    - CALLCENTER
+
+                    - OPERATOR'
+                  example: CALLCENTER_RESTRICTED
+                kind:
+                  type: string
+                  description: 'The kind of the created contact. Could be:
+
+                    - SEND
+
+                    - SYSTEM
+
+                    - SUPPORT
+
+                    - MOTO
+
+                    - WEB_API
+
+                    - OAUTH_APP'
+                  example: SEND
+                language:
+                  type: string
+                  description: 'The contact language should be a two-letter code.
+                    The available values are:
+
+                    - en (English)
+
+                    - de (German)
+
+                    - fr (French)
+
+                    - es (Spanish)
+
+                    - it (Italian)
+
+                    - ru (Russian)
+
+                    - pt (Portuguese)
+
+                    - nl (Nederlands)
+
+                    - cn (Chinese)'
+                  example: en
+                mobile:
+                  type: string
+                  description: The mobile phone number
+                autoAttach:
+                  type: boolean
+                  description: Automatically attach the user to the same entity.
+                  example: 'true'
+                description:
+                  type: string
+                  description: The contact description
+                  example: daily operations
+                  pattern: ^[A-Za-z0-9 _-]*$
+                oauthRedirectUrl:
+                  type: string
+                  description: Required for OAUTH kind contacts (BIP, developer portal,
+                    virtual terminal)
+                  example: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                sendCredentialsMail:
+                  type: boolean
+                  description: Send an email upon contact creation.
+                  example: 'true'
+                sendAuthenticatorMail:
+                  type: boolean
+                  description: Send authenticator email upon contact creation.
+                  example: 'true'
+                state:
+                  type: string
+                  description: 'The current state of the contact. Could be:
+
+                    - NEW
+
+                    - ACTIVE
+
+                    - LOCKED'
+                  example: ACTIVE
+              type: object
+            examples:
+              Edit Contact:
+                value:
+                  autoAttach: 'true'
+                  description: daily operations
+                  email: callcenter_restricted{{email}}
+                  kind: SEND
+                  language: en
+                  mobile: ''
+                  name: Call Center Restricted
+                  oauthRedirectUrl: '{{oauthUrl}}/{{pspName}}_oauthlogin.link'
+                  role: CALLCENTER_RESTRICTED
+                  sendAuthenticatorMail: 'true'
+                  sendCredentialsMail: 'true'
+                  state: ACTIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Edit Contact
+      operationId: editContact
+    get:
+      tags:
+      - Contacts
+      summary: Get Contact
+      parameters:
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get Contact
+      operationId: getContact
+    delete:
+      tags:
+      - Contacts
+      summary: Delete Contact
+      parameters:
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete Contact
+      operationId: deleteContact
+  /contacts/{contactId}/lockContact:
+    post:
+      tags:
+      - Contacts
+      summary: Lock Contact
+      requestBody:
+        content: {}
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Lock Contact
+      operationId: lockContact
+  /contacts/{contactId}/unlockContact:
+    post:
+      tags:
+      - Contacts
+      summary: Unlock Contact
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example: ''
+            examples:
+              Unlock Contact:
+                value: ''
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Unlock Contact
+      operationId: unlockContact
+  /contacts/{contactId}/setPassword:
+    post:
+      tags:
+      - Contacts
+      summary: Reset Contact Password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              example: ''
+            examples:
+              Reset Contact Password:
+                value: ''
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Reset Contact Password
+      operationId: resetContactPassword
+  /channels/{channelId}/ownedContacts:
+    get:
+      tags:
+      - Contacts
+      summary: List Owned Contacts (Channel level)
+      parameters:
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Contacts (Channel level)
+      operationId: listOwnedContactsChannelLevel
+  /psps/{pspId}/attachedContacts:
+    get:
+      tags:
+      - Contacts
+      summary: List Attached Contacts (PSP level)
+      parameters:
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Contacts (PSP level)
+      operationId: listAttachedContactsPspLevel
+  /divisions/{divisionId}/attachedContacts:
+    get:
+      tags:
+      - Contacts
+      summary: List Attached Contacts (Division level)
+      parameters:
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Contacts (Division level)
+      operationId: listAttachedContactsDivisionLevel
+  /merchants/{merchantId}/attachedContacts:
+    get:
+      tags:
+      - Contacts
+      summary: List Attached Contacts (Merchant level)
+      parameters:
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Contacts (Merchant level)
+      operationId: listAttachedContactsMerchantLevel
+  /channels/{channelId}/attachedContacts:
+    get:
+      tags:
+      - Contacts
+      summary: List Attached Contacts (Channel level)
+      parameters:
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Contacts (Channel level)
+      operationId: listAttachedContactsChannelLevel
+  /psps/{pspId}/attachedContacts/{contactId}:
+    delete:
+      tags:
+      - Contacts
+      summary: Detach Contact (PSP level)
+      parameters:
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach Contact (PSP level)
+      operationId: detachContactPspLevel
+  /divisions/{divisionId}/attachedContacts/{contactId}:
+    delete:
+      tags:
+      - Contacts
+      summary: Detach Contact (Division level)
+      parameters:
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach Contact (Division level)
+      operationId: detachContactDivisionLevel
+  /merchants/{merchantId}/attachedContacts/{contactId}:
+    delete:
+      tags:
+      - Contacts
+      summary: Detach Contact (Merchant level)
+      parameters:
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach Contact (Merchant level)
+      operationId: detachContactMerchantLevel
+  /channels/{channelId}/attachedContacts/{contactId}:
+    delete:
+      tags:
+      - Contacts
+      summary: Detach Contact (Channel level)
+      parameters:
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      - name: contactId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach Contact (Channel level)
+      operationId: detachContactChannelLevel
+  /psps/{pspId}/clearingInstitutes:
+    get:
+      tags:
+      - Clearing Institute operations
+      summary: List Clearing Institutes
+      parameters:
+      - name: pspId
+        in: path
+        schema:
+          type: string
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Clearing Institutes
+      operationId: listClearingInstitutes
+  /psps/{pspId}/divisions:
+    post:
+      tags:
+      - Division operations
+      summary: Add Division
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the division.
+                  example: '{{$randomWord}}'
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                  example: LIVE
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the division entity.
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Add Division:
+                value:
+                  customerId: ''
+                  description: ''
+                  name: '{{$randomWord}}'
+                  state: LIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Division
+      operationId: addDivision
+    get:
+      tags:
+      - Division operations
+      summary: List Divisions
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Divisions
+      operationId: listDivisions
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties: {}
+            examples:
+              List Divisions:
+                value: {}
+  /entities/byName/{pspName}/divisions:
+    post:
+      tags:
+      - Division operations
+      summary: Add Division using PSP entity path
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the division.
+                  example: '{{$randomWord}}'
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                  example: LIVE
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the division entity.
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Add Division using PSP entity path:
+                value:
+                  customerId: ''
+                  description: ''
+                  name: '{{$randomWord}}'
+                  state: LIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspName
+        in: path
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9 _-]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Division using PSP entity path
+      operationId: addDivisionUsingPspEntityPath
+  /divisions/{divisionId}:
+    post:
+      tags:
+      - Division operations
+      summary: Edit Division
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the division.
+                  example: '{{$randomWord}}'
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                  example: LIVE
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  example: '{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the division entity.
+                  example: New Market
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Edit Division:
+                value:
+                  customerId: '{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}'
+                  description: New Market
+                  name: '{{$randomWord}}'
+                  state: LIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Edit Division
+      operationId: editDivision
+    delete:
+      tags:
+      - Division operations
+      summary: Delete Division
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete Division
+      operationId: deleteDivision
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties: {}
+            examples:
+              Delete Division:
+                value: {}
+    get:
+      tags:
+      - Division operations
+      summary: Get Division
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get Division
+      operationId: getDivision
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties: {}
+            examples:
+              Get Division:
+                value: {}
+  /divisions/{divisionId}/merchants:
+    post:
+      tags:
+      - Merchant operations
+      summary: Add Merchant
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the merchant.
+                  example: '{{$randomCountry}}'
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                  example: LIVE
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the merchant entity.
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Add Merchant:
+                value:
+                  customerId: ''
+                  description: ''
+                  name: '{{$randomCountry}}'
+                  state: LIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Merchant
+      operationId: addMerchant
+    get:
+      tags:
+      - Merchant operations
+      summary: List Merchants
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Merchants
+      operationId: listMerchants
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties: {}
+            examples:
+              List Merchants:
+                value: {}
+  /entities/byName/{pspName}/{divisionName}/merchants:
+    post:
+      tags:
+      - Merchant operations
+      summary: Add Merchant using Division entity path
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the merchant.
+                  example: '{{$randomCountry}}'
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                  example: LIVE
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the merchant entity.
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Add Merchant using Division entity path:
+                value:
+                  customerId: ''
+                  description: ''
+                  name: '{{$randomCountry}}'
+                  state: LIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspName
+        in: path
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9_-]*$
+        required: true
+      - name: divisionName
+        in: path
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9_-]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Merchant using Division entity path
+      operationId: addMerchantUsingDivisionEntityPath
+  /merchants/{merchantId}:
+    post:
+      tags:
+      - Merchant operations
+      summary: Edit Merchant
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the merchant.
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  example: '{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the merchant entity.
+                  example: New Market
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Edit Merchant:
+                value:
+                  customerId: '{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}'
+                  description: New Market
+                  name: ''
+                  state: ''
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Edit Merchant
+      operationId: editMerchant
+    delete:
+      tags:
+      - Merchant operations
+      summary: Delete Merchant
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete Merchant
+      operationId: deleteMerchant
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties: {}
+            examples:
+              Delete Merchant:
+                value: {}
+    get:
+      tags:
+      - Merchant operations
+      summary: Get Merchant
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get Merchant
+      operationId: getMerchant
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties: {}
+            examples:
+              Get Merchant:
+                value: {}
+  /merchants/{merchantId}/channels:
+    post:
+      tags:
+      - Channel operations
+      summary: Add Channel
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the channel.
+                  example: Channel-{{$randomCity}}
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                  example: LIVE
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the channel entity.
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Add Channel:
+                summary: Add Channel
+                value:
+                  name: Channel-{{$randomCity}}
+                  state: LIVE
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add a channel to a merchant. The Postman collection contains two
+        equivalent requests for this same operation.
+      operationId: addChannel
+      x-postman-source-requests:
+      - name: Add Channel
+        folder: Channel operations
+        path: /merchants/{merchantId}/channels
+      - name: Add Channel using Merchant entity path
+        folder: Channel operations
+        path: /merchants/{merchantId}/channels
+      x-postman-duplicate-request-count: 2
+    get:
+      tags:
+      - Channel operations
+      summary: List Channels
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Channels
+      operationId: listChannels
+  /channels/{channelId}:
+    post:
+      tags:
+      - Channel operations
+      summary: Edit Channel
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The name of the channel.
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
+                customerId:
+                  type: string
+                  description: The customer identifier.
+                  example: Channel-{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}
+                  pattern: ^[A-Za-z0-9 _-]*$
+                description:
+                  type: string
+                  description: The description of the channel entity.
+                  example: New Channel in the market
+                  pattern: ^[A-Za-z0-9 _-]*$
+              type: object
+            examples:
+              Edit Channel:
+                value:
+                  customerId: Channel-{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}
+                  description: New Channel in the market
+                  name: ''
+                  state: ''
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Edit Channel
+      operationId: editChannel
+    delete:
+      tags:
+      - Channel operations
+      summary: Delete Channel
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete Channel
+      operationId: deleteChannel
+    get:
+      tags:
+      - Channel operations
+      summary: Get Channel
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get Channel
+      operationId: getChannel
+  /psps/{pspId}/ownedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Add Merchant Account (PSP level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The merchant account name.
+                  example: MA-Acquirer-NAB
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
+                  example: LIVE
+                clearingInstituteName:
+                  type: string
+                  description: The acquirer or alternative payment method name.
+                  example: EMC_NAB
+                merchantId:
+                  type: string
+                  description: The MID (Merchant Identifier).
+                  example: aciecommerce1116
+                key:
+                  type: string
+                  example: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  pattern: ^[A-Za-z0-9 _-]*$
+                connectorSpecificParameter.MerchantKeyId:
+                  type: string
+                  description: The acquirer or alternative payment method specific
+                    parameter.
+                  example: e5b933be-a929-426a-b839-97a28229c672
+                iban:
+                  type: string
+                  description: The merchant IBAN for funds to be transferred (SEPA).
+                  pattern: ^[A-Za-z0-9 _-]*$
+                cleaingInstituteId:
+                  type: string
+                  description: OR The id of the acquirer or alternative payment method.
+                terminalId:
+                  type: string
+                  description: The card acceptor terminal id.
+                password:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                username:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                merchantCategory:
+                  type: string
+                  description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
+                    DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL
+                transactionCategory:
+                  type: string
+                  description: ANY, MOTO, ECOMMERCE, EWALLET
+                cvvInstruction:
+                  type: string
+                  description: IGNORE, CHECK
+                cvvRejectionPolicy:
+                  type: string
+                  description: "Auto-reverse the authorization depending on the rejection\
+                    \ policy\nN = CVV2, CVC2, Discover CID or AMEX CID do not match\n\
+                    S = CVV2, CVC2, Discover CID or AMEX CID data is not present on\
+                    \ the card, but the issuer indicated it should be present\nP =\
+                    \ Not Processed\nU = \tUnsupported by issuer or issuer is unable\
+                    \ to process request"
+                avsCheckActive:
+                  type: string
+                  description: Auto-reverse the authorization depending on the address
+                    matching rule (TRUE or FALSE)
+                avsRejectionPolicy:
+                  type: string
+                  description: 'Auto-reverse the authorization depending on the rejection
+                    policy
+
+                    A = Address does match, zip code does not match
+
+                    Z = Address does not match, zip code matches
+
+                    N = Address and zip code do not match
+
+                    U = Technical or logical Error. AVS cannot be applied on card
+                    or address (not UK or US issuer), issuer is not available, etc.'
+                avsReviewPolicy:
+                  type: string
+                  description: Mark transaction for review depending on the rejection
+                    policy (see above)
+                debitAdviceProcedure:
+                  type: string
+                recurringCode:
+                  type: string
+                  description: NONE, RECURRING, INSTALLMENT
+                supports3DSecure:
+                  type: boolean
+                  description: TRUE. FALSE support for 3D Secure
+                  example: 'true'
+                merchant3DName:
+                  type: string
+                  description: The merchant name (3DS2)
+                  example: ACI Worldwide Germany
+                merchant3DUrl:
+                  type: string
+                  description: The merchant URL (3DS2)
+                  example: http://threeD-secure-dummy-url.de
+                merchantIsoCountryCode:
+                  type: integer
+                  description: The merchant country code (3DS2)
+                  example: '276'
+                merchant3DId:
+                  type: integer
+                  description: The merchant ID (3DS2)
+                  example: '14275'
+                merchant3DCategory:
+                  type: integer
+                  description: The merchant category code (3DS2)
+                  example: '5111'
+                visaMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for VISA (3DS2)
+                  example: '234234'
+                visaRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for VISA (3DS2)
+                  example: 000000087654321
+                visaRequestorName:
+                  type: string
+                  description: The requestor name for VISA (3DS2)
+                  example: Test Name
+                masterMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for MASTERCARD (3DS2)
+                  example: '234234'
+                masterRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for MASTERCARD (3DS2)
+                  example: 000000087654321
+                masterRequestorName:
+                  type: string
+                  description: The requestor name for MASTERCARD (3DS2)
+                  example: Test Name
+                amexMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for AMEX (3DS2)
+                  example: '12345678901'
+                amexRequestorId_v2:
+                  type: string
+                  description: The reqestor id for AMEX (3DS2)
+                  example: JCBAESK60193409387
+                amexRequestorName:
+                  type: string
+                  description: The requestor name for AMEX (3DS2)
+                  example: Test Name
+                dinersMerchantId:
+                  type: string
+                dinersMerchantPwd:
+                  type: string
+                dinersMerchantAcquirerBin_v2:
+                  type: string
+                dinersRequestorId_v2:
+                  type: string
+                dinersRequestorName:
+                  type: string
+                bcmcMerchantAcquirerBin_v2:
+                  type: string
+                bcmcRequestorId_v2:
+                  type: string
+                bcmcRequestorName:
+                  type: string
+                jcbMerchantAcquirerBin_v2:
+                  type: string
+                jcbRequestorId_v2:
+                  type: string
+                jcbRequestorName:
+                  type: string
+                cashlinkMaltaMerchantAcquirerBin_v2:
+                  type: string
+                cashlinkMaltaRequestorId_v2:
+                  type: string
+                cashlinkMaltaRequestorName:
+                  type: string
+                velocityDispachingActive:
+                  type: string
+                  description: TRUE or FALSE
+                velocityDispatchingSetting:
+                  type: string
+                  description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                ticketSizeDispatchingActive:
+                  type: string
+                  description: TRUE or FALSE
+                ticketSizeDispatchingSetting:
+                  type: string
+                  description: '{Minimum ticket size};{Maximum ticket size}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                recurringDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingScope:
+                  type: string
+                  description: PSP, DIVISION, MERCHANT, OR CHANNEL
+                shopperDispatchingValidity:
+                  type: string
+                  description: In days
+                pendingTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from consumer before timing-out'
+                  pattern: ^[0-9]*$
+                pendingForAcquirerTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from acquirer before timing-out'
+                  pattern: ^[0-9]*$
+                uploadUser:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+                uploadPassword:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+              type: object
+            examples:
+              Add Merchant Account (PSP level):
+                value:
+                  amexMerchantAcquirerBin_v2: '12345678901'
+                  amexRequestorId_v2: JCBAESK60193409387
+                  amexRequestorName: Test Name
+                  avsCheckActive: ''
+                  avsRejectionPolicy: ''
+                  avsReviewPolicy: ''
+                  bcmcMerchantAcquirerBin_v2: ''
+                  bcmcRequestorId_v2: ''
+                  bcmcRequestorName: ''
+                  cashlinkMaltaMerchantAcquirerBin_v2: ''
+                  cashlinkMaltaRequestorId_v2: ''
+                  cashlinkMaltaRequestorName: ''
+                  cleaingInstituteId: ''
+                  clearingInstituteName: EMC_NAB
+                  connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
+                  cvvInstruction: ''
+                  cvvRejectionPolicy: ''
+                  debitAdviceProcedure: ''
+                  dinersMerchantAcquirerBin_v2: ''
+                  dinersMerchantId: ''
+                  dinersMerchantPwd: ''
+                  dinersRequestorId_v2: ''
+                  dinersRequestorName: ''
+                  iban: ''
+                  jcbMerchantAcquirerBin_v2: ''
+                  jcbRequestorId_v2: ''
+                  jcbRequestorName: ''
+                  key: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  masterMerchantAcquirerBin_v2: '234234'
+                  masterRequestorId_v2: 000000087654321
+                  masterRequestorName: Test Name
+                  merchant3DCategory: '5111'
+                  merchant3DId: '14275'
+                  merchant3DName: ACI Worldwide Germany
+                  merchant3DUrl: http://threeD-secure-dummy-url.de
+                  merchantCategory: ''
+                  merchantId: aciecommerce1116
+                  merchantIsoCountryCode: '276'
+                  name: MA-Acquirer-NAB
+                  password: ''
+                  pendingForAcquirerTimeoutInMins: ''
+                  pendingTimeoutInMins: ''
+                  recurringCode: ''
+                  recurringDispatchingSetting: ''
+                  shopperDispatchingScope: ''
+                  shopperDispatchingSetting: ''
+                  shopperDispatchingValidity: ''
+                  state: LIVE
+                  supports3DSecure: 'true'
+                  terminalId: ''
+                  ticketSizeDispatchingActive: ''
+                  ticketSizeDispatchingSetting: ''
+                  transactionCategory: ''
+                  uploadPassword: ''
+                  uploadUser: ''
+                  username: ''
+                  velocityDispachingActive: ''
+                  velocityDispatchingSetting: ''
+                  visaMerchantAcquirerBin_v2: '234234'
+                  visaRequestorId_v2: 000000087654321
+                  visaRequestorName: Test Name
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Merchant Account (PSP level)
+      operationId: addMerchantAccountPspLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Delete All Merchant Account (PSP level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete All Merchant Account (PSP level)
+      operationId: deleteAllMerchantAccountPspLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Owned Merchant Accounts (PSP level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Merchant Accounts (PSP level)
+      operationId: listOwnedMerchantAccountsPspLevel
+  /divisions/{divisionId}/ownedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Add Merchant Account (Division level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The merchant account name.
+                  example: MA-Acquirer-NAB
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
+                  example: LIVE
+                clearingInstituteName:
+                  type: string
+                  description: The acquirer or alternative payment method name.
+                  example: EMC_NAB
+                merchantId:
+                  type: string
+                  description: The MID (Merchant Identifier).
+                  example: aciecommerce1116
+                key:
+                  type: string
+                  example: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  pattern: ^[A-Za-z0-9 _-]*$
+                connectorSpecificParameter.MerchantKeyId:
+                  type: string
+                  description: The acquirer or alternative payment method specific
+                    parameter.
+                  example: e5b933be-a929-426a-b839-97a28229c672
+                iban:
+                  type: string
+                  description: The merchant IBAN for funds to be transferred (SEPA).
+                  pattern: ^[A-Za-z0-9 _-]*$
+                cleaingInstituteId:
+                  type: string
+                  description: OR The id of the acquirer or alternative payment method.
+                terminalId:
+                  type: string
+                  description: The card acceptor terminal id.
+                password:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                username:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                merchantCategory:
+                  type: string
+                  description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
+                    DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL
+                transactionCategory:
+                  type: string
+                  description: ANY, MOTO, ECOMMERCE, EWALLET
+                cvvInstruction:
+                  type: string
+                  description: IGNORE, CHECK
+                cvvRejectionPolicy:
+                  type: string
+                  description: "Auto-reverse the authorization depending on the rejection\
+                    \ policy\nN = CVV2, CVC2, Discover CID or AMEX CID do not match\n\
+                    S = CVV2, CVC2, Discover CID or AMEX CID data is not present on\
+                    \ the card, but the issuer indicated it should be present\nP =\
+                    \ Not Processed\nU = \tUnsupported by issuer or issuer is unable\
+                    \ to process request"
+                avsCheckActive:
+                  type: string
+                  description: Auto-reverse the authorization depending on the address
+                    matching rule (TRUE or FALSE)
+                avsRejectionPolicy:
+                  type: string
+                  description: 'Auto-reverse the authorization depending on the rejection
+                    policy
+
+                    A = Address does match, zip code does not match
+
+                    Z = Address does not match, zip code matches
+
+                    N = Address and zip code do not match
+
+                    U = Technical or logical Error. AVS cannot be applied on card
+                    or address (not UK or US issuer), issuer is not available, etc.'
+                avsReviewPolicy:
+                  type: string
+                  description: Mark transaction for review depending on the rejection
+                    policy (see above)
+                debitAdviceProcedure:
+                  type: string
+                recurringCode:
+                  type: string
+                  description: NONE, RECURRING, INSTALLMENT
+                supports3DSecure:
+                  type: boolean
+                  description: TRUE. FALSE support for 3D Secure
+                  example: 'true'
+                merchant3DName:
+                  type: string
+                  description: The merchant name (3DS2)
+                  example: ACI Worldwide Germany
+                merchant3DUrl:
+                  type: string
+                  description: The merchant URL (3DS2)
+                  example: http://threeD-secure-dummy-url.de
+                merchantIsoCountryCode:
+                  type: integer
+                  description: The merchant country code (3DS2)
+                  example: '276'
+                merchant3DId:
+                  type: integer
+                  description: The merchant ID (3DS2)
+                  example: '14275'
+                merchant3DCategory:
+                  type: integer
+                  description: The merchant category code (3DS2)
+                  example: '5111'
+                visaMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for VISA (3DS2)
+                  example: '234234'
+                visaRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for VISA (3DS2)
+                  example: 000000087654321
+                visaRequestorName:
+                  type: string
+                  description: The requestor name for VISA (3DS2)
+                  example: Test Name
+                masterMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for MASTERCARD (3DS2)
+                  example: '234234'
+                masterRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for MASTERCARD (3DS2)
+                  example: 000000087654321
+                masterRequestorName:
+                  type: string
+                  description: The requestor name for MASTERCARD (3DS2)
+                  example: Test Name
+                amexMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for AMEX (3DS2)
+                  example: '12345678901'
+                amexRequestorId_v2:
+                  type: string
+                  description: The reqestor id for AMEX (3DS2)
+                  example: JCBAESK60193409387
+                amexRequestorName:
+                  type: string
+                  description: The requestor name for AMEX (3DS2)
+                  example: Test Name
+                dinersMerchantId:
+                  type: string
+                dinersMerchantPwd:
+                  type: string
+                dinersMerchantAcquirerBin_v2:
+                  type: string
+                dinersRequestorId_v2:
+                  type: string
+                dinersRequestorName:
+                  type: string
+                bcmcMerchantAcquirerBin_v2:
+                  type: string
+                bcmcRequestorId_v2:
+                  type: string
+                bcmcRequestorName:
+                  type: string
+                jcbMerchantAcquirerBin_v2:
+                  type: string
+                jcbRequestorId_v2:
+                  type: string
+                jcbRequestorName:
+                  type: string
+                cashlinkMaltaMerchantAcquirerBin_v2:
+                  type: string
+                cashlinkMaltaRequestorId_v2:
+                  type: string
+                cashlinkMaltaRequestorName:
+                  type: string
+                velocityDispachingActive:
+                  type: string
+                  description: TRUE or FALSE
+                velocityDispatchingSetting:
+                  type: string
+                  description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                ticketSizeDispatchingActive:
+                  type: string
+                  description: TRUE or FALSE
+                ticketSizeDispatchingSetting:
+                  type: string
+                  description: '{Minimum ticket size};{Maximum ticket size}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                recurringDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingScope:
+                  type: string
+                  description: PSP, DIVISION, MERCHANT, OR CHANNEL
+                shopperDispatchingValidity:
+                  type: string
+                  description: In days
+                pendingTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from consumer before timing-out'
+                  pattern: ^[0-9]*$
+                pendingForAcquirerTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from acquirer before timing-out'
+                  pattern: ^[0-9]*$
+                uploadUser:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+                uploadPassword:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+              type: object
+            examples:
+              Add Merchant Account (Division level):
+                value:
+                  amexMerchantAcquirerBin_v2: '12345678901'
+                  amexRequestorId_v2: JCBAESK60193409387
+                  amexRequestorName: Test Name
+                  avsCheckActive: ''
+                  avsRejectionPolicy: ''
+                  avsReviewPolicy: ''
+                  bcmcMerchantAcquirerBin_v2: ''
+                  bcmcRequestorId_v2: ''
+                  bcmcRequestorName: ''
+                  cashlinkMaltaMerchantAcquirerBin_v2: ''
+                  cashlinkMaltaRequestorId_v2: ''
+                  cashlinkMaltaRequestorName: ''
+                  cleaingInstituteId: ''
+                  clearingInstituteName: EMC_NAB
+                  connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
+                  cvvInstruction: ''
+                  cvvRejectionPolicy: ''
+                  debitAdviceProcedure: ''
+                  dinersMerchantAcquirerBin_v2: ''
+                  dinersMerchantId: ''
+                  dinersMerchantPwd: ''
+                  dinersRequestorId_v2: ''
+                  dinersRequestorName: ''
+                  iban: ''
+                  jcbMerchantAcquirerBin_v2: ''
+                  jcbRequestorId_v2: ''
+                  jcbRequestorName: ''
+                  key: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  masterMerchantAcquirerBin_v2: '234234'
+                  masterRequestorId_v2: 000000087654321
+                  masterRequestorName: Test Name
+                  merchant3DCategory: '5111'
+                  merchant3DId: '14275'
+                  merchant3DName: ACI Worldwide Germany
+                  merchant3DUrl: http://threeD-secure-dummy-url.de
+                  merchantCategory: ''
+                  merchantId: aciecommerce1116
+                  merchantIsoCountryCode: '276'
+                  name: MA-Acquirer-NAB
+                  password: ''
+                  pendingForAcquirerTimeoutInMins: ''
+                  pendingTimeoutInMins: ''
+                  recurringCode: ''
+                  recurringDispatchingSetting: ''
+                  shopperDispatchingScope: ''
+                  shopperDispatchingSetting: ''
+                  shopperDispatchingValidity: ''
+                  state: LIVE
+                  supports3DSecure: 'true'
+                  terminalId: ''
+                  ticketSizeDispatchingActive: ''
+                  ticketSizeDispatchingSetting: ''
+                  transactionCategory: ''
+                  uploadPassword: ''
+                  uploadUser: ''
+                  username: ''
+                  velocityDispachingActive: ''
+                  velocityDispatchingSetting: ''
+                  visaMerchantAcquirerBin_v2: '234234'
+                  visaRequestorId_v2: 000000087654321
+                  visaRequestorName: Test Name
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Merchant Account (Division level)
+      operationId: addMerchantAccountDivisionLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Delete All Merchant Account (Division level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete All Merchant Account (Division level)
+      operationId: deleteAllMerchantAccountDivisionLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Owned Merchant Accounts (Division level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Merchant Accounts (Division level)
+      operationId: listOwnedMerchantAccountsDivisionLevel
+  /merchants/{merchantId}/ownedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Add Merchant Account (Merchant level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The merchant account name.
+                  example: MA-Acquirer-NAB
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
+                  example: LIVE
+                clearingInstituteName:
+                  type: string
+                  description: The acquirer or alternative payment method name.
+                  example: EMC_NAB
+                merchantId:
+                  type: string
+                  description: The MID (Merchant Identifier).
+                  example: aciecommerce1116
+                key:
+                  type: string
+                  example: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  pattern: ^[A-Za-z0-9 _-]*$
+                connectorSpecificParameter.MerchantKeyId:
+                  type: string
+                  description: The acquirer or alternative payment method specific
+                    parameter.
+                  example: e5b933be-a929-426a-b839-97a28229c672
+                iban:
+                  type: string
+                  description: The merchant IBAN for funds to be transferred (SEPA).
+                  pattern: ^[A-Za-z0-9 _-]*$
+                cleaingInstituteId:
+                  type: string
+                  description: OR The id of the acquirer or alternative payment method.
+                terminalId:
+                  type: string
+                  description: The card acceptor terminal id.
+                password:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                username:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                merchantCategory:
+                  type: string
+                  description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
+                    DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL
+                transactionCategory:
+                  type: string
+                  description: ANY, MOTO, ECOMMERCE, EWALLET
+                cvvInstruction:
+                  type: string
+                  description: IGNORE, CHECK
+                cvvRejectionPolicy:
+                  type: string
+                  description: "Auto-reverse the authorization depending on the rejection\
+                    \ policy\nN = CVV2, CVC2, Discover CID or AMEX CID do not match\n\
+                    S = CVV2, CVC2, Discover CID or AMEX CID data is not present on\
+                    \ the card, but the issuer indicated it should be present\nP =\
+                    \ Not Processed\nU = \tUnsupported by issuer or issuer is unable\
+                    \ to process request"
+                avsCheckActive:
+                  type: string
+                  description: Auto-reverse the authorization depending on the address
+                    matching rule (TRUE or FALSE)
+                avsRejectionPolicy:
+                  type: string
+                  description: 'Auto-reverse the authorization depending on the rejection
+                    policy
+
+                    A = Address does match, zip code does not match
+
+                    Z = Address does not match, zip code matches
+
+                    N = Address and zip code do not match
+
+                    U = Technical or logical Error. AVS cannot be applied on card
+                    or address (not UK or US issuer), issuer is not available, etc.'
+                avsReviewPolicy:
+                  type: string
+                  description: Mark transaction for review depending on the rejection
+                    policy (see above)
+                debitAdviceProcedure:
+                  type: string
+                recurringCode:
+                  type: string
+                  description: NONE, RECURRING, INSTALLMENT
+                supports3DSecure:
+                  type: boolean
+                  description: TRUE. FALSE support for 3D Secure
+                  example: 'true'
+                merchant3DName:
+                  type: string
+                  description: The merchant name (3DS2)
+                  example: ACI Worldwide Germany
+                merchant3DUrl:
+                  type: string
+                  description: The merchant URL (3DS2)
+                  example: http://threeD-secure-dummy-url.de
+                merchantIsoCountryCode:
+                  type: integer
+                  description: The merchant country code (3DS2)
+                  example: '276'
+                merchant3DId:
+                  type: integer
+                  description: The merchant ID (3DS2)
+                  example: '14275'
+                merchant3DCategory:
+                  type: integer
+                  description: The merchant category code (3DS2)
+                  example: '5111'
+                visaMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for VISA (3DS2)
+                  example: '234234'
+                visaRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for VISA (3DS2)
+                  example: 000000087654321
+                visaRequestorName:
+                  type: string
+                  description: The requestor name for VISA (3DS2)
+                  example: Test Name
+                masterMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for MASTERCARD (3DS2)
+                  example: '234234'
+                masterRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for MASTERCARD (3DS2)
+                  example: 000000087654321
+                masterRequestorName:
+                  type: string
+                  description: The requestor name for MASTERCARD (3DS2)
+                  example: Test Name
+                amexMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for AMEX (3DS2)
+                  example: '12345678901'
+                amexRequestorId_v2:
+                  type: string
+                  description: The reqestor id for AMEX (3DS2)
+                  example: JCBAESK60193409387
+                amexRequestorName:
+                  type: string
+                  description: The requestor name for AMEX (3DS2)
+                  example: Test Name
+                dinersMerchantId:
+                  type: string
+                dinersMerchantPwd:
+                  type: string
+                dinersMerchantAcquirerBin_v2:
+                  type: string
+                dinersRequestorId_v2:
+                  type: string
+                dinersRequestorName:
+                  type: string
+                bcmcMerchantAcquirerBin_v2:
+                  type: string
+                bcmcRequestorId_v2:
+                  type: string
+                bcmcRequestorName:
+                  type: string
+                jcbMerchantAcquirerBin_v2:
+                  type: string
+                jcbRequestorId_v2:
+                  type: string
+                jcbRequestorName:
+                  type: string
+                cashlinkMaltaMerchantAcquirerBin_v2:
+                  type: string
+                cashlinkMaltaRequestorId_v2:
+                  type: string
+                cashlinkMaltaRequestorName:
+                  type: string
+                velocityDispachingActive:
+                  type: string
+                  description: TRUE or FALSE
+                velocityDispatchingSetting:
+                  type: string
+                  description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                ticketSizeDispatchingActive:
+                  type: string
+                  description: TRUE or FALSE
+                ticketSizeDispatchingSetting:
+                  type: string
+                  description: '{Minimum ticket size};{Maximum ticket size}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                recurringDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingScope:
+                  type: string
+                  description: PSP, DIVISION, MERCHANT, OR CHANNEL
+                shopperDispatchingValidity:
+                  type: string
+                  description: In days
+                pendingTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from consumer before timing-out'
+                  pattern: ^[0-9]*$
+                pendingForAcquirerTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from acquirer before timing-out'
+                  pattern: ^[0-9]*$
+                uploadUser:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+                uploadPassword:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+              type: object
+            examples:
+              Add Merchant Account (Merchant level):
+                value:
+                  amexMerchantAcquirerBin_v2: '12345678901'
+                  amexRequestorId_v2: JCBAESK60193409387
+                  amexRequestorName: Test Name
+                  avsCheckActive: ''
+                  avsRejectionPolicy: ''
+                  avsReviewPolicy: ''
+                  bcmcMerchantAcquirerBin_v2: ''
+                  bcmcRequestorId_v2: ''
+                  bcmcRequestorName: ''
+                  cashlinkMaltaMerchantAcquirerBin_v2: ''
+                  cashlinkMaltaRequestorId_v2: ''
+                  cashlinkMaltaRequestorName: ''
+                  cleaingInstituteId: ''
+                  clearingInstituteName: EMC_NAB
+                  connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
+                  cvvInstruction: ''
+                  cvvRejectionPolicy: ''
+                  debitAdviceProcedure: ''
+                  dinersMerchantAcquirerBin_v2: ''
+                  dinersMerchantId: ''
+                  dinersMerchantPwd: ''
+                  dinersRequestorId_v2: ''
+                  dinersRequestorName: ''
+                  iban: ''
+                  jcbMerchantAcquirerBin_v2: ''
+                  jcbRequestorId_v2: ''
+                  jcbRequestorName: ''
+                  key: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  masterMerchantAcquirerBin_v2: '234234'
+                  masterRequestorId_v2: 000000087654321
+                  masterRequestorName: Test Name
+                  merchant3DCategory: '5111'
+                  merchant3DId: '14275'
+                  merchant3DName: ACI Worldwide Germany
+                  merchant3DUrl: http://threeD-secure-dummy-url.de
+                  merchantCategory: ''
+                  merchantId: aciecommerce1116
+                  merchantIsoCountryCode: '276'
+                  name: MA-Acquirer-NAB
+                  password: ''
+                  pendingForAcquirerTimeoutInMins: ''
+                  pendingTimeoutInMins: ''
+                  recurringCode: ''
+                  recurringDispatchingSetting: ''
+                  shopperDispatchingScope: ''
+                  shopperDispatchingSetting: ''
+                  shopperDispatchingValidity: ''
+                  state: LIVE
+                  supports3DSecure: 'true'
+                  terminalId: ''
+                  ticketSizeDispatchingActive: ''
+                  ticketSizeDispatchingSetting: ''
+                  transactionCategory: ''
+                  uploadPassword: ''
+                  uploadUser: ''
+                  username: ''
+                  velocityDispachingActive: ''
+                  velocityDispatchingSetting: ''
+                  visaMerchantAcquirerBin_v2: '234234'
+                  visaRequestorId_v2: 000000087654321
+                  visaRequestorName: Test Name
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Merchant Account (Merchant level)
+      operationId: addMerchantAccountMerchantLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Delete All Merchant Account (Merchant level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete All Merchant Account (Merchant level)
+      operationId: deleteAllMerchantAccountMerchantLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Owned Merchant Accounts (Merchant level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Merchant Accounts (Merchant level)
+      operationId: listOwnedMerchantAccountsMerchantLevel
+  /channels/{channelId}/ownedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Add Merchant Account (Channel level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                name:
+                  type: string
+                  description: The merchant account name.
+                  example: MA-Acquirer-NAB
+                  pattern: ^[A-Za-z0-9_-]*$
+                state:
+                  type: string
+                  description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
+                  example: LIVE
+                clearingInstituteName:
+                  type: string
+                  description: The acquirer or alternative payment method name.
+                  example: EMC_NAB
+                merchantId:
+                  type: string
+                  description: The MID (Merchant Identifier).
+                  example: aciecommerce1116
+                key:
+                  type: string
+                  example: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  pattern: ^[A-Za-z0-9 _-]*$
+                connectorSpecificParameter.MerchantKeyId:
+                  type: string
+                  description: The acquirer or alternative payment method specific
+                    parameter.
+                  example: e5b933be-a929-426a-b839-97a28229c672
+                iban:
+                  type: string
+                  description: The merchant IBAN for funds to be transferred (SEPA).
+                  pattern: ^[A-Za-z0-9 _-]*$
+                cleaingInstituteId:
+                  type: string
+                  description: OR The id of the acquirer or alternative payment method.
+                terminalId:
+                  type: string
+                  description: The card acceptor terminal id.
+                password:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                username:
+                  type: string
+                  description: The credentials use to connect to the provider.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                merchantCategory:
+                  type: string
+                  description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
+                    DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL
+                transactionCategory:
+                  type: string
+                  description: ANY, MOTO, ECOMMERCE, EWALLET
+                cvvInstruction:
+                  type: string
+                  description: IGNORE, CHECK
+                cvvRejectionPolicy:
+                  type: string
+                  description: "Auto-reverse the authorization depending on the rejection\
+                    \ policy\nN = CVV2, CVC2, Discover CID or AMEX CID do not match\n\
+                    S = CVV2, CVC2, Discover CID or AMEX CID data is not present on\
+                    \ the card, but the issuer indicated it should be present\nP =\
+                    \ Not Processed\nU = \tUnsupported by issuer or issuer is unable\
+                    \ to process request"
+                avsCheckActive:
+                  type: string
+                  description: Auto-reverse the authorization depending on the address
+                    matching rule (TRUE or FALSE)
+                avsRejectionPolicy:
+                  type: string
+                  description: 'Auto-reverse the authorization depending on the rejection
+                    policy
+
+                    A = Address does match, zip code does not match
+
+                    Z = Address does not match, zip code matches
+
+                    N = Address and zip code do not match
+
+                    U = Technical or logical Error. AVS cannot be applied on card
+                    or address (not UK or US issuer), issuer is not available, etc.'
+                avsReviewPolicy:
+                  type: string
+                  description: Mark transaction for review depending on the rejection
+                    policy (see above)
+                debitAdviceProcedure:
+                  type: string
+                recurringCode:
+                  type: string
+                  description: NONE, RECURRING, INSTALLMENT
+                supports3DSecure:
+                  type: boolean
+                  description: TRUE. FALSE support for 3D Secure
+                  example: 'true'
+                merchant3DName:
+                  type: string
+                  description: The merchant name (3DS2)
+                  example: ACI Worldwide Germany
+                merchant3DUrl:
+                  type: string
+                  description: The merchant URL (3DS2)
+                  example: http://threeD-secure-dummy-url.de
+                merchantIsoCountryCode:
+                  type: integer
+                  description: The merchant country code (3DS2)
+                  example: '276'
+                merchant3DId:
+                  type: integer
+                  description: The merchant ID (3DS2)
+                  example: '14275'
+                merchant3DCategory:
+                  type: integer
+                  description: The merchant category code (3DS2)
+                  example: '5111'
+                visaMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for VISA (3DS2)
+                  example: '234234'
+                visaRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for VISA (3DS2)
+                  example: 000000087654321
+                visaRequestorName:
+                  type: string
+                  description: The requestor name for VISA (3DS2)
+                  example: Test Name
+                masterMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for MASTERCARD (3DS2)
+                  example: '234234'
+                masterRequestorId_v2:
+                  type: integer
+                  description: The reqestor id for MASTERCARD (3DS2)
+                  example: 000000087654321
+                masterRequestorName:
+                  type: string
+                  description: The requestor name for MASTERCARD (3DS2)
+                  example: Test Name
+                amexMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The merchant acquirer bin for AMEX (3DS2)
+                  example: '12345678901'
+                amexRequestorId_v2:
+                  type: string
+                  description: The reqestor id for AMEX (3DS2)
+                  example: JCBAESK60193409387
+                amexRequestorName:
+                  type: string
+                  description: The requestor name for AMEX (3DS2)
+                  example: Test Name
+                dinersMerchantId:
+                  type: string
+                dinersMerchantPwd:
+                  type: string
+                dinersMerchantAcquirerBin_v2:
+                  type: string
+                dinersRequestorId_v2:
+                  type: string
+                dinersRequestorName:
+                  type: string
+                bcmcMerchantAcquirerBin_v2:
+                  type: string
+                bcmcRequestorId_v2:
+                  type: string
+                bcmcRequestorName:
+                  type: string
+                jcbMerchantAcquirerBin_v2:
+                  type: string
+                jcbRequestorId_v2:
+                  type: string
+                jcbRequestorName:
+                  type: string
+                cashlinkMaltaMerchantAcquirerBin_v2:
+                  type: string
+                cashlinkMaltaRequestorId_v2:
+                  type: string
+                cashlinkMaltaRequestorName:
+                  type: string
+                velocityDispachingActive:
+                  type: string
+                  description: TRUE or FALSE
+                velocityDispatchingSetting:
+                  type: string
+                  description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                ticketSizeDispatchingActive:
+                  type: string
+                  description: TRUE or FALSE
+                ticketSizeDispatchingSetting:
+                  type: string
+                  description: '{Minimum ticket size};{Maximum ticket size}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                recurringDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingSetting:
+                  type: string
+                  description: 'ALL: All shoppers
+
+                    TRUE: Recurring shoppers
+
+                    FALSE: First-time shoppers'
+                shopperDispatchingScope:
+                  type: string
+                  description: PSP, DIVISION, MERCHANT, OR CHANNEL
+                shopperDispatchingValidity:
+                  type: string
+                  description: In days
+                pendingTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from consumer before timing-out'
+                  pattern: ^[0-9]*$
+                pendingForAcquirerTimeoutInMins:
+                  type: string
+                  description: 'The dynamic timeout: minutes to wait the response
+                    from acquirer before timing-out'
+                  pattern: ^[0-9]*$
+                uploadUser:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+                uploadPassword:
+                  type: string
+                  description: The credentials use to upload files to the provider.
+              type: object
+            examples:
+              Add Merchant Account (Channel level):
+                value:
+                  amexMerchantAcquirerBin_v2: '12345678901'
+                  amexRequestorId_v2: JCBAESK60193409387
+                  amexRequestorName: Test Name
+                  avsCheckActive: ''
+                  avsRejectionPolicy: ''
+                  avsReviewPolicy: ''
+                  bcmcMerchantAcquirerBin_v2: ''
+                  bcmcRequestorId_v2: ''
+                  bcmcRequestorName: ''
+                  cashlinkMaltaMerchantAcquirerBin_v2: ''
+                  cashlinkMaltaRequestorId_v2: ''
+                  cashlinkMaltaRequestorName: ''
+                  cleaingInstituteId: ''
+                  clearingInstituteName: EMC_NAB
+                  connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
+                  cvvInstruction: ''
+                  cvvRejectionPolicy: ''
+                  debitAdviceProcedure: ''
+                  dinersMerchantAcquirerBin_v2: ''
+                  dinersMerchantId: ''
+                  dinersMerchantPwd: ''
+                  dinersRequestorId_v2: ''
+                  dinersRequestorName: ''
+                  iban: ''
+                  jcbMerchantAcquirerBin_v2: ''
+                  jcbRequestorId_v2: ''
+                  jcbRequestorName: ''
+                  key: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  masterMerchantAcquirerBin_v2: '234234'
+                  masterRequestorId_v2: 000000087654321
+                  masterRequestorName: Test Name
+                  merchant3DCategory: '5111'
+                  merchant3DId: '14275'
+                  merchant3DName: ACI Worldwide Germany
+                  merchant3DUrl: http://threeD-secure-dummy-url.de
+                  merchantCategory: ''
+                  merchantId: aciecommerce1116
+                  merchantIsoCountryCode: '276'
+                  name: MA-Acquirer-NAB
+                  password: ''
+                  pendingForAcquirerTimeoutInMins: ''
+                  pendingTimeoutInMins: ''
+                  recurringCode: ''
+                  recurringDispatchingSetting: ''
+                  shopperDispatchingScope: ''
+                  shopperDispatchingSetting: ''
+                  shopperDispatchingValidity: ''
+                  state: LIVE
+                  supports3DSecure: 'true'
+                  terminalId: ''
+                  ticketSizeDispatchingActive: ''
+                  ticketSizeDispatchingSetting: ''
+                  transactionCategory: ''
+                  uploadPassword: ''
+                  uploadUser: ''
+                  username: ''
+                  velocityDispachingActive: ''
+                  velocityDispatchingSetting: ''
+                  visaMerchantAcquirerBin_v2: '234234'
+                  visaRequestorId_v2: 000000087654321
+                  visaRequestorName: Test Name
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Add Merchant Account (Channel level)
+      operationId: addMerchantAccountChannelLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Delete All Merchant Account (Channel level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete All Merchant Account (Channel level)
+      operationId: deleteAllMerchantAccountChannelLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Owned Merchant Accounts (Channel level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Owned Merchant Accounts (Channel level)
+      operationId: listOwnedMerchantAccountsChannelLevel
+  /merchantAccounts/{merchantAccountId}:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Update Merchant Account
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                supports3DSecure:
+                  type: boolean
+                  description: Enable 3DS2 on your merchant account.
+                  example: 'true'
+                merchant3DName:
+                  type: string
+                  description: The merchant name.
+                  example: ACI Worldwide Germany
+                merchant3DUrl:
+                  type: string
+                  description: The merchant website URL.
+                  example: http://threeD-secure-dummy-url.de
+                merchantIsoCountryCode:
+                  type: integer
+                  description: Merchant ISO country code. 276 is Germany.
+                  example: '276'
+                merchant3DId:
+                  type: integer
+                  description: Merchant identifier
+                  example: '14275'
+                merchant3DCategory:
+                  type: integer
+                  description: The Merchant category code
+                  example: '5111'
+                visaMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The Visa acquirer BIN (3DS2).
+                  example: '234234'
+                visaRequestorId_v2:
+                  type: integer
+                  description: The Visa requestor id (3DS2).
+                  example: 000000087654321
+                visaRequestorName:
+                  type: string
+                  description: The Visa requestor name (3DS2).
+                  example: Test Name
+                masterMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The MasterCard acquirer BIN (3DS2).
+                  example: '234234'
+                masterRequestorId_v2:
+                  type: integer
+                  description: The MasterCard requestor id (3DS2).
+                  example: 000000087654321
+                masterRequestorName:
+                  type: string
+                  description: The MasterCard requestor name (3DS2).
+                  example: Test Name
+                amexMerchantAcquirerBin_v2:
+                  type: integer
+                  description: The AMEX acquirer BIN (3DS2).
+                  example: '12345678901'
+                amexRequestorId_v2:
+                  type: string
+                  description: The AMEX requestor id (3DS2).
+                  example: JCBAESK60193409387
+                amexRequestorName:
+                  type: string
+                  description: The AMEX requestor name (3DS2).
+                  example: Name
+                dinersMerchantId:
+                  type: string
+                dinersMerchantPwd:
+                  type: string
+                dinersMerchantAcquirerBin_v2:
+                  type: string
+                dinersRequestorId_v2:
+                  type: string
+                dinersRequestorName:
+                  type: string
+                bcmcMerchantAcquirerBin_v2:
+                  type: string
+                bcmcRequestorId_v2:
+                  type: string
+                bcmcRequestorName:
+                  type: string
+                jcbMerchantAcquirerBin_v2:
+                  type: string
+                jcbRequestorId_v2:
+                  type: string
+                jcbRequestorName:
+                  type: string
+                cashlinkMaltaMerchantAcquirerBin_v2:
+                  type: string
+                cashlinkMaltaRequestorId_v2:
+                  type: string
+                cashlinkMaltaRequestorName:
+                  type: string
+                name:
+                  type: string
+                  example: MA-Acquirer-NAB
+                  pattern: ^[A-Za-z0-9 _-]*$
+                state:
+                  type: string
+                  example: LIVE
+                clearingInstituteName:
+                  type: string
+                  example: EMC_NAB
+                merchantId:
+                  type: string
+                  example: aciecommerce1116
+                key:
+                  type: string
+                  example: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  pattern: ^[A-Za-z0-9 _-]*$
+                connectorSpecificParameter.MerchantKeyId:
+                  type: string
+                  example: e5b933be-a929-426a-b839-97a28229c672
+                iban:
+                  type: string
+                  pattern: ^[A-Za-z0-9 _-]*$
+                cleaingInstituteId:
+                  type: string
+                terminalId:
+                  type: string
+                password:
+                  type: string
+                  pattern: ^[A-Za-z0-9 _-]*$
+                username:
+                  type: string
+                  pattern: ^[A-Za-z0-9 _-]*$
+                merchantCategory:
+                  type: string
+                transactionCategory:
+                  type: string
+                cvvInstruction:
+                  type: string
+                cvvRejectionPolicy:
+                  type: string
+                avsCheckActive:
+                  type: string
+                avsRejectionPolicy:
+                  type: string
+                avsReviewPolicy:
+                  type: string
+                debitAdviceProcedure:
+                  type: string
+                recurringCode:
+                  type: string
+                velocityDispachingActive:
+                  type: string
+                velocityDispatchingSetting:
+                  type: string
+                  pattern: ^[A-Za-z0-9 _-]*$
+                ticketSizeDispatchingActive:
+                  type: string
+                ticketSizeDispatchingSetting:
+                  type: string
+                  pattern: ^[A-Za-z0-9 _-]*$
+                recurringDispatchingSetting:
+                  type: string
+                shopperDispatchingSetting:
+                  type: string
+                shopperDispatchingScope:
+                  type: string
+                shopperDispatchingValidity:
+                  type: string
+                pendingTimeoutInMins:
+                  type: string
+                  pattern: ^[0-9]*$
+                pendingForAcquirerTimeoutInMins:
+                  type: string
+                  pattern: ^[0-9]*$
+                uploadUser:
+                  type: string
+                uploadPassword:
+                  type: string
+              type: object
+            examples:
+              Edit Merchant Account:
+                summary: Edit Merchant Account
+                value:
+                  name: MA-Acquirer-NAB
+                  state: LIVE
+                  clearingInstituteName: EMC_NAB
+                  merchantId: aciecommerce1116
+                  key: m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=
+                  connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
+                  supports3DSecure: 'true'
+                  merchant3DName: ACI Worldwide Germany
+                  merchant3DUrl: http://threeD-secure-dummy-url.de
+                  merchantIsoCountryCode: '276'
+                  merchant3DId: '14275'
+                  merchant3DCategory: '5111'
+                  visaMerchantAcquirerBin_v2: '234234'
+                  visaRequestorId_v2: 000000087654321
+                  visaRequestorName: Test Name
+                  masterMerchantAcquirerBin_v2: '234234'
+                  masterRequestorId_v2: 000000087654321
+                  masterRequestorName: Test Name
+                  amexMerchantAcquirerBin_v2: '12345678901'
+                  amexRequestorId_v2: JCBAESK60193409387
+                  amexRequestorName: Test Name
+              Configure 3DS2 on Merchant Account:
+                summary: Configure 3DS2 on Merchant Account
+                value:
+                  supports3DSecure: 'true'
+                  merchant3DName: ACI Worldwide Germany
+                  merchant3DUrl: http://threeD-secure-dummy-url.de
+                  merchantIsoCountryCode: '276'
+                  merchant3DId: '14275'
+                  merchant3DCategory: '5111'
+                  visaMerchantAcquirerBin_v2: '234234'
+                  visaRequestorId_v2: 000000087654321
+                  visaRequestorName: Test Name
+                  masterMerchantAcquirerBin_v2: '234234'
+                  masterRequestorId_v2: 000000087654321
+                  masterRequestorName: Test Name
+                  amexMerchantAcquirerBin_v2: '12345678901'
+                  amexRequestorId_v2: JCBAESK60193409387
+                  amexRequestorName: Name
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantAccountId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Update a merchant account. The Postman collection uses this same
+        endpoint for both general merchant account edits and 3DS2 configuration, and
+        the examples below capture both workflows.
+      operationId: updateMerchantAccount
+      x-postman-source-requests:
+      - name: Edit Merchant Account
+        folder: Merchant Account operations
+        path: /merchantAccounts/{merchantAccountId}
+      - name: Configure 3DS2 on Merchant Account
+        folder: Merchant Account operations
+        path: /merchantAccounts/{merchantAccountId}
+      x-postman-duplicate-request-count: 2
+    get:
+      tags:
+      - Merchant Account operations
+      summary: Get Merchant Account
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantAccountId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get Merchant Account
+      operationId: getMerchantAccount
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Delete Merchant Account
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantAccountId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Delete Merchant Account
+      operationId: deleteMerchantAccount
+  /psps/{pspId}/attachedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Attach Merchant Account (PSP level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                merchantAccountId:
+                  type: string
+                  description: The merchant account id to attach at the respective
+                    entity level.
+                  example: '{{merchantAccountId}}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                binRangeLimit:
+                  type: string
+                  description: List of bin ranges (6 or 8 digits) separated by semicolons.
+                  example: 420000:440000;520000:550000
+                  pattern: ^[0-9]*$
+                binCountryLimit:
+                  type: string
+                  description: List of country codes separated by semicolons.
+                  example: DE;NL
+                  pattern: ^[A-Z]*$
+                subTypes:
+                  type: string
+                  description: List of brands comma-separated.
+                  example: VISA,MASTER
+                currency:
+                  type: string
+                  description: The currency. No list of currencies supported.
+                  example: EUR
+                  pattern: ^[A-Z]*$
+                processTransactionsWithoutBinIdentification:
+                  type: boolean
+                  description: Allow transactions with unrecognizable BIN to process
+                    with this merchant account.
+                  example: 'true'
+                customDescriptor1:
+                  type: string
+                  description: "The dynamic descriptor for a better bank statement.\
+                    \ \n{customDescriptor1}{selectionDescriptor1}{customDescriptor2}{selectionDescriptor2}{customDescriptor3}{selectionDescriptor3}"
+                  example: 'Order:'
+                selectionDescriptor1:
+                  type: string
+                  description: "CHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D, \u201C\
+                    USAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D, \u201CINV\u201D, \u201CINVC\u201D, \u201C\
+                    Re\u201D, \u201CRech\u201D, \u201CRenr\u201D, \u201CRNr\u201D\
+                    , \u201CR.-Nr"
+                  example: TRANSACTION_ID
+                customDescriptor2:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Phone: +44 (0) 0123 456 7777, '
+                selectionDescriptor2:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: MERCHANT_NAME
+                customDescriptor3:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Product:'
+                selectionDescriptor3:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: USAGE
+              type: object
+            examples:
+              Attach Merchant Account (PSP level):
+                value:
+                  binCountryLimit: DE;NL
+                  binRangeLimit: 420000:440000;520000:550000
+                  currency: EUR
+                  customDescriptor1: 'Order:'
+                  customDescriptor2: ', Phone: +44 (0) 0123 456 7777, '
+                  customDescriptor3: ', Product:'
+                  merchantAccountId: '{{merchantAccountId}}'
+                  processTransactionsWithoutBinIdentification: 'true'
+                  selectionDescriptor1: TRANSACTION_ID
+                  selectionDescriptor2: MERCHANT_NAME
+                  selectionDescriptor3: USAGE
+                  subTypes: VISA,MASTER
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Attach Merchant Account (PSP level)
+      operationId: attachMerchantAccountPspLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Detach All Merchant Accounts (PSP level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach All Merchant Accounts (PSP level)
+      operationId: detachAllMerchantAccountsPspLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Attached Merchant Accounts (PSP level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: pspId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Merchant Accounts (PSP level)
+      operationId: listAttachedMerchantAccountsPspLevel
+  /divisions/{divisionId}/attachedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Attach Merchant Account (Division level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                merchantAccountId:
+                  type: string
+                  description: The merchant account id to attach at the respective
+                    entity level.
+                  example: '{{merchantAccountId}}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                binRangeLimit:
+                  type: string
+                  description: List of bin ranges (6 or 8 digits) separated by semicolons.
+                  example: 420000:440000;520000:550000
+                  pattern: ^[0-9]*$
+                binCountryLimit:
+                  type: string
+                  description: List of country codes separated by semicolons.
+                  example: DE;NL
+                  pattern: ^[A-Z]*$
+                subTypes:
+                  type: string
+                  description: List of brands comma-separated.
+                  example: VISA,MASTER
+                currency:
+                  type: string
+                  description: The currency. No list of currencies supported.
+                  example: EUR
+                  pattern: ^[A-Z]*$
+                processTransactionsWithoutBinIdentification:
+                  type: boolean
+                  description: Allow transactions with unrecognizable BIN to process
+                    with this merchant account.
+                  example: 'true'
+                customDescriptor1:
+                  type: string
+                  description: "The dynamic descriptor for a better bank statement.\
+                    \ \n{customDescriptor1}{selectionDescriptor1}{customDescriptor2}{selectionDescriptor2}{customDescriptor3}{selectionDescriptor3}"
+                  example: 'Order:'
+                selectionDescriptor1:
+                  type: string
+                  description: "CHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D, \u201C\
+                    USAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D, \u201CINV\u201D, \u201CINVC\u201D, \u201C\
+                    Re\u201D, \u201CRech\u201D, \u201CRenr\u201D, \u201CRNr\u201D\
+                    , \u201CR.-Nr"
+                  example: TRANSACTION_ID
+                customDescriptor2:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Phone: +44 (0) 0123 456 7777, '
+                selectionDescriptor2:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: MERCHANT_NAME
+                customDescriptor3:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Product:'
+                selectionDescriptor3:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: USAGE
+              type: object
+            examples:
+              Attach Merchant Account (Division level):
+                value:
+                  binCountryLimit: DE;NL
+                  binRangeLimit: 420000:440000;520000:550000
+                  currency: EUR
+                  customDescriptor1: 'Order:'
+                  customDescriptor2: ', Phone: +44 (0) 0123 456 7777, '
+                  customDescriptor3: ', Product:'
+                  merchantAccountId: '{{merchantAccountId}}'
+                  processTransactionsWithoutBinIdentification: 'true'
+                  selectionDescriptor1: TRANSACTION_ID
+                  selectionDescriptor2: MERCHANT_NAME
+                  selectionDescriptor3: USAGE
+                  subTypes: VISA,MASTER
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Attach Merchant Account (Division level)
+      operationId: attachMerchantAccountDivisionLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Detach All Merchant Accounts (Division level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach All Merchant Accounts (Division level)
+      operationId: detachAllMerchantAccountsDivisionLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Attached Merchant Accounts (Division level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: divisionId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Merchant Accounts (Division level)
+      operationId: listAttachedMerchantAccountsDivisionLevel
+  /merchants/{merchantId}/attachedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Attach Merchant Account (Merchant level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                merchantAccountId:
+                  type: string
+                  description: The merchant account id to attach at the respective
+                    entity level.
+                  example: '{{merchantAccountId}}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                binRangeLimit:
+                  type: string
+                  description: List of bin ranges (6 or 8 digits) separated by semicolons.
+                  example: 420000:440000;520000:550000
+                  pattern: ^[0-9]*$
+                binCountryLimit:
+                  type: string
+                  description: List of country codes separated by semicolons.
+                  example: DE;NL
+                  pattern: ^[A-Z]*$
+                subTypes:
+                  type: string
+                  description: List of brands comma-separated.
+                  example: VISA,MASTER
+                currency:
+                  type: string
+                  description: The currency. No list of currencies supported.
+                  example: EUR
+                  pattern: ^[A-Z]*$
+                processTransactionsWithoutBinIdentification:
+                  type: boolean
+                  description: Allow transactions with unrecognizable BIN to process
+                    with this merchant account.
+                  example: 'true'
+                customDescriptor1:
+                  type: string
+                  description: "The dynamic descriptor for a better bank statement.\
+                    \ \n{customDescriptor1}{selectionDescriptor1}{customDescriptor2}{selectionDescriptor2}{customDescriptor3}{selectionDescriptor3}"
+                  example: 'Order:'
+                selectionDescriptor1:
+                  type: string
+                  description: "CHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D, \u201C\
+                    USAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D, \u201CINV\u201D, \u201CINVC\u201D, \u201C\
+                    Re\u201D, \u201CRech\u201D, \u201CRenr\u201D, \u201CRNr\u201D\
+                    , \u201CR.-Nr"
+                  example: TRANSACTION_ID
+                customDescriptor2:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Phone: +44 (0) 0123 456 7777, '
+                selectionDescriptor2:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: MERCHANT_NAME
+                customDescriptor3:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Product:'
+                selectionDescriptor3:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: USAGE
+              type: object
+            examples:
+              Attach Merchant Account (Merchant level):
+                value:
+                  binCountryLimit: DE;NL
+                  binRangeLimit: 420000:440000;520000:550000
+                  currency: EUR
+                  customDescriptor1: 'Order:'
+                  customDescriptor2: ', Phone: +44 (0) 0123 456 7777, '
+                  customDescriptor3: ', Product:'
+                  merchantAccountId: '{{merchantAccountId}}'
+                  processTransactionsWithoutBinIdentification: 'true'
+                  selectionDescriptor1: TRANSACTION_ID
+                  selectionDescriptor2: MERCHANT_NAME
+                  selectionDescriptor3: USAGE
+                  subTypes: VISA,MASTER
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Attach Merchant Account (Merchant level)
+      operationId: attachMerchantAccountMerchantLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Detach All Merchant Accounts (Merchant level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach All Merchant Accounts (Merchant level)
+      operationId: detachAllMerchantAccountsMerchantLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Attached Merchant Accounts (Merchant level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Merchant Accounts (Merchant level)
+      operationId: listAttachedMerchantAccountsMerchantLevel
+  /channels/{channelId}/attachedMerchantAccounts:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Attach Merchant Account (Channel level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                merchantAccountId:
+                  type: string
+                  description: The merchant account id to attach at the respective
+                    entity level.
+                  example: '{{merchantAccountId}}'
+                  pattern: ^[A-Za-z0-9 _-]*$
+                binRangeLimit:
+                  type: string
+                  description: List of bin ranges (6 or 8 digits) separated by semicolons.
+                  example: 420000:440000;520000:550000
+                  pattern: ^[0-9]*$
+                binCountryLimit:
+                  type: string
+                  description: List of country codes separated by semicolons.
+                  example: DE;NL
+                  pattern: ^[A-Z]*$
+                subTypes:
+                  type: string
+                  description: List of brands comma-separated.
+                  example: VISA,MASTER
+                currency:
+                  type: string
+                  description: The currency. No list of currencies supported.
+                  example: EUR
+                  pattern: ^[A-Z]*$
+                processTransactionsWithoutBinIdentification:
+                  type: boolean
+                  description: Allow transactions with unrecognizable BIN to process
+                    with this merchant account.
+                  example: 'true'
+                customDescriptor1:
+                  type: string
+                  description: "The dynamic descriptor for a better bank statement.\
+                    \ \n{customDescriptor1}{selectionDescriptor1}{customDescriptor2}{selectionDescriptor2}{customDescriptor3}{selectionDescriptor3}"
+                  example: 'Order:'
+                selectionDescriptor1:
+                  type: string
+                  description: "CHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D, \u201C\
+                    USAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D, \u201CINV\u201D, \u201CINVC\u201D, \u201C\
+                    Re\u201D, \u201CRech\u201D, \u201CRenr\u201D, \u201CRNr\u201D\
+                    , \u201CR.-Nr"
+                  example: TRANSACTION_ID
+                customDescriptor2:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Phone: +44 (0) 0123 456 7777, '
+                selectionDescriptor2:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: MERCHANT_NAME
+                customDescriptor3:
+                  type: string
+                  description: The dynamic descriptor for a better bank statement.
+                  example: ', Product:'
+                selectionDescriptor3:
+                  type: string
+                  description: "\u201CCHANNEL_NAME\u201D, \u201CMERCHANT_NAME\u201D\
+                    , \u201CUSAGE\u201D, \u201CTRANSACTION_ID\u201D, \u201CINVOICE_ID\u201D\
+                    , \u201CSHORT_ID\u201D"
+                  example: USAGE
+              type: object
+            examples:
+              Attach Merchant Account (Channel level):
+                value:
+                  binCountryLimit: DE;NL
+                  binRangeLimit: 420000:440000;520000:550000
+                  currency: EUR
+                  customDescriptor1: 'Order:'
+                  customDescriptor2: ', Phone: +44 (0) 0123 456 7777, '
+                  customDescriptor3: ', Product:'
+                  merchantAccountId: '{{merchantAccountId}}'
+                  processTransactionsWithoutBinIdentification: 'true'
+                  selectionDescriptor1: TRANSACTION_ID
+                  selectionDescriptor2: MERCHANT_NAME
+                  selectionDescriptor3: USAGE
+                  subTypes: VISA,MASTER
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Attach Merchant Account (Channel level)
+      operationId: attachMerchantAccountChannelLevel
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Detach All Merchant Accounts (Channel level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach All Merchant Accounts (Channel level)
+      operationId: detachAllMerchantAccountsChannelLevel
+    get:
+      tags:
+      - Merchant Account operations
+      summary: List Attached Merchant Accounts (Channel level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: List Attached Merchant Accounts (Channel level)
+      operationId: listAttachedMerchantAccountsChannelLevel
+  /attachedMerchantAccounts/{attachedMerchantAccountId}:
+    delete:
+      tags:
+      - Merchant Account operations
+      summary: Detach Merchant Account
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: attachedMerchantAccountId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Detach Merchant Account
+      operationId: detachMerchantAccount
+  /merchants/{merchantId}/setting:
+    post:
+      tags:
+      - Settings operations
+      summary: Update Merchant Settings
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                path:
+                  type: string
+                key:
+                  type: string
+                  example: '*/type:user/module:bip/processing:BIP/user:configuration/configuration:useOppLabels'
+                  description: The configuration key in the UI to activate / deactivate
+                    3DS2.
+                  pattern: ^[A-Za-z0-9 _-]*$
+                value:
+                  type: string
+                  description: 'The possible values: None, No 3DSecure, 3DSecure,
+                    3DSecurePassThrough'
+                  example: 3DSecure
+              type: object
+            examples:
+              Manage 3DS2 activation:
+                summary: Manage 3DS2 activation
+                value:
+                  key: '*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:threeDType'
+                  value: 3DSecure
+              Update RIRO (Merchant level):
+                summary: Update RIRO (Merchant level)
+                value:
+                  key: '*/type:entity/module:ctpe/processing:memoPost/memoPost:memoPostConfig/memoPost:memoPostMerchantAccount'
+            x-postman-repeated-fields:
+            - key
+      security:
+      - apiKey: []
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Update merchant-level settings. The Postman collection uses this
+        same endpoint for generic RIRO updates and 3DS2 activation, and the examples
+        below capture both workflows.
+      operationId: updateMerchantSettings
+      x-postman-source-requests:
+      - name: Manage 3DS2 activation
+        folder: Merchant Account operations
+        path: /merchants/{merchantId}/setting
+      - name: Update RIRO (Merchant level)
+        folder: Settings operations
+        path: /merchants/{merchantId}/setting
+      x-postman-duplicate-request-count: 2
+    get:
+      tags:
+      - Settings operations
+      summary: Get RIRO (Merchant level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: path
+        in: query
+        schema:
+          type: string
+      - name: merchantId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get RIRO (Merchant level)
+      operationId: getRiroMerchantLevel
+  /merchantAccounts/{merchantAccountId}/ThreeDEnrollmentCheck:
+    post:
+      tags:
+      - Merchant Account operations
+      summary: Check 3DS Enrollment
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                cardNumber:
+                  type: string
+                  description: Your card number to check for 3DS2 eligibility.
+                  example: '{{PAN}}'
+                  pattern: ^[0-9]*$
+              type: object
+            examples:
+              Check 3DS Enrollment:
+                value:
+                  cardNumber: '{{PAN}}'
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: merchantAccountId
+        in: path
+        schema:
+          type: string
+          pattern: ^[a-f0-9]*$
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Check 3DS Enrollment
+      operationId: check3dsEnrollment
+  /channels/{channelId}/setting:
+    get:
+      tags:
+      - Settings operations
+      summary: Get RIRO (Channel level)
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: path
+        in: query
+        schema:
+          type: string
+      - name: channelId
+        in: path
+        schema:
+          type: string
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Get RIRO (Channel level)
+      operationId: getRiroChannelLevel
+    post:
+      tags:
+      - Settings operations
+      summary: Update RIRO (Channel level)
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              properties:
+                path:
+                  type: string
+                key:
+                  type: string
+                  example: '*/type:user/module:bip/processing:BIP/user:configuration/configuration:useOppLabels'
+              type: object
+            examples:
+              Update RIRO (Channel level):
+                value:
+                  key: '*/type:user/module:bip/processing:BIP/user:configuration/configuration:useOppLabels'
+                  path: ''
+            x-postman-repeated-fields:
+            - key
+      security:
+      - apiKey: []
+      parameters:
+      - name: Accept
+        in: header
+        schema:
+          type: string
+        example: application/json
+      - name: channelId
+        in: path
+        schema:
+          type: string
+        required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json: {}
+      description: Update RIRO (Channel level)
+      operationId: updateRiroChannelLevel
