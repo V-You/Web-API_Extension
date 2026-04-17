@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assertChatSafeSchema, CHAT_TOOL_SCHEMAS, getChatToolDeclarations, getChatToolSchemas } from "./tool-bridge";
+import { assertChatSafeSchema, buildChatSchemaValue, CHAT_TOOL_SCHEMAS, getChatToolDeclarations, getChatToolSchemas } from "./tool-bridge";
 
 describe("chat tool bridge", () => {
   it("excludes execute_workflow from the chat-safe catalog", () => {
@@ -54,15 +54,42 @@ describe("chat tool bridge", () => {
   });
 
   it("expands the catalog when write tools are enabled", () => {
+    // Part-II P2-D1: handwritten umbrella tools are permanently read-only. When write tools are
+    // enabled, writes come from the generated per-action catalog (create_contact, attach_merchant_account, ...),
+    // not from the umbrella schemas.
     const writeSchemas = getChatToolSchemas({ writeToolsEnabled: true });
+    const names = writeSchemas.map((schema) => schema.name);
+
+    // Generated write tools appear.
+    for (const expected of [
+      "create_contact",
+      "edit_contact",
+      "delete_contact",
+      "attach_merchant_account",
+      "create_merchant_account",
+      "edit_merchant_account",
+      "create_division",
+      "delete_entity",
+      "set_contact_password",
+    ]) {
+      expect(names, `write-enabled catalog includes ${expected}`).toContain(expected);
+    }
+
+    // Handwritten umbrella schemas remain read-only even with write tools enabled.
     const manageEntity = writeSchemas.find((schema) => schema.name === "manage_entity");
     const manageContact = writeSchemas.find((schema) => schema.name === "manage_contact");
     const manageMerchantAccount = writeSchemas.find((schema) => schema.name === "manage_merchant_account");
     const manageSettings = writeSchemas.find((schema) => schema.name === "manage_settings");
 
-    expect((manageEntity?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("delete");
-    expect((manageContact?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("reset_password");
-    expect((manageMerchantAccount?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("attach");
+    const entityActions = (manageEntity?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum;
+    const contactActions = (manageContact?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum;
+    const maActions = (manageMerchantAccount?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum;
+
+    expect(entityActions).not.toContain("delete");
+    expect(contactActions).not.toContain("reset_password");
+    expect(maActions).not.toContain("attach");
+
+    // manage_settings keeps its write actions since writes have not been split off.
     expect((manageSettings?.inputSchema as { properties?: { action?: { enum?: string[] } } }).properties?.action?.enum).toContain("set");
 
     const manageEntityProperties = (manageEntity?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
@@ -70,9 +97,9 @@ describe("chat tool bridge", () => {
     const manageMerchantAccountProperties = (manageMerchantAccount?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
     const manageSettingsProperties = (manageSettings?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
 
-    expect(manageEntityProperties.fields).toBeDefined();
-    expect(manageContactProperties.fields).toBeDefined();
-    expect(manageMerchantAccountProperties.fields).toBeDefined();
+    expect(manageEntityProperties.fields).toBeUndefined();
+    expect(manageContactProperties.fields).toBeUndefined();
+    expect(manageMerchantAccountProperties.fields).toBeUndefined();
     expect(manageSettingsProperties.settings).toBeDefined();
     expect(manageSettingsProperties.value).toBeDefined();
   });
@@ -134,6 +161,34 @@ describe("chat tool bridge", () => {
       expect(() => assertChatSafeSchema({ type: "object", additionalProperties: false })).toThrow(/additionalProperties/);
       expect(() => assertChatSafeSchema({ oneOf: [{ type: "string" }] })).toThrow(/oneOf/);
       expect(() => assertChatSafeSchema({ type: "string", minimum: 1 })).toThrow(/minimum/);
+    });
+
+    it("buildChatSchemaValue does not silently strip forbidden keys (Part-II P2-D5)", () => {
+      // The narrow-drop pass should let anything outside the small
+      // CHAT_DROP_KEYS set flow through to assertChatSafeSchema. If the
+      // pass regresses to a whitelist strip, this regression guard fails
+      // loudly instead of the assertion never firing in production.
+      const mutated = buildChatSchemaValue({
+        type: "object",
+        properties: { x: { type: "string" } },
+        oneOf: [{ type: "string" }],
+        example: { x: "hi" },
+      }) as Record<string, unknown>;
+      expect(mutated).toHaveProperty("oneOf");
+      expect(mutated).toHaveProperty("example");
+      expect(() => assertChatSafeSchema(mutated)).toThrow(/oneOf|example/);
+    });
+
+    it("buildChatSchemaValue drops additionalProperties / minimum / maximum (Part-II P2-D5)", () => {
+      const cleaned = buildChatSchemaValue({
+        type: "object",
+        properties: { depth: { type: "number", minimum: 1, maximum: 10 } },
+        additionalProperties: false,
+      }) as Record<string, unknown>;
+      expect(cleaned).not.toHaveProperty("additionalProperties");
+      const depth = (cleaned.properties as Record<string, Record<string, unknown>>).depth;
+      expect(depth).not.toHaveProperty("minimum");
+      expect(depth).not.toHaveProperty("maximum");
     });
 
     it("assertChatSafeSchema accepts a fully-compliant subset schema", () => {

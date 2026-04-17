@@ -45,17 +45,26 @@ describe("tool schema definitions", () => {
       "get_audit_log",
       "get_hierarchy",
       "lookup_clearing_institutes",
+      "manage_contact",
+      "manage_entity",
+      "manage_merchant_account",
     ]);
   });
 
-  it("documents the common contact-create payload", () => {
-    const manageContact = HANDWRITTEN_TOOL_SCHEMAS.find((schema) => schema.name === "manage_contact");
-    const fields = (manageContact?.inputSchema as {
-      properties?: { fields?: { description?: string } };
-    }).properties?.fields;
-
-    expect(manageContact?.description).toContain("email, name, role, kind, language");
-    expect(fields?.description).toContain("Do not invent username, firstName, lastName, or password");
+  it("handwritten umbrella tools only expose read actions (Part-II P2-D1)", () => {
+    const readActions: Record<string, string[]> = {
+      manage_entity: ["get", "search", "list_children"],
+      manage_contact: ["get", "list", "find_by_username"],
+      manage_merchant_account: ["get", "list"],
+    };
+    for (const [toolName, expectedActions] of Object.entries(readActions)) {
+      const tool = HANDWRITTEN_TOOL_SCHEMAS.find((schema) => schema.name === toolName);
+      const schema = tool?.inputSchema as {
+        properties?: Record<string, { enum?: string[] }>;
+      };
+      expect(schema.properties?.action?.enum, `${toolName} actions`).toEqual(expectedActions);
+      expect(schema.properties?.fields, `${toolName} fields bag is gone`).toBeUndefined();
+    }
   });
 
   it("generated tools declare additionalProperties: false", () => {

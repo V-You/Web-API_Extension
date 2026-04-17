@@ -60,8 +60,27 @@ export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string
 }
 
 function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<string, ExecuteFn> {
+  // Externally reachable umbrella actions (writes moved to per-action tools per Part-II P2-D1).
+  const READ_ONLY_UMBRELLA_ACTIONS: Record<string, Set<string>> = {
+    manage_entity: new Set(["get", "search", "list_children"]),
+    manage_contact: new Set(["get", "list", "find_by_username"]),
+    manage_merchant_account: new Set(["get", "list"]),
+  };
+
+  const guardReadOnly = (tool: string, action: unknown): void => {
+    const allowed = READ_ONLY_UMBRELLA_ACTIONS[tool];
+    if (!allowed) return;
+    if (typeof action !== "string" || !allowed.has(action)) {
+      throw new Error(
+        `${tool} only supports read actions (${[...allowed].join(", ")}). ` +
+          `For writes, use the dedicated per-action tools.`,
+      );
+    }
+  };
+
   return {
     manage_entity: async (params) => {
+      guardReadOnly("manage_entity", params.action);
       const { creds, env } = await sessionOrError();
       const description = await confirmIfMutating("manage_entity", params, env);
       const result = await executeManageEntity(
@@ -98,6 +117,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     },
 
     manage_contact: async (params) => {
+      guardReadOnly("manage_contact", params.action);
       const { creds, env } = await sessionOrError();
       const description = await confirmIfMutating("manage_contact", params, env);
       const result = await executeManageContact(
@@ -119,6 +139,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     },
 
     manage_merchant_account: async (params) => {
+      guardReadOnly("manage_merchant_account", params.action);
       const { creds, env } = await sessionOrError();
       const description = await confirmIfMutating("manage_merchant_account", params, env);
       const result = await executeManageMerchantAccount(

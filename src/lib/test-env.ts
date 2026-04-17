@@ -27,6 +27,10 @@ export interface LiveTestEnv {
   smokeDivisionId?: string;
   smokePspId?: string;
   smokePspName?: string;
+  /** Optional clearing-institute id for MA lifecycle tests. */
+  smokeClearingInstituteId?: string;
+  /** Optional existing MA id for attach/detach lifecycle tests. */
+  smokeMerchantAccountId?: string;
 }
 
 function parseDotEnv(text: string): Record<string, string> {
@@ -96,6 +100,8 @@ export function loadLiveTestEnv(): LiveTestEnv {
     smokeDivisionId: merged.SMOKE_DIVISION_ID || undefined,
     smokePspId: merged.SMOKE_PSP_ID || undefined,
     smokePspName: merged.SMOKE_PSP_NAME || undefined,
+    smokeClearingInstituteId: merged.SMOKE_CLEARING_INSTITUTE_ID || undefined,
+    smokeMerchantAccountId: merged.SMOKE_MERCHANT_ACCOUNT_ID || undefined,
   };
 }
 

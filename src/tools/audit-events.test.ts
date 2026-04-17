@@ -1,57 +1,35 @@
 import { describe, expect, it } from "vitest";
 
 import type { AuditEventType } from "../lib/types";
+import { AUDIT_EVENT_TYPES } from "../../src_data/webapi-audit-events";
 import { manifestAuditEventTypes } from "./manifest-helpers";
 
 /**
- * Phase 2 D13: the audit-log eventType enum is derived from the manifest.
- * Every event-type string mentioned in the manifest must be present in
- * the runtime union; every non-env event type in the union must have a
- * manifest origin.
+ * Phase 2 D13 + Part-II P2-D4: the audit-log eventType enum is generated
+ * from the manifest. This test is now a tripwire over the generated
+ * coupling rather than a handwritten alignment ledger.
  */
-describe("audit event types align with the manifest", () => {
-  // Keep this list in sync with `AuditEventType` in `src/lib/types.ts`.
-  const RUNTIME_EVENT_TYPES: AuditEventType[] = [
-    "setting_change",
-    "entity_create",
-    "entity_edit",
-    "entity_delete",
-    "contact_create",
-    "contact_edit",
-    "contact_delete",
-    "contact_lock",
-    "contact_unlock",
-    "contact_attach",
-    "contact_detach",
-    "contact_password_reset",
-    "ma_create",
-    "ma_update",
-    "ma_delete",
-    "ma_attach",
-    "ma_detach",
-    "env_switch",
-  ] as const;
-
-  const EXTENSION_ONLY = new Set<AuditEventType>([
+describe("audit event types align with the generated manifest module", () => {
+  const EXTENSION_ONLY: readonly AuditEventType[] = [
     "setting_change",
     "env_switch",
     // contact-attach is achieved via `autoAttach: true` in the create call;
     // there is no dedicated API operation to bind an audit entry to.
     "contact_attach",
-  ]);
+  ] as const;
 
-  it("every manifest event type is present in the runtime union", () => {
-    const runtime = new Set(RUNTIME_EVENT_TYPES);
-    for (const ev of manifestAuditEventTypes()) {
-      expect(runtime.has(ev as AuditEventType)).toBe(true);
-    }
+  it("AUDIT_EVENT_TYPES matches the live manifest derivation", () => {
+    expect([...AUDIT_EVENT_TYPES].sort()).toEqual([...manifestAuditEventTypes()].sort());
   });
 
-  it("every runtime API event type has a manifest origin", () => {
-    const manifestSet = new Set(manifestAuditEventTypes());
-    for (const ev of RUNTIME_EVENT_TYPES) {
-      if (EXTENSION_ONLY.has(ev)) continue;
-      expect(manifestSet.has(ev)).toBe(true);
-    }
+  it("the runtime union equals AUDIT_EVENT_TYPES plus the three extension-only events", () => {
+    // Compile-time: each generated type assigns into the runtime union.
+    const api: AuditEventType[] = [...AUDIT_EVENT_TYPES];
+    // Compile-time: each extension-only event is part of the runtime union.
+    const extension: AuditEventType[] = [...EXTENSION_ONLY];
+
+    // Runtime: both sides together cover the full observed surface.
+    const combined = new Set<string>([...api, ...extension]);
+    expect(combined.size).toBe(api.length + extension.length);
   });
 });

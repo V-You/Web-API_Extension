@@ -24,24 +24,30 @@ export interface ToolSchema {
 // The import is type-safe for main-world use: GENERATED_TOOL_SCHEMAS only
 // depends on the committed manifest JSON and a tiny pure-data helpers module.
 import { GENERATED_TOOL_SCHEMAS } from "./generated-tool-schemas";
+// Part-II P2-D4: AUDIT_EVENT_TYPES is pure data generated from the manifest;
+// main-world-safe (no chrome, lib, or bridge imports).
+import { AUDIT_EVENT_TYPES } from "../../src_data/webapi-audit-events";
 
 const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
-  // 1. manage_entity
+  // 1. manage_entity -- read-only umbrella (writes are in the generated per-action tools:
+  // create_division, create_merchant, create_channel, edit_entity, delete_entity).
   {
     name: "manage_entity",
-    title: "Manage entity",
+    title: "Manage entity (read-only)",
     description:
-      "Manage payment hierarchy entities (PSP, division, merchant, channel). " +
-      "Actions: get, search, list_children, create, edit, delete.",
+      "Read payment hierarchy entities (PSP, division, merchant, channel). " +
+      "Actions: get, search, list_children. For writes, use the dedicated per-action tools " +
+      "(create_division, create_merchant, create_channel, edit_entity, delete_entity).",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["get", "search", "list_children", "create", "edit", "delete"],
-          description: "The operation to perform.",
+          enum: ["get", "search", "list_children"],
+          description: "The read operation to perform.",
         },
-        entityId: { type: "string", description: "Entity ID (for get, edit, delete)." },
+        entityId: { type: "string", description: "Entity ID (for get)." },
         entityType: {
           type: "string",
           enum: ["psp", "division", "merchant", "channel"],
@@ -51,7 +57,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           type: "string",
           description: "Slash-separated name path for search (e.g. 'MyPSP/MyDiv').",
         },
-        parentId: { type: "string", description: "Parent entity ID (for list_children, create)." },
+        parentId: { type: "string", description: "Parent entity ID (for list_children)." },
         parentType: {
           type: "string",
           enum: ["psp", "division", "merchant", "channel"],
@@ -60,12 +66,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
         childType: {
           type: "string",
           enum: ["division", "merchant", "channel"],
-          description: "Child type to list or create.",
-        },
-        fields: {
-          type: "object",
-          additionalProperties: { type: "string" },
-          description: "Form fields for create or edit.",
+          description: "Child type to list.",
         },
       },
       required: ["action"],
@@ -106,26 +107,25 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 3. manage_contact
+  // 3. manage_contact -- read-only umbrella (writes are in the generated per-action tools:
+  // create_contact, edit_contact, delete_contact, detach_contact, lock_contact, unlock_contact,
+  // set_contact_password).
   {
     name: "manage_contact",
-    title: "Manage contact",
+    title: "Manage contact (read-only)",
     description:
-      "Manage contacts (users) on entities. " +
-      "Actions: get, list, create, edit, delete, attach, detach, lock, unlock, reset_password, find_by_username. " +
-      "For create, use the current bundled OpenAPI field shape rather than guessing a login payload. " +
-      "The bundled spec fields include email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail.",
+      "Read contacts (users) on entities. " +
+      "Actions: get, list, find_by_username. For writes, use the dedicated per-action tools " +
+      "(create_contact, edit_contact, delete_contact, detach_contact, lock_contact, " +
+      "unlock_contact, set_contact_password).",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: [
-            "get", "list", "create", "edit", "delete",
-            "attach", "detach", "lock", "unlock",
-            "reset_password", "find_by_username",
-          ],
-          description: "The operation to perform.",
+          enum: ["get", "list", "find_by_username"],
+          description: "The read operation to perform.",
         },
         contactId: { type: "string", description: "Contact ID." },
         entityId: { type: "string", description: "Entity ID for context." },
@@ -139,35 +139,32 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           enum: ["owned", "attached"],
           description: "Contact scope for list (default: owned).",
         },
-        fields: {
-          type: "object",
-          additionalProperties: { type: "string" },
-          description:
-            "Fields for create or edit. For create, follow the bundled OpenAPI schema: email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail. " +
-            "Do not invent username, firstName, lastName, or password unless the spec is enriched to add them.",
-        },
         username: { type: "string", description: "Email for find_by_username." },
-        newPassword: { type: "string", description: "New password for reset_password." },
       },
       required: ["action"],
       additionalProperties: false,
     },
   },
 
-  // 4. manage_merchant_account
+  // 4. manage_merchant_account -- read-only umbrella (writes are in the generated per-action tools:
+  // create_merchant_account, edit_merchant_account, delete_merchant_account,
+  // attach_merchant_account, detach_merchant_account).
   {
     name: "manage_merchant_account",
-    title: "Manage merchant account",
+    title: "Manage merchant account (read-only)",
     description:
-      "Manage merchant accounts. " +
-      "Actions: get, list, create, edit, delete, attach, detach, three_d_check.",
+      "Read merchant accounts. " +
+      "Actions: get, list. For writes, use the dedicated per-action tools " +
+      "(create_merchant_account, edit_merchant_account, delete_merchant_account, " +
+      "attach_merchant_account, detach_merchant_account).",
+    annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["get", "list", "create", "edit", "delete", "attach", "detach", "three_d_check"],
-          description: "The operation to perform.",
+          enum: ["get", "list"],
+          description: "The read operation to perform.",
         },
         merchantAccountId: { type: "string", description: "Merchant account ID." },
         entityId: { type: "string", description: "Entity ID for context." },
@@ -180,20 +177,6 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           type: "string",
           enum: ["owned", "attached"],
           description: "MA scope for list (default: owned).",
-        },
-        fields: {
-          type: "object",
-          additionalProperties: { type: "string" },
-          description: "Fields for create or edit.",
-        },
-        subTypes: {
-          type: "string",
-          description: "Sub-types for attach (comma-separated).",
-        },
-        currency: { type: "string", description: "Currency code for attach." },
-        attachedMerchantAccountId: {
-          type: "string",
-          description: "Attached MA relationship ID for detach.",
         },
       },
       required: ["action"],
@@ -311,12 +294,13 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
       properties: {
         eventType: {
           type: "string",
+          // Part-II P2-D4: API-backed values come from the generated
+          // manifest-derived list; three extension-only events are appended.
           enum: [
-            "setting_change", "entity_create", "entity_edit", "entity_delete",
-            "contact_create", "contact_edit", "contact_delete", "contact_lock",
-            "contact_unlock", "contact_attach", "contact_detach",
-            "contact_password_reset", "ma_create", "ma_update", "ma_delete",
-            "ma_attach", "ma_detach", "env_switch",
+            ...AUDIT_EVENT_TYPES,
+            "setting_change",
+            "env_switch",
+            "contact_attach",
           ],
           description: "Filter by event type.",
         },

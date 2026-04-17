@@ -42,31 +42,23 @@ export type JobState =
 
 /**
  * Audit event types.
+/**
+ * Audit event type.
  *
- * Derived from `src_data/webapi-operation-manifest.json` (per D13) plus two
- * extension-only events: `setting_change` (local RiRo writes) and
- * `env_switch` (UI environment toggles). A test asserts both sides stay
- * in sync.
+ * Part-II P2-D4: the API-derived portion is generated from
+ * `src_data/webapi-audit-events.ts` (itself derived from the manifest).
+ * The three extension-only events -- `setting_change` (local RiRo writes),
+ * `env_switch` (UI environment toggles), and `contact_attach` (no per-action
+ * tool in the bundled spec) -- are declared here as literals. An alignment
+ * test asserts both sides stay in sync.
  */
+import type { ApiAuditEventType } from "../../src_data/webapi-audit-events";
+
 export type AuditEventType =
+  | ApiAuditEventType
   | "setting_change"
-  | "entity_create"
-  | "entity_edit"
-  | "entity_delete"
-  | "contact_create"
-  | "contact_edit"
-  | "contact_delete"
-  | "contact_lock"
-  | "contact_unlock"
-  | "contact_attach"
-  | "contact_detach"
-  | "contact_password_reset"
-  | "ma_create"
-  | "ma_update"
-  | "ma_delete"
-  | "ma_attach"
-  | "ma_detach"
-  | "env_switch";
+  | "env_switch"
+  | "contact_attach";
 
 export interface AuditEntry {
   id: string;

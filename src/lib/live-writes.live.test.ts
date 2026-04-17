@@ -11,12 +11,19 @@
  *   BASE_URL=https://eu-test.oppwa.com/bip/webapi/v1
  *   SMOKE_DIVISION_ID=<hex id>
  *
- * Tests exercise end-to-end create -> edit -> lock -> unlock -> delete on a
- * throwaway contact, then a create/delete merchant-account cycle. All calls
- * log method+path for auditability; credentials are scrubbed on log.
+ * Optional env (individual lifecycles skip gracefully when absent):
+ *   SMOKE_PSP_ID=<hex id>                   -- enables create_division lifecycle
+ *   SMOKE_CLEARING_INSTITUTE_ID=<id>        -- enables MA create/edit/delete
+ *   SMOKE_MERCHANT_ACCOUNT_ID=<id>          -- enables attach_merchant_account
  *
- * Contacts are always created on SMOKE_DIVISION_ID to keep the blast radius
- * predictable. If this env var is absent, the suite skips.
+ * Tests exercise end-to-end lifecycles on throwaway resources. Every path
+ * logs method+path for auditability; credentials are scrubbed on log.
+ *
+ * Part-II phase E -- coverage surface:
+ *   - contact: create / edit / lock / unlock / set_password / delete
+ *   - division: create / delete
+ *   - merchant account: create / edit / delete
+ *   - attach/detach: attach_merchant_account / detach (if MA id provided)
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -33,12 +40,41 @@ const describeIf = gate ? describe : describe.skip;
 describeIf("live write tests (UAT)", () => {
   const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
   let contactId: string | null = null;
+  let createdDivisionId: string | null = null;
+  let createdMaId: string | null = null;
+  let attachedMa: { parentType: string; parentId: string; merchantAccountId: string } | null = null;
 
   beforeAll(() => {
     console.log(`[live writes] division=${env.smokeDivisionId} stamp=${stamp}`);
   });
 
   afterAll(async () => {
+    // Cleanup order: detach first (if any attach succeeded), then delete
+    // resources in reverse creation order.
+    if (attachedMa) {
+      const res = await executeTypedTool(
+        "detach_merchant_account",
+        { ...attachedMa, confirm: true },
+        { creds: env.credentials, env: "uat" },
+      );
+      console.log(`[cleanup] detach_merchant_account -> ${res.status}`);
+    }
+    if (createdMaId) {
+      const res = await executeTypedTool(
+        "delete_merchant_account",
+        { merchantAccountId: createdMaId, confirm: true },
+        { creds: env.credentials, env: "uat" },
+      );
+      console.log(`[cleanup] delete_merchant_account ${createdMaId} -> ${res.status}`);
+    }
+    if (createdDivisionId) {
+      const res = await executeTypedTool(
+        "delete_entity",
+        { entityType: "division", entityId: createdDivisionId, confirm: true },
+        { creds: env.credentials, env: "uat" },
+      );
+      console.log(`[cleanup] delete_entity division ${createdDivisionId} -> ${res.status}`);
+    }
     if (contactId) {
       const res = await executeTypedTool(
         "delete_contact",
@@ -93,5 +129,91 @@ describeIf("live write tests (UAT)", () => {
       { creds: env.credentials, env: "uat" },
     );
     expect([200, 204]).toContain(unlock.status);
+  });
+
+  it("resets the contact password via set_contact_password", async () => {
+    if (!contactId) return;
+    const res = await executeTypedTool(
+      "set_contact_password",
+      { contactId, confirm: true },
+      { creds: env.credentials, env: "uat" },
+    );
+    // The endpoint returns 200 on success or 204 on no content.
+    expect([200, 204]).toContain(res.status);
+  });
+
+  it("create_division -> delete_entity lifecycle (SMOKE_PSP_ID gated)", async () => {
+    if (!env.smokePspId) {
+      console.log("[skip] create_division: SMOKE_PSP_ID not set");
+      return;
+    }
+    const created = await executeTypedTool<{ id?: string }>(
+      "create_division",
+      { pspId: env.smokePspId, name: `smoke-div-${stamp}`, state: "DISABLED" },
+      { creds: env.credentials, env: "uat" },
+    );
+    expect(created.ok).toBe(true);
+    const id = (created.data as { id?: string }).id;
+    expect(typeof id).toBe("string");
+    createdDivisionId = id ?? null;
+  });
+
+  it("create/edit/delete merchant account lifecycle (SMOKE_CLEARING_INSTITUTE_ID gated)", async () => {
+    if (!env.smokeClearingInstituteId || !env.smokeDivisionId) {
+      console.log("[skip] create_merchant_account: SMOKE_CLEARING_INSTITUTE_ID or SMOKE_DIVISION_ID not set");
+      return;
+    }
+    const created = await executeTypedTool<{ id?: string }>(
+      "create_merchant_account",
+      {
+        parentType: "division",
+        parentId: env.smokeDivisionId,
+        name: `smoke-ma-${stamp}`,
+        state: "TEST",
+        cleaingInstituteId: env.smokeClearingInstituteId,
+      },
+      { creds: env.credentials, env: "uat" },
+    );
+    expect(created.ok).toBe(true);
+    const id = (created.data as { id?: string }).id;
+    expect(typeof id).toBe("string");
+    createdMaId = id ?? null;
+
+    if (createdMaId) {
+      const edited = await executeTypedTool(
+        "edit_merchant_account",
+        { merchantAccountId: createdMaId, merchant3DName: `smoke-3d-${stamp}` },
+        { creds: env.credentials, env: "uat" },
+      );
+      expect(edited.ok).toBe(true);
+    }
+  });
+
+  it("attach_merchant_account lifecycle (SMOKE_MERCHANT_ACCOUNT_ID gated)", async () => {
+    if (!env.smokeMerchantAccountId || !env.smokeDivisionId) {
+      console.log("[skip] attach_merchant_account: SMOKE_MERCHANT_ACCOUNT_ID or SMOKE_DIVISION_ID not set");
+      return;
+    }
+    const res = await executeTypedTool(
+      "attach_merchant_account",
+      {
+        parentType: "division",
+        parentId: env.smokeDivisionId,
+        merchantAccountId: env.smokeMerchantAccountId,
+        confirm: true,
+      },
+      { creds: env.credentials, env: "uat" },
+    );
+    // Regression guard for Part-II P2-D2: MA attach now flows typed params
+    // at the top level. If this silently reverts to nesting under `fields`
+    // the server returns 400 here.
+    expect([200, 201, 204]).toContain(res.status);
+    if (res.ok) {
+      attachedMa = {
+        parentType: "division",
+        parentId: env.smokeDivisionId,
+        merchantAccountId: env.smokeMerchantAccountId,
+      };
+    }
   });
 });

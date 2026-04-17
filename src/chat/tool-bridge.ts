@@ -61,22 +61,31 @@ const CHAT_FORBIDDEN_KEYS = new Set([
   "examples",
 ]);
 
+// Part-II P2-D5: narrow, explicit drop list. Only these keys are removed
+// from handwritten/generated schemas on the chat path. Anything else --
+// including anything in CHAT_FORBIDDEN_KEYS -- flows through unchanged so
+// that assertChatSafeSchema below has a real chance to catch regressions
+// rather than silently cleaning them up.
+const CHAT_DROP_KEYS = new Set([
+  "additionalProperties",
+  "minimum",
+  "maximum",
+]);
+
 /**
- * Recursively builds a chat-safe copy of a JSON-Schema node.
- *
- * Only keys in CHAT_ALLOWED_KEYS survive; everything else (including
- * `additionalProperties`, `oneOf`, `example`, `minimum`, `default`, ...)
- * is dropped at build time. The output is guaranteed to pass
- * `assertChatSafeSchema` below.
+ * Recursively builds the chat-facing copy of a JSON-Schema node by
+ * dropping only the narrow, known non-subset keys in CHAT_DROP_KEYS.
+ * Every other key (allowed or forbidden) is preserved so the subsequent
+ * `assertChatSafeSchema` pass can validate the real authored shape.
  */
-function buildChatSchemaValue(value: unknown): unknown {
+export function buildChatSchemaValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => buildChatSchemaValue(item));
   if (!value || typeof value !== "object") return value;
 
   const source = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(source)) {
-    if (!CHAT_ALLOWED_KEYS.has(key)) continue;
+    if (CHAT_DROP_KEYS.has(key)) continue;
     if (key === "properties") {
       const props = source[key] as Record<string, unknown> | undefined;
       if (!props) continue;
