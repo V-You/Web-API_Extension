@@ -81,7 +81,6 @@ export function RunHistoryPage() {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Run history</h2>
         <div className="flex gap-1">
           <button
             onClick={downloadJson}

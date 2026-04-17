@@ -285,7 +285,6 @@ export function ChatPage() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold">Chat</h2>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
           writeToolsEnabled
             ? "bg-amber-50 text-amber-700"

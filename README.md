@@ -201,7 +201,9 @@ google-chrome-unstable \
 
 ### The agent gap (why Chat Tab)
 
-The extension exposes 37 tools via WebMCP (10 handwritten umbrellas + 27 published per-action tools generated from the ACI Web API manifest; `list_clearing_institutes` stays folded into the handwritten `lookup_clearing_institutes` tool), but consuming those tools requires an AI agent that supports WebMCP tool calling. As of 2026-04, no readily available browser-side agent fills that role for a simple demo:
+The extension exposes 37 tools via WebMCP (10 handwritten umbrellas + 27 published per-action tools generated from the ACI Web API manifest; `list_clearing_institutes` stays folded into the handwritten `lookup_clearing_institutes` tool), but consuming those tools requires an AI agent that supports WebMCP tool calling. 
+
+ Chat Tab is needed to demo the too. It's not using WebMCP, but re-publishing a curated subset of the WebMCP tool inventory through an adapter layer. As of 2026-04, no readily available browser-side agent fills the demo role:
 
 | Approach | Setup | Context binding | Verdict |
 |---|---|---|---|

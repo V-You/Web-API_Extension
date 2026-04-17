@@ -2,8 +2,8 @@
 
 ## Available tools
 
-- CodeGraphContext - MCP server for overview of codebase
-- context7 - MCP server for up to date docs
+- CodeGraphContext - MCP server to get an overview of codebase
+- context7 - MCP server to get up-to-date docs
 - chromedevtools - MCP server to inspect websites
 - Specs in base_data/ are the source of truth. This tool is a browser extension. Agents contact the website this extension is scoped for, and the extension exposes tools to the agents, enabling backend calls. The success of this extension completely depends on the accuracy of these backend calls, and the accuracy depends on religiously following the base_data/ specs. The specs are "alpha and omega".
 
