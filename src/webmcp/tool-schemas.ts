@@ -101,7 +101,9 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     title: "Manage contact",
     description:
       "Manage contacts (users) on entities. " +
-      "Actions: get, list, create, edit, delete, attach, detach, lock, unlock, reset_password, find_by_username.",
+      "Actions: get, list, create, edit, delete, attach, detach, lock, unlock, reset_password, find_by_username. " +
+      "For create, use the current bundled OpenAPI field shape rather than guessing a login payload. " +
+      "The bundled spec fields include email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail.",
     inputSchema: {
       type: "object",
       properties: {
@@ -129,7 +131,9 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         fields: {
           type: "object",
           additionalProperties: { type: "string" },
-          description: "Fields for create or edit.",
+          description:
+            "Fields for create or edit. For create, follow the bundled OpenAPI schema: email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail. " +
+            "Do not invent username, firstName, lastName, or password unless the spec is enriched to add them.",
         },
         username: { type: "string", description: "Email for find_by_username." },
         newPassword: { type: "string", description: "New password for reset_password." },

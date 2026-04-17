@@ -22,6 +22,21 @@ import { apiRequest } from "../lib/api-client";
 import { type EntityType, ENTITY_PLURAL } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 
+const CONTACT_CREATE_SPEC_EXAMPLE_FIELDS = [
+  "email",
+  "name",
+  "role",
+  "kind",
+  "language",
+] as const;
+
+const CONTACT_CREATE_NON_SPEC_GUESSES = [
+  "username",
+  "password",
+  "firstName",
+  "lastName",
+] as const;
+
 export interface ManageContactInput {
   action:
     | "get"
@@ -117,15 +132,19 @@ async function createContact(
   if (!prefix) return { error: "entityId and entityType are required for create." };
   if (!input.fields) return { error: "fields are required for create." };
 
-  return apiRequest(creds, env, {
+  const normalizedFields = normalizeCreateContactFields(input.fields);
+
+  const result = await apiRequest(creds, env, {
     method: "POST",
     path: `${prefix}/ownedContacts`,
-    params: input.fields,
+    params: normalizedFields,
   }, {
     eventType: "contact_create",
     entityId: input.entityId!,
     entityType: input.entityType!,
   });
+
+  return addCreateContactHint(result, normalizedFields);
 }
 
 async function editContact(
@@ -253,3 +272,68 @@ async function findByUsername(
     username: input.username,
   };
 }
+
+function normalizeCreateContactFields(fields: Record<string, string>): Record<string, string> {
+  return { ...fields };
+}
+
+function addCreateContactHint<T>(
+  result: { ok: boolean; status: number; data: T },
+  fields: Record<string, string>
+): { ok: boolean; status: number; data: T } {
+  if (!looksLikeMissingRequiredValuesError(result.data)) {
+    return result;
+  }
+
+  const missingExampleFields = CONTACT_CREATE_SPEC_EXAMPLE_FIELDS.filter((field) => !hasNonEmptyField(fields[field]));
+  const nonSpecFields = CONTACT_CREATE_NON_SPEC_GUESSES.filter((field) => hasNonEmptyField(fields[field]));
+  const hint = [
+    "Check the bundled OpenAPI contact schema instead of guessing login-style fields.",
+    "The current ownedContacts create schema exposes fields like email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail.",
+    nonSpecFields.length > 0
+      ? `The bundled spec does not list these create fields: ${nonSpecFields.join(", ")}.`
+      : null,
+    missingExampleFields.length > 0
+      ? `The bundled spec example includes fields not present in this request: ${missingExampleFields.join(", ")}.`
+      : null,
+    fields.kind === "OAUTH_APP" && !hasNonEmptyField(fields.oauthRedirectUrl)
+      ? "oauthRedirectUrl is described as required for OAUTH kind contacts."
+      : null,
+  ].filter(Boolean).join(" ");
+
+  return {
+    ...result,
+    data: addHintToErrorPayload(result.data, hint),
+  };
+}
+
+function looksLikeMissingRequiredValuesError(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+
+  const message = (data as { error?: { message?: unknown } }).error?.message;
+  return typeof message === "string"
+    && message.toLowerCase().includes("required values")
+    && message.toLowerCase().includes("missing");
+}
+
+function addHintToErrorPayload<T>(data: T, hint: string): T {
+  if (!data || typeof data !== "object") return data;
+
+  const current = data as { error?: Record<string, unknown> };
+  return {
+    ...current,
+    error: {
+      ...(current.error ?? {}),
+      hint,
+    },
+  } as T;
+}
+
+function hasNonEmptyField(value: string | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+export {
+  addCreateContactHint,
+  normalizeCreateContactFields,
+};

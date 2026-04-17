@@ -35,4 +35,14 @@ describe("tool schema definitions", () => {
       "lookup_clearing_institutes",
     ]);
   });
+
+  it("documents the common contact-create payload", () => {
+    const manageContact = TOOL_SCHEMAS.find((schema) => schema.name === "manage_contact");
+    const fields = (manageContact?.inputSchema as {
+      properties?: { fields?: { description?: string } };
+    }).properties?.fields;
+
+    expect(manageContact?.description).toContain("email, name, role, kind, language");
+    expect(fields?.description).toContain("Do not invent username, firstName, lastName, or password");
+  });
 });

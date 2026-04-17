@@ -5,6 +5,25 @@ module.exports = {
     },
   },
   config: (config) => {
+    if (config.mode === "production") {
+      // Keep source maps in dev, but omit them from production builds.
+      config.devtool = false;
+
+      // Production bundles must not ship dev-only hot reload runtime into
+      // the extension service worker or UI entrypoints.
+      config.plugins = (config.plugins || []).filter((plugin) => {
+        const name = plugin?.constructor?.name || "";
+        return !name.includes("ReactRefresh") && !name.includes("HotModuleReplacement");
+      });
+
+      if (config.builtins?.react) {
+        config.builtins.react = {
+          ...config.builtins.react,
+          refresh: false,
+        };
+      }
+    }
+
     // Node.js CLI scripts in tools-cli/ may still appear as implicit
     // dependencies during production builds -- stub out node builtins.
     config.resolve = config.resolve || {};

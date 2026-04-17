@@ -1,5 +1,23 @@
 # THIS PROJECT
 
+## Available tools
+
+- CodeGraphContext - MCP server for overview of codebase
+- context7 - MCP server for up to date docs
+- chromedevtools - MCP server to inspect websites
+- Specs in base_data/ are the source of truth. This tool is a browser extension. Agents contact the website this extension is scoped for, and the extension exposes tools to the agents, enabling backend calls. The success of this extension completely depends on the accuracy of these backend calls, and the accuracy depends on religiously following the base_data/ specs. The specs are "alpha and omega".
+
+## Decisions
+
+- List important decisions we made, add a brief note on rationale:
+- Accuracy is the way to go (over tool count, others)
+- ...
+
+## Learnings
+
+- List important learnings from debugging or research, plus note on rationale:
+- ...
+
 **Build order:**
 
 1. Tool handlers (the execute functions for each of the 9 tools)
@@ -11,8 +29,8 @@
 
 **Details:**
 
-- PRD = file `md/2026-03-20_PRD_v1.md`
-- If in doubt, ask or scan other files in md/ (PRD drew from those files)
+- Initial PRD = file `md/2026-03-20_PRD_v1.md`
+- Further PRD files followed, check files in `md/`
 
 # General
 

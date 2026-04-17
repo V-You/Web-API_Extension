@@ -68,7 +68,8 @@ The extension is a *Client-Side Adapter*. The <a href="https://github.com/snlr30
 
 - Google Chrome **146+** (Canary or Dev channel at the time of writing)
 - WebMCP testing flag enabled: navigate to `chrome://flags/#enable-webmcp-testing` and set it to **Enabled**
-- Node.js 20+ and npm 10+
+- Activate Chrome "Developer mode" in chrome://extensions
+- Node.js 20+ and npm 10+ (if you build)
 
 ### Build the extension
 
@@ -109,7 +110,7 @@ Repository note:
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top right)
 3. Click **Load unpacked** and select the `dist/chrome-mv3-dev` (dev) or `dist/chrome-mv3-prod` (build) folder
-4. Recommendation: "Pin" the extension to the bookmark toolbar
+4. "Pin" the extension to the bookmark toolbar
 5. Click Extension icon to open the side panel
 
 ### Permissions
