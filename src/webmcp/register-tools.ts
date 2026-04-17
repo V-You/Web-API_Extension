@@ -1,9 +1,11 @@
 /**
  * WebMCP tool registration.
  *
- * Registers all 9 tools via navigator.modelContext.registerTool().
- * Each execute callback resolves credentials from chrome.storage.session,
- * delegates to the corresponding tool handler, and returns the result.
+ * Registers the full tool catalog (10 handwritten umbrellas + 28 per-action
+ * tools generated from the Web API manifest) via
+ * `navigator.modelContext.registerTool()`. Each execute callback resolves
+ * credentials from chrome.storage.session, delegates to the corresponding
+ * tool handler, and returns the result.
  *
  * Call registerAllTools() once when the extension initialises (side panel mount).
  * Returns false if WebMCP is not available.

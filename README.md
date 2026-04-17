@@ -199,9 +199,9 @@ google-chrome-unstable \
 - In VS Code Insiders, the agent can use the Chrome DevTools MCP server to interact with WebMCP tools exposed by the extension.
 
 
-### The agent gap (why we added a Chat Tab)
+### The agent gap (why Chat Tab)
 
-The extension exposes 9 tools via WebMCP, but consuming those tools requires an AI agent that supports WebMCP tool calling. As of 2026-04, no readily available browser-side agent fills that role for a simple demo:
+The extension exposes 37 tools via WebMCP (10 handwritten umbrellas + 27 published per-action tools generated from the ACI Web API manifest; `list_clearing_institutes` stays folded into the handwritten `lookup_clearing_institutes` tool), but consuming those tools requires an AI agent that supports WebMCP tool calling. As of 2026-04, no readily available browser-side agent fills that role for a simple demo:
 
 | Approach | Setup | Context binding | Verdict |
 |---|---|---|---|
@@ -211,6 +211,34 @@ The extension exposes 9 tools via WebMCP, but consuming those tools requires an 
 | **Chat tab (BYOK)** | Enter LLM API key in extension | Entity-level (via content script) | Self-contained, no external tooling |
 
 The Chat Tab bridges this gap: the user installs the extension, enters API credentials and an LLM API key, and talks to the SaaS immediately. It is a pragmatic fallback -- not a replacement for a proper WebMCP-native agent. When Chrome's built-in AI or Gemini adds WebMCP support, the Chat Tab becomes optional.
+
+### Status matrix
+
+The project currently supports two distinct consumption paths:
+
+- **WebMCP-native agent path**: an external browser-capable agent visits the scoped site, discovers tools exposed by the extension, and calls them directly.
+- **Chat Tab path**: the extension itself calls a BYOK LLM adapter and exposes a curated internal tool catalog to that model. The model is not itself browsing the site or discovering WebMCP tools.
+
+That distinction matters because capabilities differ by path:
+
+| Capability | WebMCP-native browser agent | Chat Tab (BYOK API-key LLM) | Current status |
+|---|---|---|---|
+| Discover extension tools by visiting the scoped website | Yes | No | Supported only on the WebMCP path |
+| Call read tools directly | Yes | Yes | Supported on both paths |
+| Call write tools with confirmation | Yes | Yes | Supported on both paths |
+| Use per-action generated tools (`create_contact`, `attach_merchant_account`, etc.) | Yes | Yes | Supported on both paths |
+| Use handwritten read umbrellas (`manage_contact`, `manage_entity`, `manage_merchant_account`) | Yes | Yes | Supported on both paths as read-focused abstractions |
+| Submit `execute_workflow` / code mode scripts | Yes | No | Supported on the WebMCP path; intentionally excluded from Chat Tab |
+| Use the sandbox SDK facade (`sdk.entities`, `sdk.contacts`, `sdk.merchantAccounts`, `sdk.config`) | Yes, via `execute_workflow` | No | Supported only through code mode |
+| Receive dashboard context (`entityId`, entity type, section hints) | Agent-dependent | Yes | Chat Tab has built-in context scraping; WebMCP agents need their own browser/context layer |
+| Full browser automation (clicks, screenshots, navigation) | Agent-dependent | No | Not a Chat Tab goal |
+| Works today as a zero-extra-tooling demo path | Not reliably | Yes | Main reason the Chat Tab exists |
+
+Short version:
+
+- **Code mode is not paused.** It remains the advanced automation path for real WebMCP-capable agents.
+- **Chat Tab did not replace code mode.** It bypasses the lack of browser-native WebMCP agents by using an internal tool bridge instead.
+- **`execute_workflow` stays excluded from Chat Tab** for safety and scope reasons; the Chat Tab is intentionally narrower than the full WebMCP surface.
 
 ### Example workflow using the built-in Chat Tab
 
@@ -413,19 +441,24 @@ Write operations always require confirmation. If the Web API Extension side pane
 
 ### Tools
 
-Once the extension is loaded and unlocked, **9 tools** are published to any WebMCP-compatible agent (e.g. Chrome's built-in AI sidebar):
+Once the extension is loaded and unlocked, **37 tools** are published to any WebMCP-compatible agent (e.g. Chrome's built-in AI sidebar): 10 handwritten umbrellas + 27 published per-action tools generated from the ACI Web API manifest.
+
+Handwritten umbrellas (broad scope, read-only on the chat path for umbrellas with mutating siblings -- writes always go through the per-action tools):
 
 | Tool | Domain | What it does |
 |---|---|---|
-| `manage_entity` | Hierarchy | Get, search, list children, create, edit, delete entities (division / merchant / channel) |
+| `manage_entity` | Hierarchy | Get, search, list children (read-only umbrella) |
 | `get_hierarchy` | Hierarchy | Fetch the full entity tree with depth control and API-call estimation |
-| `manage_contact` | Contacts | CRUD, attach/detach, lock/unlock, password reset for users |
-| `manage_merchant_account` | Merchant accounts | CRUD, attach/detach for merchant accounts |
+| `manage_contact` | Contacts | Get, list, find by username (read-only umbrella) |
+| `manage_merchant_account` | Merchant accounts | Get, list (read-only umbrella) |
 | `lookup_clearing_institutes` | Merchant accounts | Search 195 clearing institutes by keyword, get required field mappings |
 | `describe_settings` | Settings | Search RiRo settings by keyword, shortcode, or glossary and family alias; returns TypeScript interface snippets |
 | `manage_settings` | Settings | Get, set, batch get, batch set, list non-default settings |
+| `describe_operation` | Meta | Return the manifest entry for a tool (parameters, audit tag, endpoint) |
 | `execute_workflow` | Code mode | Execute a script in a local sandbox against the virtual SDK |
 | `get_audit_log` | Audit | Retrieve local audit entries with filters |
+
+Per-action tools (28) are generated from `src_data/webapi-operation-manifest.json` into `src/webmcp/generated-tool-schemas.ts` and cover `create_*`, `edit_*`, `delete_*`, `attach_*`, `detach_*`, `lock_contact`, `unlock_contact`, `set_contact_password`, plus the granular `get_*` / `list_*` reads. See [Generated artifacts](#generated-artifacts) below.
 
 All write operations go through a **preview-then-confirm** flow: the extension shows the exact API calls and the user approves or cancels.
 
@@ -489,8 +522,8 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 
 | Layer | Module(s) | Role |
 |---|---|---|
-| **WebMCP registration** | `src/webmcp/register-tools.ts` | Registers 9 tools via `navigator.modelContext.registerTool()`. Intercepts direct writes with a confirmation prompt. |
-| **Tool handlers** | `src/tools/*.ts` (9 files) | One handler per tool. Each validates input (Zod), calls the API client, and returns structured results. |
+| **WebMCP registration** | `src/webmcp/register-tools.ts` | Registers 37 tools via `navigator.modelContext.registerTool()` (10 handwritten + 27 generated). Intercepts direct writes with a confirmation prompt. |
+| **Tool handlers** | `src/tools/*.ts` + generated adapter | Handwritten umbrellas + a typed adapter (`src/tools/adapter.ts`) that runs every generated per-action tool via the manifest. Each validates input (Zod for umbrellas; manifest-derived field validation for per-action tools), calls the API client, and returns structured results. |
 | **Sandbox** | `src/sandbox/sandbox.ts`, `sdk-facade.ts` | `AsyncFunction`-based sandbox for code mode. The SDK facade wraps all handlers as callable methods and routes writes through the confirm bridge. |
 | **Virtual SDK** | `src/sdk/riro-tree.ts`, `proxy.ts`, `sdk.ts` | Type-on-demand settings layer. Parses `riro_consolidated_lookup.json` into a nested tree with Zod schemas, flattens typed objects back to flat RiRo keys at write time. |
 | **Confirm bridge** | `src/bridge/confirm-bridge.ts` | Singleton promise-based bridge: tool handler requests confirmation, side panel UI resolves it. Supports scoped auto-confirm ("confirm all") for batch operations. |
@@ -514,6 +547,22 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 | Encryption | Web Crypto API (PBKDF2 + AES-GCM) |
 | Sandbox | `AsyncFunction` constructor |
 
+### Generated artifacts
+
+Four files in `src_data/` are generated from the bundled ACI Web API OpenAPI spec via `npm run generate:manifest`. They are the single source of truth for every per-action tool, every typed SDK param, and every audit event type. CI enforces they are in sync via `npm run generate:manifest:check`.
+
+| File | Purpose |
+|---|---|
+| `src_data/webapi-operation-manifest.json` | Flat list of API operations with logical fields, validation rules, parent variants, audit tags, and endpoint metadata. Consumed by the adapter, per-action tool schema generator, and describe_operation. |
+| `src_data/webapi-operation-manifest.d.ts` | Ambient TypeScript declaration for the JSON above. |
+| `src_data/webapi-sdk.d.ts` | Typed `Params_*` interfaces + `WebApiSdk` function map. Consumed at runtime by `src/sandbox/sdk-facade.ts` (which re-exports the params) so code-mode scripts get autocomplete on every per-action write. |
+| `src_data/webapi-audit-events.ts` | Pure-data module: `AUDIT_EVENT_TYPES` const + `ApiAuditEventType` literal union. Consumed by `src/lib/types.ts` (audit union) and `src/webmcp/tool-schemas.ts` (`get_audit_log.eventType` enum). Three extension-only events (`setting_change`, `env_switch`, `contact_attach`) are declared next to the import. |
+
+Regenerate after editing the OpenAPI spec in `base_data/`:
+
+```bash
+npm run generate:manifest
+```
 
 ---
 
