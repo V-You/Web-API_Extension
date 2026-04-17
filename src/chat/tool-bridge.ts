@@ -32,20 +32,104 @@ function cloneSchema(schema: ToolSchema): ToolSchema {
   return JSON.parse(JSON.stringify(schema)) as ToolSchema;
 }
 
-function sanitizeSchemaValue(value: unknown): unknown {
+// D11 – Gemini-safe schema subset. Only these JSON-Schema keys are allowed
+// in chat-facing declarations. Arrays need `items`; the rest are listed
+// literally by the PRD.
+const CHAT_ALLOWED_KEYS = new Set([
+  "type",
+  "properties",
+  "required",
+  "enum",
+  "description",
+  "pattern",
+  "format",
+  "items",
+]);
+
+// D11 – explicit block list so regressions fail loudly instead of being
+// silently stripped. Kept as a separate set to produce clearer error
+// messages than "unknown key".
+const CHAT_FORBIDDEN_KEYS = new Set([
+  "oneOf",
+  "allOf",
+  "anyOf",
+  "$ref",
+  "not",
+  "additionalProperties",
+  // D12 – chat token budget; full examples live in describe_operation.
+  "example",
+  "examples",
+]);
+
+/**
+ * Recursively builds a chat-safe copy of a JSON-Schema node.
+ *
+ * Only keys in CHAT_ALLOWED_KEYS survive; everything else (including
+ * `additionalProperties`, `oneOf`, `example`, `minimum`, `default`, ...)
+ * is dropped at build time. The output is guaranteed to pass
+ * `assertChatSafeSchema` below.
+ */
+function buildChatSchemaValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => buildChatSchemaValue(item));
+  if (!value || typeof value !== "object") return value;
+
+  const source = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(source)) {
+    if (!CHAT_ALLOWED_KEYS.has(key)) continue;
+    if (key === "properties") {
+      const props = source[key] as Record<string, unknown> | undefined;
+      if (!props) continue;
+      out.properties = Object.fromEntries(
+        Object.entries(props).map(([pk, pv]) => [pk, buildChatSchemaValue(pv)]),
+      );
+      continue;
+    }
+    out[key] = buildChatSchemaValue(source[key]);
+  }
+  return out;
+}
+
+function buildChatSchema(schema: ToolSchema): ToolSchema {
+  const base = cloneSchema(schema);
+  return {
+    name: base.name,
+    title: base.title,
+    description: base.description,
+    ...(base.annotations ? { annotations: base.annotations } : {}),
+    inputSchema: buildChatSchemaValue(base.inputSchema) as Record<string, unknown>,
+  };
+}
+
+/**
+ * Asserts that the given JSON-Schema node only contains chat-safe keys
+ * (D11). Replaces the old `sanitizeSchemaValue` stripper – a violation
+ * now throws instead of being silently cleaned, so snapshot tests catch
+ * regressions.
+ */
+export function assertChatSafeSchema(value: unknown, path = "$"): void {
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizeSchemaValue(item));
+    value.forEach((item, idx) => assertChatSafeSchema(item, `${path}[${idx}]`));
+    return;
   }
+  if (!value || typeof value !== "object") return;
 
-  if (!value || typeof value !== "object") {
-    return value;
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (CHAT_FORBIDDEN_KEYS.has(key)) {
+      throw new Error(`chat schema violation at ${path}: forbidden key "${key}"`);
+    }
+    if (!CHAT_ALLOWED_KEYS.has(key)) {
+      throw new Error(`chat schema violation at ${path}: unknown key "${key}"`);
+    }
+    const child = (value as Record<string, unknown>)[key];
+    if (key === "properties" && child && typeof child === "object") {
+      for (const [propName, propValue] of Object.entries(child as Record<string, unknown>)) {
+        assertChatSafeSchema(propValue, `${path}.properties.${propName}`);
+      }
+      continue;
+    }
+    assertChatSafeSchema(child, `${path}.${key}`);
   }
-
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([key]) => key !== "additionalProperties")
-    .map(([key, nested]) => [key, sanitizeSchemaValue(nested)]);
-
-  return Object.fromEntries(entries);
 }
 
 function filterSchemaProperties(schema: ToolSchema): ToolSchema {
@@ -80,7 +164,9 @@ function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}):
   if (isGenerated) {
     const readOnly = schema.annotations?.readOnlyHint === true;
     if (!options.writeToolsEnabled && !readOnly) return null;
-    return sanitizeSchemaValue(cloneSchema(schema)) as ToolSchema;
+    const chatSchema = buildChatSchema(schema);
+    assertChatSafeSchema(chatSchema.inputSchema);
+    return chatSchema;
   }
 
   const next = options.writeToolsEnabled ? cloneSchema(schema) : filterSchemaProperties(cloneSchema(schema));
@@ -93,7 +179,9 @@ function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}):
     actionProperty.enum = actionProperty.enum.filter((action) => allowedActions.includes(action));
   }
 
-  return sanitizeSchemaValue(next) as ToolSchema;
+  const chatSchema = buildChatSchema(next);
+  assertChatSafeSchema(chatSchema.inputSchema);
+  return chatSchema;
 }
 
 export function getChatToolSchemas(options: ChatToolCatalogOptions = {}): ToolSchema[] {
