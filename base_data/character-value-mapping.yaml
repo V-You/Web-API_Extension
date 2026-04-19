@@ -1,0 +1,93 @@
+character_value_mapping:
+  normalization:
+    collapse_whitespace: true
+  raw_to_canonical:
+    "-": skip
+    "[a-f 0-9]": lower_hex
+    "[a-f0-9]": lower_hex
+    "[A-Z a-z 0-9], [-_ ]": alnum_dash_underscore_space
+    "[A-Za-z0-9], [-_ ]": alnum_dash_underscore_space
+    "[A-Za-z 0-9], [-_ ]": alnum_dash_underscore_space
+    "[A-Z a-z 0-9], [-_]": alnum_dash_underscore
+    "[A-Z a-z 0-9],[-_]": alnum_dash_underscore
+    "[A-Za-z0-9], [-_]": alnum_dash_underscore
+    "[0-9]": digits
+    "[A-Z]": upper_alpha
+    "[A-Z a-z 0-9]": alnum
+    "any": unrestricted
+    "true/false": boolean_like
+    "true or false": boolean_like
+    "YYYY-MM-DD HH:mm:ss": timestamp_seconds
+    "ACTIVE/SUSPENDED/DELETED": active_suspended_deleted
+    "the URL": url_like
+    "[A-Z a-z 0-9]*5,=": needs_review
+  canonical:
+    skip:
+      action: skip
+      confidence: high
+      reason: "Placeholder or non-constraint value. Rely on description or enum text instead."
+    lower_hex:
+      action: apply_pattern
+      confidence: high
+      pattern: "^[a-f0-9]*$"
+    alnum_dash_underscore_space:
+      action: apply_pattern
+      confidence: medium
+      pattern: "^[A-Za-z0-9 _-]*$"
+    alnum_dash_underscore:
+      action: apply_pattern
+      confidence: medium
+      pattern: "^[A-Za-z0-9_-]*$"
+    digits:
+      action: apply_pattern
+      confidence: high
+      pattern: "^[0-9]*$"
+    upper_alpha:
+      action: apply_pattern
+      confidence: high
+      pattern: "^[A-Z]*$"
+    alnum:
+      action: apply_pattern
+      confidence: medium
+      pattern: "^[A-Za-z0-9]*$"
+    unrestricted:
+      action: skip
+      confidence: high
+      reason: "No usable restriction."
+    boolean_like:
+      action: suggest_boolean
+      confidence: medium
+      preferred_type: boolean
+      fallback_string_enum:
+        - "true"
+        - "false"
+      apply_when:
+        spec_type_in:
+          - boolean
+          - string
+          - null
+    timestamp_seconds:
+      action: apply_pattern
+      confidence: high
+      pattern: "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$"
+      note: "Legacy timestamp format is not RFC3339. Use a regex pattern, not OpenAPI format: date-time."
+    active_suspended_deleted:
+      action: apply_enum
+      confidence: medium
+      enum:
+        - ACTIVE
+        - SUSPENDED
+        - DELETED
+      apply_when:
+        field_name_in:
+          - state
+    url_like:
+      action: suggest_format
+      confidence: medium
+      suggested_format: uri
+      apply_when:
+        field_name_matches: "(?i)(url|uri)$"
+    needs_review:
+      action: review
+      confidence: low
+      reason: "Observed value is ambiguous and should not be converted automatically."

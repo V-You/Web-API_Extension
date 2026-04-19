@@ -13,6 +13,7 @@
 - Accuracy is the way to go (over tool count, others)
 - API QUIRK: Entity DELETE only soft-deletes, option "includeDisabled" added (for power users)
 - API QUIRK: Add Contact on Channel level is supported, but not mentioned in spec, no action taken for now (because it's uncommon)
+- Chat tab meta questions about model identity should answer with the configured Gemini model identifier, not with extension persona text or safe/write mode state (to avoid confusing model identity with chat permissions)
 - ...
 
 ## Learnings

@@ -9,6 +9,7 @@ tmp/
 node_modules/
 dist/
 base_data/*
+!base_data/character-value-mapping.yaml
 .venv
 .claude/
 CLAUDE.md

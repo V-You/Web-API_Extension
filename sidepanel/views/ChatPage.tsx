@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityType } from "../../src/lib/entity-types";
-import { CHAT_WRITE_TOOLS_KEY, isChatWriteToolsEnabled, setChatWriteToolsEnabled } from "../../src/chat/chat-mode";
+import {
+  CHAT_SHOW_TOOL_TRACES_KEY,
+  CHAT_WRITE_TOOLS_KEY,
+  isChatShowToolTracesEnabled,
+  isChatWriteToolsEnabled,
+  setChatShowToolTracesEnabled,
+  setChatWriteToolsEnabled,
+} from "../../src/chat/chat-mode";
 import {
   DEFAULT_CHAT_PROVIDER,
   DEFAULT_GEMINI_MODEL,
@@ -47,6 +54,7 @@ export function ChatPage() {
   const [manualEntityId, setManualEntityId] = useState("");
   const [writeToolsEnabled, setWriteToolsEnabledState] = useState(false);
   const [modeBusy, setModeBusy] = useState(false);
+  const [showToolTraces, setShowToolTracesState] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [autoUseContext, setAutoUseContext] = useState(true);
   const [showManualOverride, setShowManualOverride] = useState(false);
@@ -69,6 +77,7 @@ export function ChatPage() {
       );
     });
     isChatWriteToolsEnabled().then(setWriteToolsEnabledState);
+    isChatShowToolTracesEnabled().then(setShowToolTracesState);
     isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
     refreshContext();
 
@@ -76,6 +85,9 @@ export function ChatPage() {
       if (area === "session") {
         if (changes[CHAT_WRITE_TOOLS_KEY]) {
           setWriteToolsEnabledState(changes[CHAT_WRITE_TOOLS_KEY].newValue === true);
+        }
+        if (changes[CHAT_SHOW_TOOL_TRACES_KEY]) {
+          setShowToolTracesState(changes[CHAT_SHOW_TOOL_TRACES_KEY].newValue === true);
         }
         void refreshContext();
       }
@@ -205,6 +217,17 @@ export function ChatPage() {
     }
   }
 
+  async function handleToggleToolTraces() {
+    const next = !showToolTraces;
+
+    try {
+      await setChatShowToolTracesEnabled(next);
+      setShowToolTracesState(next);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Failed to update tool trace visibility.");
+    }
+  }
+
   async function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || busy) return;
@@ -242,7 +265,10 @@ export function ChatPage() {
         model: savedSettings.model,
         history,
         userText: `${contextText}\n\nUser request: ${trimmed}`,
-        systemPrompt: buildChatSystemPrompt({ writeToolsEnabled }),
+        systemPrompt: buildChatSystemPrompt({
+          writeToolsEnabled,
+          modelName: savedSettings.model,
+        }),
         tools: getChatToolDeclarations({ writeToolsEnabled }),
         executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled }),
       });
@@ -394,6 +420,28 @@ export function ChatPage() {
             )}
           </div>
 
+          {/* Tool traces */}
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <span className="font-medium text-slate-600">Tool traces</span>
+            <p className="text-slate-500">
+              Show raw tool-call cards in the message list. This is mainly for debugging and may include expected dead ends or intermediate notes.
+            </p>
+            <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showToolTraces}
+                onChange={() => void handleToggleToolTraces()}
+                className="rounded border-slate-300"
+              />
+              Show tool traces
+            </label>
+            {!showToolTraces && (
+              <p className="text-slate-500">
+                Off by default - intermediate tool traces stay hidden unless you need to inspect them.
+              </p>
+            )}
+          </div>
+
           {/* Model */}
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center gap-2">
@@ -473,7 +521,7 @@ export function ChatPage() {
         ) : (
           messages.map((message) => {
             if (message.role === "tool") {
-              return <ToolMessage key={message.id} message={message} />;
+              return showToolTraces ? <ToolMessage key={message.id} message={message} /> : null;
             }
 
             return (
@@ -524,20 +572,29 @@ function ToolMessage({
 }: {
   message: Extract<DisplayMessage, { role: "tool" }>;
 }) {
-  // A tool result is "ok" if the handler produced any value that is not an Error-shaped
-  // object. The chat adapter surfaces errors as { error: ... } or throws, so treat an
-  // object with an `error` key as a failure signal.
-  const isError =
-    typeof message.result === "object" &&
-    message.result !== null &&
-    "error" in (message.result as Record<string, unknown>);
+  const result =
+    typeof message.result === "object" && message.result !== null
+      ? (message.result as Record<string, unknown>)
+      : null;
+  const isHardFailure =
+    result !== null
+    && (("ok" in result && result.ok === false)
+      || ("status" in result && typeof result.status === "number" && result.status >= 400));
+  const isGuidance = result !== null && "error" in result && !isHardFailure;
+  const statusLabel = isHardFailure ? "error" : isGuidance ? "note" : "ok";
+  const statusClass = isHardFailure
+    ? "text-red-600"
+    : isGuidance
+      ? "text-amber-700"
+      : "text-emerald-600";
+  const statusSymbol = isHardFailure ? "\u2717" : isGuidance ? "\u25cf" : "\u2713";
 
   return (
     <details className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
       <summary className="cursor-pointer font-medium text-slate-700 flex items-center gap-1">
         <span className="font-mono text-blue-600">{message.toolName}</span>
-        <span className={isError ? "text-red-600" : "text-emerald-600"}>
-          {isError ? "\u2717 error" : "\u2713 ok"}
+        <span className={statusClass}>
+          {`${statusSymbol} ${statusLabel}`}
         </span>
       </summary>
       <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-2xs text-slate-600">

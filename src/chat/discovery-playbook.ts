@@ -20,13 +20,18 @@ export const CHAT_DISCOVERY_PROMPT_CHIPS = PLAYBOOK.promptChips;
 
 export interface ChatSystemPromptOptions {
   writeToolsEnabled?: boolean;
+  modelName?: string;
 }
 
 export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): string {
   const writeToolsEnabled = options.writeToolsEnabled === true;
+  const configuredModel = options.modelName?.trim() || "Gemini";
 
   return [
     "You are the Web API Extension assistant for ACI BIP.",
+    `The underlying LLM currently configured for this chat is ${configuredModel}.`,
+    "If the user asks about your model, model name, or version, answer with the configured Gemini model identifier directly.",
+    "Do not describe safe mode or write mode as your model name or version - those are chat tool permissions, not model identity.",
     writeToolsEnabled
       ? "Write tools are enabled for this browser session."
       : "This chat runs in safe mode.",

@@ -20,7 +20,14 @@ vi.stubGlobal("chrome", {
   },
 });
 
-import { CHAT_WRITE_TOOLS_KEY, isChatWriteToolsEnabled, setChatWriteToolsEnabled } from "./chat-mode";
+import {
+  CHAT_SHOW_TOOL_TRACES_KEY,
+  CHAT_WRITE_TOOLS_KEY,
+  isChatShowToolTracesEnabled,
+  isChatWriteToolsEnabled,
+  setChatShowToolTracesEnabled,
+  setChatWriteToolsEnabled,
+} from "./chat-mode";
 
 describe("chat mode", () => {
   beforeEach(() => {
@@ -37,5 +44,16 @@ describe("chat mode", () => {
 
     expect(sessionStore[CHAT_WRITE_TOOLS_KEY]).toBe(true);
     expect(await isChatWriteToolsEnabled()).toBe(true);
+  });
+
+  it("hides tool traces by default", async () => {
+    expect(await isChatShowToolTracesEnabled()).toBe(false);
+  });
+
+  it("stores the tool trace visibility toggle in session storage", async () => {
+    await setChatShowToolTracesEnabled(true);
+
+    expect(sessionStore[CHAT_SHOW_TOOL_TRACES_KEY]).toBe(true);
+    expect(await isChatShowToolTracesEnabled()).toBe(true);
   });
 });
