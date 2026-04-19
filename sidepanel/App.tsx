@@ -77,7 +77,10 @@ export function App() {
         {view === "connections" && (
           <ConnectionsPage onChanged={() => checkState()} />
         )}
-        {view === "chat" && <ChatPage />}
+        {/* Keep ChatPage mounted so conversation state survives tab switches */}
+        <div className={view === "chat" ? "" : "hidden"}>
+          <ChatPage />
+        </div>
         {view === "history" && <RunHistoryPage />}
         {view === "jobs" && <JobMonitor />}
       </main>

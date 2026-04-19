@@ -234,8 +234,13 @@ export async function executeTypedTool<T = unknown>(
           (params.entityId as string | undefined) ??
           (params.merchantAccountId as string | undefined) ??
           (params.parentId as string | undefined) ??
+          // Fall back to the first resolved path param (e.g. merchantId, divisionId)
+          op.pathParams.reduce<string | undefined>(
+            (found, p) => found ?? (params[p.name] as string | undefined),
+            undefined,
+          ) ??
           "",
-        entityType: (parentType ?? "") as string,
+        entityType: (parentType ?? op.parentEntityType ?? "") as string,
       }
     : undefined;
 
