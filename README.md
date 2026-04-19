@@ -242,6 +242,19 @@ Short version:
 - **Chat Tab did not replace code mode.** It bypasses the lack of browser-native WebMCP agents by using an internal tool bridge instead.
 - **`execute_workflow` stays excluded from Chat Tab** for safety and scope reasons; the Chat Tab is intentionally narrower than the full WebMCP surface.
 
+--- 
+
+**What would shrink the tool count:**
+
+- **WebMCP-only world:** the 10 per-action read tools become redundant (the umbrellas already cover them). That's 37 -> 27.
+- **If WebMCP agents handle complex schemas well:** the 18 per-action write tools could fold back into the 3 write umbrellas (manage_entity, manage_contact, manage_merchant_account). That's 27 -> 12. But accuracy data says otherwise -- splitting was deliberate.
+
+**Pitch line:**
+
+> "37 tools, but 10 of those are read-only duplicates that only exist for the BYOK chat adapter's schema constraints. In a WebMCP-only deployment, the extension exposes 27 tools. 8 are multi-action read umbrellas, 1 is a self-describing meta-tool, and 18 are one-tool-per-write-operation -- split deliberately because accuracy testing showed that bundled write schemas caused field confusion in models."
+
+--- 
+
 ### Example workflow using the built-in Chat Tab
 
 1. Open the side panel -> **Chat** tab

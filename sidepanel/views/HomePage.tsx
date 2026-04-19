@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
 import { useCredentialStore } from "../../src/hooks/useCredentialStore";
-import { getCredentials } from "../../src/lib/storage";
-import { buildConnectionProbeUrl, classifyConnectionProbeResponse } from "../../src/lib/connection-probe";
+import { useConnectionStatus } from "../hooks/useConnectionStatus";
 
 // -- Tool catalog for the expandable cards --------------------------------
 
@@ -97,52 +97,8 @@ const TOOL_CATEGORIES: ToolCategory[] = [
 ];
 
 export function HomePage() {
-  const { isUnlocked, activeEnv }     = useCredentialStore();
-  const [connStatus, setConnStatus]   = useState<"checking" | "ok" | "fail" | null>(null);
-  const [connMessage, setConnMessage] = useState("Not connected");
-
-  // Check connection status when unlocked
-  useEffect(() => {
-    if (!isUnlocked || !activeEnv) {
-      setConnStatus(null);
-      setConnMessage("Not connected");
-      return;
-    }
-    setConnStatus("checking");
-    setConnMessage("Checking connection...");
-    getCredentials(activeEnv).then((creds) => {
-      const url = creds ? buildConnectionProbeUrl(creds) : null;
-      const scopeLabel = creds?.scopeEntityId
-        ? `${creds.scopeEntityType ?? "psp"} ${creds.scopeEntityId}`
-        : creds?.pspId
-          ? `psp ${creds.pspId}`
-          : "saved scope";
-
-      if (!creds || !url) {
-        setConnStatus("fail");
-        setConnMessage("Connection not configured -- add credentials and entity scope in Connections.");
-        return;
-      }
-
-      fetch(url, {
-        method: "GET",
-        headers: { credentials: `${creds.username}:${creds.password}` },
-      })
-        .then(async (res) => {
-          const result = await classifyConnectionProbeResponse(res);
-          setConnStatus(result.ok ? "ok" : "fail");
-          setConnMessage(
-            result.ok
-              ? `Connected to Web API (${activeEnv.toUpperCase()}, ${scopeLabel})`
-              : `${activeEnv.toUpperCase()} Web API check failed for ${scopeLabel}: ${result.message}`,
-          );
-        })
-        .catch((err) => {
-          setConnStatus("fail");
-          setConnMessage(err instanceof Error ? err.message : "Connection failed.");
-        });
-    });
-  }, [isUnlocked, activeEnv]);
+  const { isUnlocked } = useCredentialStore();
+  const { status: connStatus, message: connMessage, retry } = useConnectionStatus();
 
   if (!isUnlocked) {
     return (
@@ -152,26 +108,40 @@ export function HomePage() {
     );
   }
 
+  const isChecking = connStatus === "checking";
+
   return (
     <div className="space-y-4">
 
       {/* Connection status */}
       <div className="flex items-center gap-2 text-xs">
-        <span
-          className={`inline-block w-3 h-3 rounded-full ${
-            connStatus === "ok"
-              ? "bg-green-500"
-              : connStatus === "fail"
-                ? "bg-red-500"
-                : "bg-slate-300 animate-pulse"
-          }`}
-        />
-        <span className="text-slate-500">
-          {connMessage}
-        </span>
+        {isChecking ? (
+          <Loader2 className="w-3 h-3 text-slate-400 animate-spin" aria-hidden="true" />
+        ) : (
+          <span
+            className={`inline-block w-3 h-3 rounded-full ${
+              connStatus === "ok"
+                ? "bg-emerald-500"
+                : connStatus === "fail"
+                  ? "bg-red-500"
+                  : "bg-slate-300"
+            }`}
+          />
+        )}
+        <span className="flex-1 text-slate-500">{connMessage}</span>
+        {connStatus === "fail" && (
+          <button
+            onClick={retry}
+            aria-label="Retry connection check"
+            title="Retry connection check"
+            className="text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded p-0.5"
+          >
+            <RefreshCw className="w-3 h-3" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
-      <p className="text-[11px] text-slate-400 mt-1">
+      <p className="text-2xs text-slate-400 mt-1">
         {TOOL_CATEGORIES.reduce((n, c) => n + c.handwritten.length + c.generated.length, 0)} tools
         available. Click a category to see details.
       </p>
@@ -183,8 +153,8 @@ export function HomePage() {
       </div>
 
       {/* Build info */}
-      <p className="text-slate-400 text-[10px] mt-6 text-center">
-        Built {__BUILD_TIMESTAMP__}
+      <p className="text-slate-400 text-2xs mt-6 text-center">
+        Version {__APP_VERSION__} &middot; Built {__BUILD_TIMESTAMP__}
       </p>
     </div>
   );
@@ -204,8 +174,13 @@ function ToolCategoryCard({ category }: { category: ToolCategory }) {
           <span className="block text-sm font-medium">{category.label}</span>
           <span className="block text-xs text-slate-500 mt-0.5">{category.description}</span>
         </div>
-        <span className="text-slate-400 text-xs shrink-0 ml-2">
-          {total} {open ? "\u25B2" : "\u25BC"}
+        <span className="flex items-center gap-1 text-slate-400 text-xs shrink-0 ml-2">
+          {total}
+          {open ? (
+            <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+          )}
         </span>
       </button>
 
@@ -213,8 +188,8 @@ function ToolCategoryCard({ category }: { category: ToolCategory }) {
         <div className="px-3 pb-3 pt-1 border-t border-slate-100 space-y-2">
           {category.handwritten.length > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                Multi-Tools
+              <p className="text-2xs uppercase tracking-wide text-slate-400 mb-1">
+                Umbrella tools
               </p>
               <ul className="space-y-0.5">
                 {category.handwritten.map((t) => (
@@ -225,8 +200,8 @@ function ToolCategoryCard({ category }: { category: ToolCategory }) {
           )}
           {category.generated.length > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                Action-Tools <span className="normal-case">(generated from API spec)</span>
+              <p className="text-2xs uppercase tracking-wide text-slate-400 mb-1">
+                Per-action tools <span className="normal-case">(generated from API spec)</span>
               </p>
               <ul className="space-y-0.5">
                 {category.generated.map((t) => (
@@ -244,7 +219,7 @@ function ToolCategoryCard({ category }: { category: ToolCategory }) {
 function ToolRow({ tool }: { tool: ToolEntry }) {
   return (
     <li className="flex items-baseline gap-1.5 text-xs">
-      <code className="text-[11px] text-blue-600 shrink-0">{tool.name}</code>
+      <code className="text-2xs text-blue-600 shrink-0">{tool.name}</code>
       <span className="text-slate-400">&ndash;</span>
       <span className="text-slate-500">{tool.hint}</span>
     </li>

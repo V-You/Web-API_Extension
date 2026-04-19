@@ -56,6 +56,8 @@ declare global {
 
   /** Injected at build time by DefinePlugin. */
   const __BUILD_TIMESTAMP__: string;
+  /** Injected at build time from package.json. */
+  const __APP_VERSION__: string;
 }
 
 export {};

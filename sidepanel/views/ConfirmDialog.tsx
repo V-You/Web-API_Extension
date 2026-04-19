@@ -6,10 +6,31 @@
  * Confirm / Cancel buttons (+ "Confirm all" in sandbox scope).
  */
 
+import { useEffect, useRef } from "react";
 import { useConfirm } from "../../src/bridge/use-confirm";
 
 export function ConfirmDialog() {
   const { pending, confirm, cancel, confirmAll } = useConfirm();
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const confirmAllRef = useRef<HTMLButtonElement | null>(null);
+  const confirmRef = useRef<HTMLButtonElement | null>(null);
+
+  // Escape dismisses as Cancel. Enter is intentionally NOT bound: destructive
+  // writes should require a deliberate click, and a stray Enter in a text
+  // field could otherwise trigger the write.
+  useEffect(() => {
+    if (!pending) return;
+    cancelRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancel();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending, cancel]);
+
   if (!pending) return null;
 
   const { preview, hasScope } = pending;
@@ -20,9 +41,32 @@ export function ConfirmDialog() {
     ([, v]) => v !== undefined && v !== null && v !== ""
   );
 
+  // Tab cycles Cancel -> Confirm all (if present) -> Confirm -> Cancel.
+  // Shift+Tab cycles the reverse direction.
+  function trapFocus(e: React.KeyboardEvent) {
+    if (e.key !== "Tab") return;
+    const order = [cancelRef.current, hasScope ? confirmAllRef.current : null, confirmRef.current].filter(
+      (el): el is HTMLButtonElement => el !== null,
+    );
+    if (order.length === 0) return;
+    const idx = order.indexOf(document.activeElement as HTMLButtonElement);
+    if (idx === -1) return;
+    const next = e.shiftKey
+      ? order[(idx - 1 + order.length) % order.length]
+      : order[(idx + 1) % order.length];
+    e.preventDefault();
+    next.focus();
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-[340px] max-h-[90vh] flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm write operation"
+      onKeyDown={trapFocus}
+    >
+      <div className="bg-white rounded-lg shadow-xl w-modal max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div
           className={`px-4 py-3 border-b flex items-center gap-2 ${
@@ -47,10 +91,10 @@ export function ConfirmDialog() {
           {/* Method + tool badge */}
           <div className="flex items-center gap-2 text-xs">
             <span
-              className={`font-mono font-semibold px-1.5 py-0.5 rounded ${
+              className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
                 preview.method === "DELETE"
-                  ? "bg-red-100 text-red-700"
-                  : "bg-amber-100 text-amber-700"
+                  ? "bg-red-100 text-red-700 border-red-300"
+                  : "bg-amber-100 text-amber-700 border-amber-300"
               }`}
             >
               {preview.method}
@@ -78,6 +122,7 @@ export function ConfirmDialog() {
         {/* Footer */}
         <div className="px-4 py-3 border-t border-slate-200 flex items-center gap-2">
           <button
+            ref={cancelRef}
             onClick={cancel}
             className="flex-1 px-3 py-1.5 text-xs font-medium rounded border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
           >
@@ -85,13 +130,16 @@ export function ConfirmDialog() {
           </button>
           {hasScope && (
             <button
+              ref={confirmAllRef}
               onClick={confirmAll}
+              title="Approve all remaining operations in this batch"
               className="flex-1 px-3 py-1.5 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50 transition-colors"
             >
               Confirm all
             </button>
           )}
           <button
+            ref={confirmRef}
             onClick={confirm}
             className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded text-white transition-colors ${
               isProd

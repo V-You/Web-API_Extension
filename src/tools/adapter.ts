@@ -147,6 +147,28 @@ function buildDescription(toolName: ToolName, params: Record<string, unknown>): 
   return id ? `${toolName} (${id})` : toolName;
 }
 
+/**
+ * Strip soft-deleted items (state === "DISABLED") from list responses.
+ * The API uses soft-delete -- the Dashboard hides these, so we match that UX.
+ * Returns the count of hidden items so the caller can annotate.
+ */
+function filterDisabledFromList(data: Record<string, unknown>): number {
+  let hidden = 0;
+  for (const key of Object.keys(data)) {
+    const val = data[key];
+    if (!Array.isArray(val)) continue;
+    const before = val.length;
+    data[key] = val.filter(
+      (item: unknown) =>
+        typeof item !== "object" ||
+        item === null ||
+        (item as Record<string, unknown>).state !== "DISABLED",
+    );
+    hidden += before - (data[key] as unknown[]).length;
+  }
+  return hidden;
+}
+
 export async function executeTypedTool<T = unknown>(
   toolName: ToolName,
   rawParams: Record<string, unknown>,
@@ -199,7 +221,10 @@ export async function executeTypedTool<T = unknown>(
   // 4. Destructive gating.
   const destructiveValue = findDestructiveValue(op, params);
   const isDestructive = op.destructive || destructiveValue !== null;
-  const confirmBypass = options.confirm === true || rawParams.confirm === true;
+  // Only honour confirm bypass from the options object (set programmatically
+  // by trusted callers like the sandbox). Never trust rawParams.confirm --
+  // a model can pass it to skip the dialog.
+  const confirmBypass = options.confirm === true;
   if (isDestructive && !confirmBypass) {
     const preview: WritePreview = {
       tool: toolName,
@@ -254,6 +279,19 @@ export async function executeTypedTool<T = unknown>(
     },
     auditMeta,
   );
+
+  // 7. Strip soft-deleted items from list responses.
+  if (
+    res.ok &&
+    toolName.startsWith("list_") &&
+    res.data &&
+    typeof res.data === "object"
+  ) {
+    const hidden = filterDisabledFromList(res.data as Record<string, unknown>);
+    if (hidden > 0) {
+      (res.data as Record<string, unknown>)._hiddenDisabled = hidden;
+    }
+  }
 
   if (!isReadOnlyTool(toolName)) {
     options.onWriteAccepted?.(buildDescription(toolName, params));

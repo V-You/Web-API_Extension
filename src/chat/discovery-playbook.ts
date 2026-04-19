@@ -37,6 +37,7 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
       ? "Every mutating tool call still goes through the existing preview-confirm flow before execution."
       : "Never attempt writes or code execution.",
     ...PLAYBOOK.principles,
+    "Entities with state DISABLED are soft-deleted. List tools automatically hide them. If the result includes _hiddenDisabled, mention how many were hidden. Do not count or list disabled entities unless the user explicitly asks about deleted items.",
     "Discovery playbook:",
     ...PLAYBOOK.playbooks.map((entry) => `${entry.trigger}: ${entry.steps.join(" ")}`),
     "Response style:",

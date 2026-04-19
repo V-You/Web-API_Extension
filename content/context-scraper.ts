@@ -302,9 +302,31 @@ async function reportContext() {
 if (typeof window !== "undefined" && typeof document !== "undefined") {
   window.addEventListener("load", scheduleReport);
   window.addEventListener("pageshow", scheduleReport);
+
+  // Capture clicks -- schedule two passes: one quick (250ms) and one delayed
+  // (800ms) to catch SPA navigations where the URL and title update after the
+  // click event.
   document.addEventListener("click", () => {
     scheduleReport();
+    setTimeout(scheduleReport, 800);
   }, true);
+
+  // SPA history navigations: intercept pushState / replaceState so we detect
+  // URL changes immediately, and listen for popstate (back/forward).
+  const origPushState = history.pushState.bind(history);
+  const origReplaceState = history.replaceState.bind(history);
+
+  history.pushState = function (...args: Parameters<typeof origPushState>) {
+    origPushState(...args);
+    scheduleReport();
+  };
+
+  history.replaceState = function (...args: Parameters<typeof origReplaceState>) {
+    origReplaceState(...args);
+    scheduleReport();
+  };
+
+  window.addEventListener("popstate", scheduleReport);
 
   const observer = new MutationObserver(() => {
     scheduleReport();

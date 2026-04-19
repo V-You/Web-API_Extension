@@ -13,6 +13,8 @@ import {
   type WriteStatusEntry,
 } from "../../src/bridge/write-status";
 
+const PROPAGATION_WINDOW_MS = 180_000;
+
 export function WriteStatusToast() {
   const statuses = useSyncExternalStore(subscribeWriteStatus, getWriteStatuses, getWriteStatuses);
   // Tick every second so elapsed timers update while entries are visible
@@ -23,10 +25,17 @@ export function WriteStatusToast() {
     return () => clearInterval(id);
   }, [statuses.length]);
 
+  // Auto-dismiss entries after the propagation window expires
+  useEffect(() => {
+    const stale = statuses.filter((e) => e.status === "pending_propagation" && e.elapsedMs >= PROPAGATION_WINDOW_MS);
+    stale.forEach((e) => dismissWriteStatus(e.id));
+  }, [statuses]);
+
   if (statuses.length === 0) return null;
 
+  // Positioned below header (which sits at top of panel) to avoid colliding with chat input and other bottom controls
   return (
-    <div className="fixed bottom-16 right-3 left-3 z-40 space-y-1.5">
+    <div className="fixed top-12 right-3 left-3 z-40 space-y-1.5">
       {statuses.map((entry) => (
         <StatusCard key={entry.id} entry={entry} />
       ))}
@@ -40,8 +49,8 @@ function StatusCard({ entry }: { entry: WriteStatusEntry }) {
   const styles: Record<string, { bg: string; text: string; label: string }> = {
     accepted: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", label: "Accepted" },
     pending_propagation: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", label: "Pending propagation" },
-    likely_propagated: { bg: "bg-green-50 border-green-200", text: "text-green-600", label: "Likely propagated" },
-    verified: { bg: "bg-green-50 border-green-200", text: "text-green-700", label: "Verified" },
+    likely_propagated: { bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-600", label: "Likely propagated" },
+    verified: { bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700", label: "Verified" },
   };
 
   const s = styles[status] ?? styles.accepted;

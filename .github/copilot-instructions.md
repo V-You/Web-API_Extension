@@ -11,6 +11,8 @@
 
 - List important decisions we made, add a brief note on rationale:
 - Accuracy is the way to go (over tool count, others)
+- API QUIRK: Entity DELETE only soft-deletes, option "includeDisabled" added (for power users)
+- API QUIRK: Add Contact on Channel level is supported, but not mentioned in spec, no action taken for now (because it's uncommon)
 - ...
 
 ## Learnings

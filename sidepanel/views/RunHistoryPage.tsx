@@ -1,5 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
+import { Trash2 } from "lucide-react";
 import type { AuditEntry, Environment } from "../../src/lib/types";
+import { Input, Select } from "../components";
+
+type TimeRange = "all" | "24h" | "7d" | "30d";
+const TIME_RANGE_MS: Record<Exclude<TimeRange, "all">, number> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+};
 
 /**
  * Run history page -- shows a local audit log of API operations.
@@ -12,14 +21,17 @@ import type { AuditEntry, Environment } from "../../src/lib/types";
  */
 export function RunHistoryPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [filterType, setFilterType] = useState<string>("");
   const [filterEntity, setFilterEntity] = useState("");
+  const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     chrome.storage.local.get("audit").then((result) => {
       const log = (result.audit ?? []) as AuditEntry[];
       setEntries([...log].reverse());
+      setLoaded(true);
     });
   }, []);
 
@@ -41,8 +53,12 @@ export function RunHistoryPage() {
           e.entityType.toLowerCase().includes(q),
       );
     }
+    if (timeRange !== "all") {
+      const cutoff = Date.now() - TIME_RANGE_MS[timeRange];
+      result = result.filter((e) => Date.parse(e.timestamp) >= cutoff);
+    }
     return result;
-  }, [entries, filterType, filterEntity]);
+  }, [entries, filterType, filterEntity, timeRange]);
 
   function downloadJson() {
     const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" });
@@ -67,11 +83,16 @@ export function RunHistoryPage() {
     await chrome.storage.local.set({ audit: [...updated].reverse() });
   }
 
+  // Suppress both the empty state and the list while the audit log is still
+  // being read from chrome.storage to avoid a visible flash of "No operations
+  // recorded yet." before the real entries arrive.
+  if (!loaded) return null;
+
   if (entries.length === 0) {
     return (
       <div className="text-center py-12 text-slate-500">
         <p className="text-sm">No operations recorded yet.</p>
-        <p className="text-xs mt-1 text-slate-400">
+        <p className="text-2xs mt-1 text-slate-400">
           API calls made through the extension will appear here.
         </p>
       </div>
@@ -84,13 +105,13 @@ export function RunHistoryPage() {
         <div className="flex gap-1">
           <button
             onClick={downloadJson}
-            className="text-[10px] text-slate-500 hover:text-slate-700 border border-slate-200 rounded px-1.5 py-0.5"
+            className="text-2xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded px-1.5 py-0.5"
           >
             JSON
           </button>
           <button
             onClick={downloadCsv}
-            className="text-[10px] text-slate-500 hover:text-slate-700 border border-slate-200 rounded px-1.5 py-0.5"
+            className="text-2xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded px-1.5 py-0.5"
           >
             CSV
           </button>
@@ -99,26 +120,36 @@ export function RunHistoryPage() {
 
       {/* Filters */}
       <div className="flex gap-2">
-        <select
+        <Select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="text-xs border border-slate-200 rounded px-1.5 py-1"
+          aria-label="Filter by event type"
         >
           <option value="">All types</option>
           {eventTypes.map((t) => (
             <option key={t} value={t}>{formatEvent(t)}</option>
           ))}
-        </select>
-        <input
-          type="text"
-          placeholder="Filter by entity..."
-          value={filterEntity}
-          onChange={(e) => setFilterEntity(e.target.value)}
-          className="flex-1 text-xs border border-slate-200 rounded px-2 py-1"
-        />
+        </Select>
+        <Select
+          value={timeRange}
+          onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+          aria-label="Filter by time range"
+        >
+          <option value="all">All time</option>
+          <option value="24h">Last 24 hours</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+        </Select>
       </div>
+      <Input
+        type="text"
+        placeholder="Filter by entity..."
+        value={filterEntity}
+        onChange={(e) => setFilterEntity(e.target.value)}
+        aria-label="Filter by entity"
+      />
 
-      <p className="text-[10px] text-slate-400">
+      <p className="text-2xs text-slate-400">
         {filtered.length} of {entries.length} entries
       </p>
 
@@ -135,9 +166,10 @@ export function RunHistoryPage() {
                 <button
                   onClick={() => handleDelete(entry.id)}
                   title="Delete entry"
-                  className="text-slate-400 hover:text-red-500 ml-1 text-[10px]"
+                  aria-label="Delete entry"
+                  className="text-slate-400 hover:text-red-500 ml-1 rounded p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
-                  x
+                  <Trash2 className="w-3 h-3" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -151,14 +183,14 @@ export function RunHistoryPage() {
                 onClick={() =>
                   setExpandedId(expandedId === entry.id ? null : entry.id)
                 }
-                className="text-[10px] text-blue-500 hover:text-blue-700"
+                className="text-2xs text-blue-500 hover:text-blue-700"
               >
                 {expandedId === entry.id ? "collapse" : "raw"}
               </button>
             </div>
             {/* Expand/raw toggle per PRD 2.3 */}
             {expandedId === entry.id && (
-              <pre className="mt-1.5 p-2 bg-slate-50 rounded text-[10px] text-slate-600 overflow-x-auto max-h-40">
+              <pre className="mt-1.5 p-2 bg-slate-50 rounded text-2xs text-slate-600 overflow-x-auto max-h-40">
                 {JSON.stringify(entry, null, 2)}
               </pre>
             )}
@@ -172,7 +204,7 @@ export function RunHistoryPage() {
 function EnvBadge({ env }: { env: Environment }) {
   return (
     <span
-      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+      className={`text-2xs font-medium px-1.5 py-0.5 rounded ${
         env === "prod"
           ? "bg-red-100 text-red-700"
           : "bg-blue-100 text-blue-700"
@@ -186,7 +218,7 @@ function EnvBadge({ env }: { env: Environment }) {
 function StatusBadge({ status }: { status: number }) {
   const ok = status >= 200 && status < 300;
   return (
-    <span className={ok ? "text-green-600" : "text-red-600"}>
+    <span className={ok ? "text-emerald-600" : "text-red-600"}>
       {status}
     </span>
   );

@@ -121,11 +121,20 @@ describe("typed-write adapter", () => {
     expect(requestConfirmMock).toHaveBeenCalledTimes(1);
   });
 
-  it("bypasses the confirm bridge when confirm=true is passed explicitly", async () => {
+  it("ignores confirm=true in rawParams (model cannot bypass dialog)", async () => {
     await executeTypedTool(
       "delete_contact",
       { contactId: "c1", confirm: true },
       { creds, env },
+    );
+    expect(requestConfirmMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("bypasses the confirm bridge when options.confirm=true (trusted caller)", async () => {
+    await executeTypedTool(
+      "delete_contact",
+      { contactId: "c1" },
+      { creds, env, confirm: true },
     );
     expect(requestConfirmMock).not.toHaveBeenCalled();
   });
@@ -153,5 +162,68 @@ describe("typed-write adapter", () => {
   it("returns ok=false for an unknown tool name", async () => {
     const res = await executeTypedTool("does_not_exist", {}, { creds, env });
     expect(res.ok).toBe(false);
+  });
+
+  it("filters out DISABLED items from list tool responses", async () => {
+    apiRequestMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        channels: [
+          { channel: "ch1", name: "Active", state: "LIVE" },
+          { channel: "ch2", name: "Deleted", state: "DISABLED" },
+          { channel: "ch3", name: "Test", state: "CONNECTOR_TEST" },
+        ],
+      },
+    });
+    const res = await executeTypedTool(
+      "list_channels",
+      { merchantId: "aabbccdd00112233" },
+      { creds, env },
+    );
+    expect(res.ok).toBe(true);
+    const data = res.data as { channels: { channel: string }[]; _hiddenDisabled: number };
+    expect(data.channels).toHaveLength(2);
+    expect(data.channels.map((c) => c.channel)).toEqual(["ch1", "ch3"]);
+    expect(data._hiddenDisabled).toBe(1);
+  });
+
+  it("does not add _hiddenDisabled when no items are filtered", async () => {
+    apiRequestMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        channels: [
+          { channel: "ch1", name: "Active", state: "LIVE" },
+        ],
+      },
+    });
+    const res = await executeTypedTool(
+      "list_channels",
+      { merchantId: "aabbccdd00112233" },
+      { creds, env },
+    );
+    expect(res.ok).toBe(true);
+    const data = res.data as { channels: unknown[]; _hiddenDisabled?: number };
+    expect(data.channels).toHaveLength(1);
+    expect(data._hiddenDisabled).toBeUndefined();
+  });
+
+  it("does not filter DISABLED items from non-list tools", async () => {
+    apiRequestMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        channelInfo: { channel: "aabbccdd00112233", state: "DISABLED" },
+      },
+    });
+    const res = await executeTypedTool(
+      "get_entity",
+      { parentType: "channel", parentId: "aabbccdd00112233" },
+      { creds, env },
+    );
+    expect(res.ok).toBe(true);
+    const data = res.data as { channelInfo: { state: string } };
+    expect(data.channelInfo.state).toBe("DISABLED");
   });
 });

@@ -12,8 +12,8 @@ import {
   saveLlmProviderSettings,
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
-import { buildChatSystemPrompt, CHAT_DISCOVERY_PROMPT_CHIPS } from "../../src/chat/discovery-playbook";
-import { getActiveChatContext, getActiveBipTabId, type ChatContextRecord } from "../../src/chat/context-store";
+import { buildChatSystemPrompt } from "../../src/chat/discovery-playbook";
+import { getActiveChatContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
 
@@ -21,24 +21,11 @@ type DisplayMessage =
   | { id: string; role: "user" | "assistant"; text: string }
   | { id: string; role: "tool"; toolName: string; args: Record<string, unknown>; result: unknown };
 
-function humanizeContextSection(section: string | undefined): string | null {
-  if (!section) return null;
-
-  switch (section) {
-    case "attachedMerchantAccounts":
-      return "attached merchant accounts";
-    case "ownedMerchantAccounts":
-      return "owned merchant accounts";
-    case "merchantAccounts":
-      return "merchant accounts";
-    case "attachedContacts":
-      return "attached contacts";
-    case "ownedContacts":
-      return "owned contacts";
-    default:
-      return section.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-  }
-}
+const CURATED_CHIPS = [
+  "What entity is this?",
+  "What is the dupe check set to?",
+  "List all users",
+];
 
 export function ChatPage() {
   const [history, setHistory] = useState<GeminiContent[]>([]);
@@ -60,6 +47,9 @@ export function ChatPage() {
   const [manualEntityId, setManualEntityId] = useState("");
   const [writeToolsEnabled, setWriteToolsEnabledState] = useState(false);
   const [modeBusy, setModeBusy] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [autoUseContext, setAutoUseContext] = useState(true);
+  const [showManualOverride, setShowManualOverride] = useState(false);
 
   const refreshContext = useCallback(async () => {
     const context = await getActiveChatContext();
@@ -133,7 +123,7 @@ export function ChatPage() {
       };
     }
 
-    if (detectedContext) {
+    if (autoUseContext && detectedContext) {
       return {
         entityId: detectedContext.entityId,
         entityType: detectedContext.entityType,
@@ -142,9 +132,7 @@ export function ChatPage() {
     }
 
     return null;
-  }, [detectedContext, manualEntityId, manualEntityType]);
-
-  const contextState = effectiveContext?.source ?? "missing";
+  }, [autoUseContext, detectedContext, manualEntityId, manualEntityType]);
 
   async function handleSaveSettings() {
     const apiKey = apiKeyInput.trim() || savedSettings?.apiKey;
@@ -282,10 +270,18 @@ export function ChatPage() {
     }
   }
 
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Cmd+Enter (macOS) or Ctrl+Enter (others) sends the message.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !busy && input.trim()) {
+      e.preventDefault();
+      void handleSend();
+    }
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col h-full space-y-3">
       <div className="flex items-center gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+        <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
           writeToolsEnabled
             ? "bg-amber-50 text-amber-700"
             : "bg-emerald-50 text-emerald-700"
@@ -298,46 +294,6 @@ export function ChatPage() {
         >
           Settings
         </button>
-      </div>
-
-      <p className="text-xs text-slate-500">
-        {writeToolsEnabled
-          ? "Write tools are enabled for this browser session. Use chat for scoped changes, but every write still requires explicit confirmation."
-          : "Read-only by default, but built for discovery: inspect hierarchy, settings, contacts, merchant accounts, and risk configuration from the current entity."}
-      </p>
-
-      <div className={`rounded-md border p-3 text-xs ${
-        writeToolsEnabled
-          ? "border-amber-200 bg-amber-50 text-amber-900"
-          : "border-emerald-200 bg-emerald-50 text-emerald-900"
-      }`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="font-medium">
-              {writeToolsEnabled ? "Write tools are enabled for this browser session." : "Safe mode is active by default."}
-            </p>
-            <p>
-              {writeToolsEnabled
-                ? "Mutating tools are now available in chat, but the existing preview-confirm flow still runs before any change is executed."
-                : "Chat can inspect and reason over the current SaaS context, but it will not attempt writes until you explicitly enable them for this browser session."}
-            </p>
-          </div>
-          <button
-            onClick={() => void handleToggleWriteTools()}
-            disabled={modeBusy || busy}
-            className={`rounded-md px-3 py-1.5 font-medium disabled:opacity-50 ${
-              writeToolsEnabled
-                ? "bg-white text-amber-700 hover:bg-amber-100"
-                : "bg-white text-emerald-700 hover:bg-emerald-100"
-            }`}
-          >
-            {modeBusy
-              ? "Updating..."
-              : writeToolsEnabled
-                ? "Disable write tools"
-                : "Enable write tools"}
-          </button>
-        </div>
       </div>
 
       {settingsWarning && (
@@ -361,126 +317,142 @@ export function ChatPage() {
       )}
 
       {settingsOpen && (
-        <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
-          <div>
-            <label className="mb-1 block font-medium text-slate-600">Provider</label>
-            <select className="w-full rounded-md border border-slate-200 px-2 py-1.5" value="gemini" disabled>
-              <option value="gemini">Gemini</option>
-              <option value="anthropic">Anthropic (planned)</option>
-              <option value="openai">OpenAI (planned)</option>
-              <option value="ollama">Ollama (planned)</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block font-medium text-slate-600">Gemini API key</label>
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(event) => setApiKeyInput(event.target.value)}
-              placeholder={savedSettings ? "Leave blank to keep the saved key" : "AI..."}
-              className="w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block font-medium text-slate-600">Model</label>
-            <input
-              type="text"
-              value={modelInput}
-              onChange={(event) => setModelInput(event.target.value)}
-              className="w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block font-medium text-slate-600">PIN</label>
-            <input
-              type="password"
-              value={pinInput}
-              onChange={(event) => setPinInput(event.target.value)}
-              placeholder="Required to encrypt the Gemini key"
-              className="w-full rounded-md border border-slate-200 px-2 py-1.5"
-            />
-          </div>
-          {settingsError && <p className="text-red-600">{settingsError}</p>}
-          <div className="flex gap-2">
-            <button
-              onClick={() => void handleSaveSettings()}
-              disabled={settingsBusy}
-              className="rounded-md bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {settingsBusy ? "Saving..." : "Save Gemini settings"}
-            </button>
-            {savedSettings && (
+        <div className="space-y-2 text-xs">
+          {/* Mode */}
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <span className="font-medium text-slate-600">Mode</span>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-slate-500">
+                {writeToolsEnabled
+                  ? "Write tools enabled. Every write goes through confirmation."
+                  : "Safe mode. Read-only tools only."}
+              </p>
               <button
-                onClick={() => void handleForgetSettings()}
-                className="rounded-md px-3 py-1.5 text-red-600 hover:text-red-700"
+                onClick={() => void handleToggleWriteTools()}
+                disabled={modeBusy || busy}
+                className={`shrink-0 rounded-md px-3 py-1.5 font-medium disabled:opacity-50 ${
+                  writeToolsEnabled
+                    ? "bg-white text-amber-700 hover:bg-amber-100"
+                    : "bg-white text-emerald-700 hover:bg-emerald-100"
+                }`}
               >
-                Remove
+                {modeBusy
+                  ? "..."
+                  : writeToolsEnabled
+                    ? "Disable"
+                    : "Enable"}
               </button>
+            </div>
+          </div>
+
+          {/* Context */}
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <span className="font-medium text-slate-600">Context</span>
+            {detectedContext ? (
+              <p className="text-slate-700">
+                Detected: {detectedContext.entityType} {detectedContext.entityId}
+                {detectedContext.entityName ? ` (${detectedContext.entityName})` : ""}
+              </p>
+            ) : (
+              <p className="text-slate-500">No entity detected yet -- navigate to an entity in the dashboard.</p>
             )}
+            <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoUseContext}
+                onChange={(event) => setAutoUseContext(event.target.checked)}
+                className="rounded border-slate-300"
+              />
+              Use detected entity automatically
+            </label>
+            <button
+              onClick={() => setShowManualOverride((v) => !v)}
+              className="text-slate-500 hover:text-slate-700 underline underline-offset-2"
+            >
+              {showManualOverride ? "Hide manual override" : "Manual override"}
+            </button>
+            {showManualOverride && (
+              <div className="flex gap-2">
+                <select
+                  value={manualEntityType}
+                  onChange={(event) => setManualEntityType(event.target.value as EntityType)}
+                  className="rounded-md border border-slate-200 px-2 py-1.5"
+                >
+                  <option value="psp">PSP</option>
+                  <option value="division">Division</option>
+                  <option value="merchant">Merchant</option>
+                  <option value="channel">Channel</option>
+                </select>
+                <input
+                  type="text"
+                  value={manualEntityId}
+                  onChange={(event) => setManualEntityId(event.target.value)}
+                  placeholder="Entity ID"
+                  className="flex-1 rounded-md border border-slate-200 px-2 py-1.5"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Model */}
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-slate-600">Model</span>
+              <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-slate-700">Gemini</span>
+            </div>
+            <div>
+              <label className="mb-1 block font-medium text-slate-600">API key</label>
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(event) => setApiKeyInput(event.target.value)}
+                placeholder={savedSettings ? "Leave blank to keep the saved key" : "AI..."}
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block font-medium text-slate-600">Model</label>
+              <input
+                type="text"
+                value={modelInput}
+                onChange={(event) => setModelInput(event.target.value)}
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block font-medium text-slate-600">PIN</label>
+              <input
+                type="password"
+                value={pinInput}
+                onChange={(event) => setPinInput(event.target.value)}
+                placeholder="Required to encrypt the API key"
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5"
+              />
+            </div>
+            {settingsError && <p className="text-red-600">{settingsError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleSaveSettings()}
+                disabled={settingsBusy}
+                className="rounded-md bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {settingsBusy ? "Saving..." : "Save"}
+              </button>
+              {savedSettings && (
+                <button
+                  onClick={() => void handleForgetSettings()}
+                  className="rounded-md px-3 py-1.5 text-red-600 hover:text-red-700"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-slate-600">Context</span>
-          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 border border-slate-200">
-            {contextState}
-          </span>
-        </div>
-        {detectedContext ? (
-          <p className="text-slate-700">
-            Detected: {detectedContext.entityType} {detectedContext.entityId}
-            {detectedContext.entityName ? ` (${detectedContext.entityName})` : ""}
-          </p>
-        ) : (
-          <p className="text-slate-500">No entity detected from the current BIP tab.</p>
-        )}
-        {detectedContext?.section && (
-          <p className="text-slate-500">
-            Current section: {humanizeContextSection(detectedContext.section)}
-          </p>
-        )}
-        <p className="text-slate-500">
-          Tip: ask in UI language such as "plausibility checks", "dupe check", "blacklist", or "3DS" -- chat should resolve those labels to the underlying settings.
-        </p>
-        <div className="flex gap-2">
-          <select
-            value={manualEntityType}
-            onChange={(event) => setManualEntityType(event.target.value as EntityType)}
-            className="rounded-md border border-slate-200 px-2 py-1.5"
-          >
-            <option value="psp">PSP</option>
-            <option value="division">Division</option>
-            <option value="merchant">Merchant</option>
-            <option value="channel">Channel</option>
-          </select>
-          <input
-            type="text"
-            value={manualEntityId}
-            onChange={(event) => setManualEntityId(event.target.value)}
-            placeholder="Manual entity ID override"
-            className="flex-1 rounded-md border border-slate-200 px-2 py-1.5"
-          />
-          <button
-            onClick={async () => {
-              const tabId = await getActiveBipTabId();
-              if (!tabId) return;
-              const context = await getActiveChatContext();
-              if (context) {
-                setManualEntityType(context.entityType);
-                setManualEntityId(context.entityId);
-              }
-            }}
-            className="rounded-md border border-slate-200 px-2 py-1.5 text-slate-600 hover:bg-white"
-          >
-            Use detected
-          </button>
-        </div>
-      </div>
-
       <div className="flex flex-wrap gap-2">
-        {CHAT_DISCOVERY_PROMPT_CHIPS.map((chip) => (
+        {CURATED_CHIPS.map((chip) => (
           <button
             key={chip}
             onClick={() => setInput(chip)}
@@ -491,7 +463,7 @@ export function ChatPage() {
         ))}
       </div>
 
-      <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 min-h-[260px] max-h-[420px] overflow-y-auto">
+      <div className="flex-1 min-h-0 space-y-2 rounded-md border border-slate-200 bg-white p-3 overflow-y-auto">
         {messages.length === 0 ? (
           <p className="text-xs text-slate-500">
             {writeToolsEnabled
@@ -501,16 +473,7 @@ export function ChatPage() {
         ) : (
           messages.map((message) => {
             if (message.role === "tool") {
-              return (
-                <details key={message.id} className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
-                  <summary className="cursor-pointer font-medium text-slate-700">
-                    tool: {message.toolName}
-                  </summary>
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] text-slate-600">
-{JSON.stringify({ args: message.args, result: message.result }, null, 2)}
-                  </pre>
-                </details>
-              );
+              return <ToolMessage key={message.id} message={message} />;
             }
 
             return (
@@ -535,9 +498,12 @@ export function ChatPage() {
         <textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={writeToolsEnabled
-            ? "Ask about the current entity or request a confirmed change..."
-            : "Ask a read-only question about the current entity..."}
+          onKeyDown={handleInputKeyDown}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
+          placeholder={inputFocused ? "" : (writeToolsEnabled
+            ? "Ask about the current entity or request a confirmed change... (Cmd+Enter to send)"
+            : "Ask a read-only question about the current entity... (Cmd+Enter to send)")}
           rows={3}
           className="flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         />
@@ -550,5 +516,33 @@ export function ChatPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+function ToolMessage({
+  message,
+}: {
+  message: Extract<DisplayMessage, { role: "tool" }>;
+}) {
+  // A tool result is "ok" if the handler produced any value that is not an Error-shaped
+  // object. The chat adapter surfaces errors as { error: ... } or throws, so treat an
+  // object with an `error` key as a failure signal.
+  const isError =
+    typeof message.result === "object" &&
+    message.result !== null &&
+    "error" in (message.result as Record<string, unknown>);
+
+  return (
+    <details className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
+      <summary className="cursor-pointer font-medium text-slate-700 flex items-center gap-1">
+        <span className="font-mono text-blue-600">{message.toolName}</span>
+        <span className={isError ? "text-red-600" : "text-emerald-600"}>
+          {isError ? "\u2717 error" : "\u2713 ok"}
+        </span>
+      </summary>
+      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-2xs text-slate-600">
+{JSON.stringify({ args: message.args, result: message.result }, null, 2)}
+      </pre>
+    </details>
   );
 }
