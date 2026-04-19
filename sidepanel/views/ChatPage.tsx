@@ -572,10 +572,12 @@ export function ChatPage() {
             return (
               <div
                 key={message.id}
-                className={`rounded-md px-3 py-2 text-sm whitespace-pre-wrap ${
+                className={`rounded-md px-3 py-2 text-sm ${
                   message.role === "user"
-                    ? "ml-8 bg-blue-50 text-blue-900"
-                    : "mr-8 bg-slate-50 text-slate-800"
+                    ? "ml-8 whitespace-pre-wrap bg-blue-50 text-blue-900"
+                    : renderMarkdown
+                      ? "mr-8 bg-slate-50 text-slate-800"
+                      : "mr-8 whitespace-pre-wrap bg-slate-50 text-slate-800"
                 }`}
               >
                 {message.role === "assistant" && message.consultedResources && message.consultedResources.length > 0 && (

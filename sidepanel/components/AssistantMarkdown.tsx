@@ -64,23 +64,23 @@ export function AssistantMarkdown({ text }: { text: string }) {
           return <h4 {...props} className="mt-2 text-sm font-medium first:mt-0">{children}</h4>;
         },
         li({ children, ...props }) {
-          return <li {...props} className="ml-5 list-disc">{children}</li>;
+          return <li {...props} className="ml-5 list-disc leading-snug">{children}</li>;
         },
         ol({ children, ...props }) {
-          return <ol {...props} className="my-2 list-decimal">{children}</ol>;
+          return <ol {...props} className="my-1 list-decimal">{children}</ol>;
         },
         p({ children, ...props }) {
-          return <p {...props} className="my-2 first:mt-0 last:mb-0">{children}</p>;
+          return <p {...props} className="my-1 first:mt-0 last:mb-0 leading-snug">{children}</p>;
         },
         pre({ children, ...props }) {
           return (
-            <pre {...props} className="my-2 overflow-x-auto rounded-md bg-slate-100 p-2 text-xs">
+            <pre {...props} className="my-1 overflow-x-auto rounded-md bg-slate-100 p-2 text-xs">
               {children}
             </pre>
           );
         },
         ul({ children, ...props }) {
-          return <ul {...props} className="my-2">{children}</ul>;
+          return <ul {...props} className="my-1">{children}</ul>;
         },
       }}
     >
