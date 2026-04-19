@@ -21,11 +21,13 @@ import {
 } from "../../src/lib/llm-storage";
 import { buildChatSystemPrompt } from "../../src/chat/discovery-playbook";
 import { getActiveChatContext, type ChatContextRecord } from "../../src/chat/context-store";
+import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
 
 type DisplayMessage =
-  | { id: string; role: "user" | "assistant"; text: string }
+  | { id: string; role: "user"; text: string }
+  | { id: string; role: "assistant"; text: string; consultedResources?: string[] }
   | { id: string; role: "tool"; toolName: string; args: Record<string, unknown>; result: unknown };
 
 const CURATED_CHIPS = [
@@ -274,6 +276,7 @@ export function ChatPage() {
       });
 
       setHistory(result.history);
+      const consultedResources = summarizeToolResources(result.toolEvents);
       setMessages((current) => [
         ...current,
         ...result.toolEvents.map((event) => ({
@@ -287,6 +290,7 @@ export function ChatPage() {
           id: crypto.randomUUID(),
           role: "assistant" as const,
           text: result.assistantText,
+          ...(consultedResources.length > 0 ? { consultedResources } : {}),
         },
       ]);
     } catch (sendError) {
@@ -533,6 +537,11 @@ export function ChatPage() {
                     : "mr-8 bg-slate-50 text-slate-800"
                 }`}
               >
+                {message.role === "assistant" && message.consultedResources && message.consultedResources.length > 0 && (
+                  <div className="mb-1 text-2xs text-slate-500">
+                    {`Consulted: ${message.consultedResources.join(", ")}`}
+                  </div>
+                )}
                 {message.text}
               </div>
             );
