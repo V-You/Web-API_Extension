@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityType } from "../../src/lib/entity-types";
 import {
+  CHAT_RENDER_MARKDOWN_KEY,
   CHAT_SHOW_TOOL_TRACES_KEY,
   CHAT_WRITE_TOOLS_KEY,
+  isChatRenderMarkdownEnabled,
   isChatShowToolTracesEnabled,
   isChatWriteToolsEnabled,
+  setChatRenderMarkdownEnabled,
   setChatShowToolTracesEnabled,
   setChatWriteToolsEnabled,
 } from "../../src/chat/chat-mode";
+import { AssistantMarkdown } from "../components/AssistantMarkdown";
 import {
   DEFAULT_CHAT_PROVIDER,
   DEFAULT_GEMINI_MODEL,
@@ -56,6 +60,7 @@ export function ChatPage() {
   const [manualEntityId, setManualEntityId] = useState("");
   const [writeToolsEnabled, setWriteToolsEnabledState] = useState(false);
   const [modeBusy, setModeBusy] = useState(false);
+  const [renderMarkdown, setRenderMarkdownState] = useState(true);
   const [showToolTraces, setShowToolTracesState] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [autoUseContext, setAutoUseContext] = useState(true);
@@ -79,6 +84,7 @@ export function ChatPage() {
       );
     });
     isChatWriteToolsEnabled().then(setWriteToolsEnabledState);
+    isChatRenderMarkdownEnabled().then(setRenderMarkdownState);
     isChatShowToolTracesEnabled().then(setShowToolTracesState);
     isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
     refreshContext();
@@ -87,6 +93,10 @@ export function ChatPage() {
       if (area === "session") {
         if (changes[CHAT_WRITE_TOOLS_KEY]) {
           setWriteToolsEnabledState(changes[CHAT_WRITE_TOOLS_KEY].newValue === true);
+        }
+        if (changes[CHAT_RENDER_MARKDOWN_KEY]) {
+          const next = changes[CHAT_RENDER_MARKDOWN_KEY].newValue;
+          setRenderMarkdownState(next === undefined ? true : next === true);
         }
         if (changes[CHAT_SHOW_TOOL_TRACES_KEY]) {
           setShowToolTracesState(changes[CHAT_SHOW_TOOL_TRACES_KEY].newValue === true);
@@ -227,6 +237,17 @@ export function ChatPage() {
       setShowToolTracesState(next);
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "Failed to update tool trace visibility.");
+    }
+  }
+
+  async function handleToggleRenderMarkdown() {
+    const next = !renderMarkdown;
+
+    try {
+      await setChatRenderMarkdownEnabled(next);
+      setRenderMarkdownState(next);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Failed to update markdown rendering.");
     }
   }
 
@@ -446,6 +467,26 @@ export function ChatPage() {
             )}
           </div>
 
+          {/* Markdown */}
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <span className="font-medium text-slate-600">Markdown</span>
+            <p className="text-slate-500">
+              Render assistant answers using a safe Markdown subset for lists, emphasis, inline code, code blocks, and links.
+            </p>
+            <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={renderMarkdown}
+                onChange={() => void handleToggleRenderMarkdown()}
+                className="rounded border-slate-300"
+              />
+              Render Markdown
+            </label>
+            <p className="text-slate-500">
+              On by default - assistant messages are rendered with a restricted Markdown allowlist and no raw HTML.
+            </p>
+          </div>
+
           {/* Model */}
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center gap-2">
@@ -542,7 +583,9 @@ export function ChatPage() {
                     {`Consulted: ${message.consultedResources.join(", ")}`}
                   </div>
                 )}
-                {message.text}
+                {message.role === "assistant" && renderMarkdown
+                  ? <AssistantMarkdown text={message.text} />
+                  : message.text}
               </div>
             );
           })

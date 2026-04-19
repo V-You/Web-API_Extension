@@ -21,10 +21,13 @@ vi.stubGlobal("chrome", {
 });
 
 import {
+  CHAT_RENDER_MARKDOWN_KEY,
   CHAT_SHOW_TOOL_TRACES_KEY,
   CHAT_WRITE_TOOLS_KEY,
+  isChatRenderMarkdownEnabled,
   isChatShowToolTracesEnabled,
   isChatWriteToolsEnabled,
+  setChatRenderMarkdownEnabled,
   setChatShowToolTracesEnabled,
   setChatWriteToolsEnabled,
 } from "./chat-mode";
@@ -55,5 +58,16 @@ describe("chat mode", () => {
 
     expect(sessionStore[CHAT_SHOW_TOOL_TRACES_KEY]).toBe(true);
     expect(await isChatShowToolTracesEnabled()).toBe(true);
+  });
+
+  it("renders markdown by default", async () => {
+    expect(await isChatRenderMarkdownEnabled()).toBe(true);
+  });
+
+  it("stores the markdown rendering toggle in session storage", async () => {
+    await setChatRenderMarkdownEnabled(false);
+
+    expect(sessionStore[CHAT_RENDER_MARKDOWN_KEY]).toBe(false);
+    expect(await isChatRenderMarkdownEnabled()).toBe(false);
   });
 });
