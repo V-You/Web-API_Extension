@@ -122,7 +122,7 @@ Repository note:
 | `activeTab` | Detect active BIP tab for context binding |
 | `scripting` | Content script injection for dashboard context detection |
 
-Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.oppwa.com` (Prod).
+Host permissions grant dashboard scope on `*.oppwa.com`, `*.ctpe.info`, and `*.prtpe.com`. Web API requests themselves still target `eu-test.oppwa.com` (UAT) and `eu-prod.oppwa.com` (Prod).
 
 
 ## Usage
@@ -134,20 +134,20 @@ Host permissions grant fetch access to `eu-test.oppwa.com` (UAT) and `eu-prod.op
 3. Choose a PIN (minimum 6 digits). Store PIN in external tool.
 4. On later visits, enter PIN to unlock. Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The decrypted credentials in `chrome.storage.session` survive idle, but are cleared on browser restart. 
 
-> **Any LLM with browser-capability** can now connect to the *oppwa.com site, and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
+> **Any LLM with browser-capability** can now connect to a supported dashboard site (`oppwa.com` or supported whitelabel domains), and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
 
 ### Example workflow using Google Gemini (browser side panel)
 
 *WebMCP not supported by Gemini as of 2026-03-27 (Chrome side panel, including Google AI Pro and Ultra tiers).* Gemini can be used as the LLM Chat tool performing the requested actions. Gemini already sits inside the browser. The workflow from enduser point of view:
 
 - Install the extension in Chrome (min-version, set flag)
-- Open an oppwa.com page (UAT or Prod)
+- Open a supported dashboard page (for example `oppwa.com`, `ctpe.info`, or `prtpe.com`)
 - Open the Web API Extension side panel once, and:
     - Set credentials in "Connections"
     - Set a PIN (track value externally)
     - Test connection
     - Close the side panel
-- On the same active oppwa.com tab, open Gemini side panel
+- On the same active supported dashboard tab, open Gemini side panel
 - Ask Gemini to list available tools, or perform an action
 
 ### Example workflow using Antigravity (IDE)

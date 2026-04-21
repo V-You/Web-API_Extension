@@ -6,6 +6,8 @@ describe("context scraper helpers", () => {
   it("detects section names from BIP URLs", () => {
     expect(detectSectionFromUrl("https://eu-test.oppwa.com/merchantAccounts?scope=attachedMerchantAccounts")).toBe("attachedMerchantAccounts");
     expect(detectSectionFromUrl("https://eu-test.oppwa.com/channels/abc123/setting")).toBe("settings");
+    expect(detectSectionFromUrl("https://example-tenant.ctpe.info/merchantAccounts?scope=attachedMerchantAccounts")).toBe("attachedMerchantAccounts");
+    expect(detectSectionFromUrl("https://example-tenant.prtpe.com/channels/abc123/setting")).toBe("settings");
   });
 
   it("normalizes plausible entity names and rejects generic values", () => {

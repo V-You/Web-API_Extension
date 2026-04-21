@@ -24,11 +24,11 @@ User rejects write confirmation, runs in UAT first, reviews output before applyi
 
 ## Do I need to be logged into the ACI dashboard?
 
-No. Tool discovery is bound to the *oppwa.com domain, not bound to being logged in. User *actions* - that are facilitated by the extension's tools - require valid API credentials that are configured in the extension. This means:
+No. Tool discovery is bound to the supported dashboard domains, not bound to being logged in. User *actions* - that are facilitated by the extension's tools - require valid API credentials that are configured in the extension. This means:
 
 - Your BIP/POPP user does *not* have to be logged into the online dashboard.
 - You do need a valid *Web API user* (configured in the extension).
-- Your LLM/agent needs to call an *oppwa.com page in a supported browser.
+- Your LLM/agent needs to call a supported dashboard page (`oppwa.com` or supported whitelabel domains) in a supported browser.
 - For visual feedback, or if you want your LLM/agent to act on what you see in the browser, your BIP/POPP user should log in.
 
 ## Can the LLM see my API credentials?

@@ -12,8 +12,11 @@
     "tabs"
   ],
   "host_permissions": [
-    "https://eu-test.oppwa.com/*",
-    "https://eu-prod.oppwa.com/*",
+    "https://*.oppwa.com/*",
+    "https://ctpe.info/*",
+    "https://*.ctpe.info/*",
+    "https://prtpe.com/*",
+    "https://*.prtpe.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],
   "background": {
@@ -22,16 +25,22 @@
   "content_scripts": [
     {
       "matches": [
-        "https://eu-test.oppwa.com/*",
-        "https://eu-prod.oppwa.com/*"
+        "https://*.oppwa.com/*",
+        "https://ctpe.info/*",
+        "https://*.ctpe.info/*",
+        "https://prtpe.com/*",
+        "https://*.prtpe.com/*"
       ],
       "js": ["content/bridge.ts"],
       "run_at": "document_idle"
     },
     {
       "matches": [
-        "https://eu-test.oppwa.com/*",
-        "https://eu-prod.oppwa.com/*"
+        "https://*.oppwa.com/*",
+        "https://ctpe.info/*",
+        "https://*.ctpe.info/*",
+        "https://prtpe.com/*",
+        "https://*.prtpe.com/*"
       ],
       "js": ["content/context-scraper.ts"],
       "run_at": "document_idle",

@@ -20,10 +20,9 @@ import { ConfirmDialog } from "./views/ConfirmDialog";
 import { JobMonitor } from "./views/JobMonitor";
 import { WriteStatusToast } from "./views/WriteStatusToast";
 import type { Environment } from "../src/lib/types";
+import { isSupportedDashboardUrl } from "../src/lib/scoped-domains";
 
 type View = "home" | "chat" | "jobs" | "history" | "connections";
-
-const OPPWA_PATTERN = /^https:\/\/eu-(test|prod)\.oppwa\.com(\/|$)/;
 
 /** Hook that tracks whether the active tab is on a supported domain. */
 function useDomainGate(): { onScopedDomain: boolean | null } {
@@ -33,7 +32,7 @@ function useDomainGate(): { onScopedDomain: boolean | null } {
     function checkActiveTab() {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const url = tabs?.[0]?.url ?? "";
-        setOnScopedDomain(OPPWA_PATTERN.test(url));
+        setOnScopedDomain(isSupportedDashboardUrl(url));
       });
     }
     checkActiveTab();
