@@ -102,6 +102,10 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           type: "boolean",
           description: "If true, return call estimate without executing.",
         },
+        includeDisabled: {
+          type: "boolean",
+          description: "If true, include entities with state DISABLED instead of hiding them by default.",
+        },
       },
       additionalProperties: false,
     },

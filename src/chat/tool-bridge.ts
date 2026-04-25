@@ -17,7 +17,7 @@ const READ_ONLY_ACTIONS: Record<string, string[]> = {
 
 const READ_ONLY_PROPERTIES: Record<string, string[]> = {
   manage_entity: ["action", "entityId", "entityType", "namePath", "parentId", "parentType", "childType"],
-  get_hierarchy: ["pspId", "entityId", "entityType", "depth", "estimateOnly"],
+  get_hierarchy: ["pspId", "entityId", "entityType", "depth", "estimateOnly", "includeDisabled"],
   manage_contact: ["action", "contactId", "entityId", "entityType", "scope", "username"],
   manage_merchant_account: ["action", "merchantAccountId", "entityId", "entityType", "scope"],
   lookup_clearing_institutes: ["action", "query", "ciCode", "pspId"],

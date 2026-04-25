@@ -26,6 +26,8 @@ export interface GetHierarchyInput {
   depth?: number;
   /** If true, only return the call estimate -- do not execute. */
   estimateOnly?: boolean;
+  /** If true, include entities with state DISABLED. */
+  includeDisabled?: boolean;
 }
 
 interface HierarchyNode {
@@ -47,6 +49,55 @@ const CHILD_TYPE_BY_PARENT: Partial<Record<EntityType, EntityType>> = {
   division: "merchant",
   merchant: "channel",
 };
+
+function unwrapEntityRecord(type: EntityType, data: Record<string, unknown>): Record<string, unknown> {
+  const directKey = type;
+  const infoKey = `${type}Info`;
+
+  if (data[directKey] && typeof data[directKey] === "object" && !Array.isArray(data[directKey])) {
+    return data[directKey] as Record<string, unknown>;
+  }
+
+  if (data[infoKey] && typeof data[infoKey] === "object" && !Array.isArray(data[infoKey])) {
+    return data[infoKey] as Record<string, unknown>;
+  }
+
+  return data;
+}
+
+function extractChildItems(childType: EntityType, data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) {
+    return data.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+
+  if (!data || typeof data !== "object") {
+    return [];
+  }
+
+  const source = data as Record<string, unknown>;
+  const pluralKey = ENTITY_PLURAL[childType];
+  const direct = source[pluralKey];
+  if (Array.isArray(direct)) {
+    return direct.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+
+  return [];
+}
+
+function splitDisabledNodes(nodes: HierarchyNode[]): { visible: HierarchyNode[]; hiddenDisabled: number } {
+  let hiddenDisabled = 0;
+  const visible: HierarchyNode[] = [];
+
+  for (const node of nodes) {
+    if (node.data.state === "DISABLED") {
+      hiddenDisabled += 1;
+      continue;
+    }
+    visible.push(node);
+  }
+
+  return { visible, hiddenDisabled };
+}
 
 function getRootSelection(input: GetHierarchyInput): { id: string; type: EntityType } | null {
   if (input.entityId && input.entityType) {
@@ -88,40 +139,49 @@ async function fetchChildren(
   parentType: EntityType,
   parentId: string,
   childType: EntityType,
+  includeDisabled: boolean,
   creds: ApiCredentials,
   env: Environment
-): Promise<{ ok: boolean; status: number; data: unknown; nodes: HierarchyNode[] }> {
+): Promise<{ ok: boolean; status: number; data: unknown; nodes: HierarchyNode[]; hiddenDisabled: number }> {
   const path = `/${ENTITY_PLURAL[parentType]}/${parentId}/${ENTITY_PLURAL[childType]}`;
-  const res = await apiRequest<Record<string, unknown>[]>(creds, env, { path });
-  const items = res.ok && Array.isArray(res.data) ? res.data : [];
-  const nodes = items.map((item) => toNode(childType, item, ""));
+  const res = await apiRequest<unknown>(creds, env, { path });
+  const items = res.ok ? extractChildItems(childType, res.data) : [];
+  const allNodes = items.map((item) => toNode(childType, item, ""));
+  const { visible, hiddenDisabled } = includeDisabled
+    ? { visible: allNodes, hiddenDisabled: 0 }
+    : splitDisabledNodes(allNodes);
   return {
     ok: res.ok,
     status: res.status,
     data: res.data,
-    nodes,
+    nodes: visible,
+    hiddenDisabled,
   };
 }
 
 async function buildHierarchyChildren(
   node: HierarchyNode,
   remainingDepth: number,
+  includeDisabled: boolean,
   creds: ApiCredentials,
   env: Environment
-): Promise<void> {
-  if (remainingDepth <= 0) return;
+): Promise<number> {
+  if (remainingDepth <= 0) return 0;
 
   const childType = CHILD_TYPE_BY_PARENT[node.type];
-  if (!childType || !node.id) return;
+  if (!childType || !node.id) return 0;
 
-  const childRes = await fetchChildren(node.type, node.id, childType, creds, env);
+  const childRes = await fetchChildren(node.type, node.id, childType, includeDisabled, creds, env);
   node.children = childRes.nodes;
+  let hiddenDisabled = childRes.hiddenDisabled;
 
-  if (remainingDepth <= 1) return;
+  if (remainingDepth <= 1) return hiddenDisabled;
 
   for (const child of node.children) {
-    await buildHierarchyChildren(child, remainingDepth - 1, creds, env);
+    hiddenDisabled += await buildHierarchyChildren(child, remainingDepth - 1, includeDisabled, creds, env);
   }
+
+  return hiddenDisabled;
 }
 
 async function resolveRootNode(
@@ -162,7 +222,7 @@ async function resolveRootNode(
   return {
     id: root.id,
     type: root.type,
-    node: toNode(root.type, res.data as Record<string, unknown>, root.id),
+    node: toNode(root.type, unwrapEntityRecord(root.type, res.data as Record<string, unknown>), root.id),
   };
 }
 
@@ -242,6 +302,7 @@ export async function executeGetHierarchy(
   env: Environment
 ) {
   const depth = Math.min(Math.max(input.depth ?? 3, 1), 3);
+  const includeDisabled = input.includeDisabled === true;
   const rootSelection = getRootSelection(input);
   if (!rootSelection) {
     return { error: "Provide either pspId or entityId + entityType." };
@@ -267,12 +328,13 @@ export async function executeGetHierarchy(
     return { estimate };
   }
 
-  await buildHierarchyChildren(root.node, depth, creds, env);
+  const hiddenDisabled = await buildHierarchyChildren(root.node, depth, includeDisabled, creds, env);
   const actual = countNodesByType(root.node);
 
   return {
     estimate,
     actual,
     tree: root.node,
+    ...(hiddenDisabled > 0 ? { _hiddenDisabled: hiddenDisabled } : {}),
   };
 }
