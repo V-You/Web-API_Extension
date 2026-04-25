@@ -11,9 +11,27 @@
 
 import { swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
 import { clearChatContext, upsertChatContext } from "../src/chat/context-store";
+import { createExecuteMap } from "../src/tools/internal-router";
 import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
 import type { ToolSchema } from "../src/webmcp/tool-schemas";
 import type { EntityType } from "../src/lib/entity-types";
+
+const WEBMCP_EXECUTE_MAP = createExecuteMap();
+
+const WEBMCP_READ_ACTIONS: Record<string, Set<string>> = {
+  manage_settings: new Set(["get", "batch_get", "list_non_default"]),
+};
+
+function isWebMcpReadOnlyInvocation(tool: string, params: Record<string, unknown>): boolean {
+  const schema = TOOL_SCHEMAS.find((entry) => entry.name === tool);
+  if (!schema) return false;
+  if (schema.annotations?.readOnlyHint === true) return true;
+
+  const allowedActions = WEBMCP_READ_ACTIONS[tool];
+  if (!allowedActions) return false;
+  const action = params.action;
+  return typeof action === "string" && allowedActions.has(action);
+}
 
 // -- Side panel activation ------------------------------------------------
 
@@ -112,7 +130,15 @@ export interface ChatGeminiGenerateMessage {
   };
 }
 
-export type ServiceWorkerMessage = ApiMessage | JobControlMessage | ChatContextUpdateMessage | ChatContextClearMessage | ChatGeminiGenerateMessage | { type: string; [key: string]: unknown };
+export interface WebMcpExecuteToolMessage {
+  type: "webmcp:execute-tool";
+  payload: {
+    tool: string;
+    params?: Record<string, unknown>;
+  };
+}
+
+export type ServiceWorkerMessage = ApiMessage | JobControlMessage | ChatContextUpdateMessage | ChatContextClearMessage | ChatGeminiGenerateMessage | WebMcpExecuteToolMessage | { type: string; [key: string]: unknown };
 
 export interface ApiMessageResponse {
   ok: boolean;
@@ -222,6 +248,13 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (message.type === "webmcp:execute-tool") {
+      handleWebMcpExecuteTool((message as WebMcpExecuteToolMessage).payload)
+        .then(sendResponse)
+        .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      return true;
+    }
+
     // -- Main-world WebMCP tool registration (bypasses page CSP) ----------
 
     if (message.type === "webmcp:inject-main") {
@@ -242,6 +275,31 @@ chrome.runtime.onMessage.addListener(
     }
   }
 );
+
+async function handleWebMcpExecuteTool(
+  payload: WebMcpExecuteToolMessage["payload"],
+): Promise<{ ok: boolean; result?: string; error?: string }> {
+  const params = payload.params ?? {};
+  const execute = WEBMCP_EXECUTE_MAP[payload.tool];
+  if (!execute) {
+    return { ok: false, error: `Unknown tool: ${payload.tool}` };
+  }
+
+  if (!isWebMcpReadOnlyInvocation(payload.tool, params)) {
+    return {
+      ok: false,
+      error:
+        "WebMCP write execution is temporarily disabled while the service-worker confirmation path is implemented. " +
+        "Read tools are available; use the side panel or Chat tab for confirmed writes for now.",
+    };
+  }
+
+  const result = await execute(params);
+  return {
+    ok: true,
+    result: typeof result === "string" ? result : JSON.stringify(result),
+  };
+}
 
 async function handleApiRequest(
   payload: ApiMessage["payload"]

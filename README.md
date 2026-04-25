@@ -264,7 +264,7 @@ Short version:
 5. Prompt: "What is my dupe check set to here?"
 6. The agent calls `describe_settings` and `manage_settings` using the detected entity context, then returns a human-readable summary
 
-Tool calls appear as collapsible badges in the chat. Chat starts in **safe mode** by default. A per-session `Enable write tools` toggle can expose mutating actions, but every write still goes through the existing preview-confirm flow. `execute_workflow` remains excluded from chat.
+Tool calls appear as collapsible badges in the chat. Chat starts in **safe mode** by default. A per-session `Enable write tools` toggle can expose mutating actions, and `Enable automation mode` adds a reviewed `Draft Job` path that starts real background Jobs. Direct writes still go through the existing preview-confirm flow, and raw `execute_workflow` remains a WebMCP-native path rather than a direct Chat tool.
 
 **Planned v1:** Gemini adapter, context scraper (entityId + entityType only), encrypted LLM key storage integrated with PIN unlock, bounded multi-step read loops, chat-specific read-only tool catalog, explicit exclusion of `execute_workflow`.
 
@@ -274,7 +274,9 @@ Tool calls appear as collapsible badges in the chat. Chat starts in **safe mode*
 
 **Current v1.2a:** Richer context extraction for Chat Tab turns, including best-effort entity name and current BIP section hints.
 
-**Planned v1.2:** Explicit `Enable automation mode` opt-in, optional workflow drafting or execution after review, and streaming responses.
+**Current v1.2b:** Explicit `Enable automation mode` opt-in and reviewed `Draft Job` workflow submission for real background Jobs.
+
+**Planned v1.3:** Streaming responses.
 
 **Deferred:** Local model support such as Ollama, conversation persistence or export, system prompt customization, advanced DOM context beyond entity identification, cost tracking.
 

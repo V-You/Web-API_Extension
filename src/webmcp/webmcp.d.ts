@@ -42,7 +42,8 @@ interface ModelContext {
 /** Testing API -- only available with #enable-webmcp-testing flag. */
 interface ModelContextTesting {
   listTools(): ModelContextTool[];
-  executeTool(name: string, inputArgs: Record<string, unknown>): Promise<unknown>;
+  /** Chrome 147 testing API accepts stringified JSON input; object input may fail to parse. */
+  executeTool(name: string, inputArgs: Record<string, unknown> | string): Promise<unknown>;
   addEventListener(type: "toolchange", callback: () => void): void;
 }
 

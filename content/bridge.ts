@@ -3,15 +3,12 @@
  * executes them with full chrome API access (credentials, storage, fetch).
  *
  * Runs in the default isolated world. Credentials never cross the
- * postMessage boundary.
+ * postMessage boundary. The actual tool execution is delegated to the
+ * service worker so credential-backed tools can use extension storage.
  *
  * On load, asks the service worker to inject the main-world registration
  * script via chrome.scripting.executeScript (bypasses page CSP).
  */
-
-import { createExecuteMap } from "../src/tools/internal-router";
-
-const EXECUTE_MAP = createExecuteMap();
 
 // -- Message listener (main world -> isolated world) ----------------------
 
@@ -26,16 +23,22 @@ window.addEventListener("message", async (event: MessageEvent) => {
     params: Record<string, unknown>;
   };
 
-  const handler = EXECUTE_MAP[tool];
-  if (!handler) {
-    window.postMessage({ type: "webmcp:tool-result", callId, error: `Unknown tool: ${tool}` }, "*");
-    return;
-  }
-
   try {
-    const result = await handler(params);
-    const serialized = typeof result === "string" ? result : JSON.stringify(result);
-    window.postMessage({ type: "webmcp:tool-result", callId, result: serialized }, "*");
+    const response = await chrome.runtime.sendMessage({
+      type: "webmcp:execute-tool",
+      payload: { tool, params },
+    }) as { ok?: boolean; result?: string; error?: string } | undefined;
+
+    if (!response?.ok) {
+      window.postMessage({
+        type: "webmcp:tool-result",
+        callId,
+        error: response?.error ?? `Tool ${tool} failed.`,
+      }, "*");
+      return;
+    }
+
+    window.postMessage({ type: "webmcp:tool-result", callId, result: response.result ?? "{}" }, "*");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     window.postMessage({ type: "webmcp:tool-result", callId, error: msg }, "*");
