@@ -120,6 +120,10 @@ describe("chat tool bridge", () => {
     expect(getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
   });
 
+  it("still excludes raw execute_workflow when automation mode is enabled", () => {
+    expect(getChatToolSchemas({ writeToolsEnabled: true, automationModeEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
+  });
+
   // Phase 3 / D11 – Gemini-safe chat declarations.
   describe("Gemini-safe chat declarations (D11/D12)", () => {
     it("preserves explicit write field names on generated tools when write is enabled", () => {

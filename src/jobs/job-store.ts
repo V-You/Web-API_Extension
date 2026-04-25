@@ -15,6 +15,8 @@ import type { Environment, JobState } from "../lib/types";
 import type { WriteRecord } from "../sandbox/sdk-facade";
 import type { LogEntry } from "../sandbox/sandbox";
 
+export type JobSource = "webmcp" | "chat";
+
 // -- Types ----------------------------------------------------------------
 
 export interface JobRecord {
@@ -51,6 +53,10 @@ export interface JobRecord {
   error?: string;
   /** Environment this job runs against. */
   env: Environment;
+  /** Originating path for provenance and audit. */
+  source?: JobSource;
+  /** Timestamp for the one-time Chat automation start audit event. */
+  chatStartedAuditAt?: string;
 }
 
 export interface JobProgress {
@@ -107,6 +113,8 @@ function normalizeJob(raw: unknown): JobRecord {
     writes: Array.isArray(job.writes) ? job.writes : [],
     error: job.error ? String(job.error) : undefined,
     env: (job.env ?? "uat") as Environment,
+    source: job.source === "chat" ? "chat" : job.source === "webmcp" ? "webmcp" : undefined,
+    chatStartedAuditAt: job.chatStartedAuditAt ? String(job.chatStartedAuditAt) : undefined,
   };
 }
 
@@ -135,7 +143,7 @@ export function getJobsSnapshot(): JobRecord[] {
 
 /** Create a new job record. Returns the record. */
 export async function createJob(
-  init: Pick<JobRecord, "label" | "script" | "entityId" | "entityType" | "totalCalls" | "throttleRate" | "env">
+  init: Pick<JobRecord, "label" | "script" | "entityId" | "entityType" | "totalCalls" | "throttleRate" | "env"> & { source?: JobSource }
 ): Promise<JobRecord> {
   const job: JobRecord = {
     id: crypto.randomUUID(),
@@ -153,6 +161,7 @@ export async function createJob(
     logs: [],
     writes: [],
     env: init.env,
+    source: init.source,
   };
   const jobs = await loadJobs();
   jobs.push(job);

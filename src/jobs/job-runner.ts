@@ -9,7 +9,7 @@
  * Per PRD 8.1: long-running queries execute in the extension's service worker.
  */
 
-import { getJob, type JobRecord } from "./job-store";
+import { getJob, type JobRecord, type JobSource } from "./job-store";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 // -- SW message helper with retry -----------------------------------------
@@ -95,6 +95,7 @@ export interface StartJobInput {
   throttleRate?: number;
   creds: ApiCredentials;
   env: Environment;
+  source?: JobSource;
 }
 
 /**
@@ -113,6 +114,7 @@ export async function startJob(input: StartJobInput): Promise<JobRecord> {
       throttleRate: input.throttleRate,
       creds: input.creds,
       env: input.env,
+      source: input.source,
     },
   });
 

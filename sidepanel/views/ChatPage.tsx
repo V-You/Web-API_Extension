@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntityType } from "../../src/lib/entity-types";
+import type { Environment } from "../../src/lib/types";
 import {
+  CHAT_AUTOMATION_MODE_KEY,
   CHAT_RENDER_MARKDOWN_KEY,
   CHAT_SHOW_TOOL_TRACES_KEY,
   CHAT_WRITE_TOOLS_KEY,
+  isChatAutomationModeEnabled,
   isChatRenderMarkdownEnabled,
   isChatShowToolTracesEnabled,
   isChatWriteToolsEnabled,
+  setChatAutomationModeEnabled,
   setChatRenderMarkdownEnabled,
   setChatShowToolTracesEnabled,
   setChatWriteToolsEnabled,
@@ -23,10 +27,13 @@ import {
   saveLlmProviderSettings,
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
-import { buildChatSystemPrompt } from "../../src/chat/discovery-playbook";
+import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt } from "../../src/chat/discovery-playbook";
 import { getActiveChatContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
+import { parseWorkflowDraft } from "../../src/chat/workflow-draft";
+import { startJob } from "../../src/jobs/job-runner";
+import { getActiveEnv, getCredentials, getThrottleRate } from "../../src/lib/storage";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
 
 type DisplayMessage =
@@ -39,6 +46,23 @@ const CURATED_CHIPS = [
   "What is the dupe check set to?",
   "List all users",
 ];
+
+const AUTOMATION_CHIPS = [
+  "Draft a hierarchy settings audit for this entity",
+  "Draft a job to list all contacts under this scope",
+];
+
+interface WorkflowReviewState {
+  label: string;
+  script: string;
+  totalCalls: number;
+  env: Environment;
+  prompt: string;
+  entityId?: string;
+  entityType?: EntityType;
+  entityName?: string;
+  section?: string;
+}
 
 export function ChatPage() {
   const [history, setHistory] = useState<GeminiContent[]>([]);
@@ -59,12 +83,16 @@ export function ChatPage() {
   const [manualEntityType, setManualEntityType] = useState<EntityType>("merchant");
   const [manualEntityId, setManualEntityId] = useState("");
   const [writeToolsEnabled, setWriteToolsEnabledState] = useState(false);
+  const [automationModeEnabled, setAutomationModeEnabledState] = useState(false);
   const [modeBusy, setModeBusy] = useState(false);
+  const [automationBusy, setAutomationBusy] = useState(false);
   const [renderMarkdown, setRenderMarkdownState] = useState(true);
   const [showToolTraces, setShowToolTracesState] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [autoUseContext, setAutoUseContext] = useState(true);
   const [showManualOverride, setShowManualOverride] = useState(false);
+  const [workflowReview, setWorkflowReview] = useState<WorkflowReviewState | null>(null);
+  const [workflowReviewError, setWorkflowReviewError] = useState<string | null>(null);
 
   const refreshContext = useCallback(async () => {
     const context = await getActiveChatContext();
@@ -84,6 +112,7 @@ export function ChatPage() {
       );
     });
     isChatWriteToolsEnabled().then(setWriteToolsEnabledState);
+    isChatAutomationModeEnabled().then(setAutomationModeEnabledState);
     isChatRenderMarkdownEnabled().then(setRenderMarkdownState);
     isChatShowToolTracesEnabled().then(setShowToolTracesState);
     isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
@@ -93,6 +122,9 @@ export function ChatPage() {
       if (area === "session") {
         if (changes[CHAT_WRITE_TOOLS_KEY]) {
           setWriteToolsEnabledState(changes[CHAT_WRITE_TOOLS_KEY].newValue === true);
+        }
+        if (changes[CHAT_AUTOMATION_MODE_KEY]) {
+          setAutomationModeEnabledState(changes[CHAT_AUTOMATION_MODE_KEY].newValue === true);
         }
         if (changes[CHAT_RENDER_MARKDOWN_KEY]) {
           const next = changes[CHAT_RENDER_MARKDOWN_KEY].newValue;
@@ -211,6 +243,7 @@ export function ChatPage() {
     try {
       await setChatWriteToolsEnabled(next);
       setWriteToolsEnabledState(next);
+      if (!next) setAutomationModeEnabledState(false);
       setHistory([]);
       setMessages((current) => [
         ...current,
@@ -224,6 +257,32 @@ export function ChatPage() {
       ]);
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "Failed to update chat mode.");
+    } finally {
+      setModeBusy(false);
+    }
+  }
+
+  async function handleToggleAutomationMode() {
+    const next = !automationModeEnabled;
+
+    setModeBusy(true);
+    setError(null);
+    try {
+      await setChatAutomationModeEnabled(next);
+      setAutomationModeEnabledState(next);
+      setHistory([]);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: next
+            ? "Automation mode is enabled. Use Draft Job for reviewed workflow scripts that start real background Jobs."
+            : "Automation mode is disabled. Ordinary chat and direct confirmed writes are still available according to the current mode.",
+        },
+      ]);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Failed to update automation mode.");
     } finally {
       setModeBusy(false);
     }
@@ -290,10 +349,11 @@ export function ChatPage() {
         userText: `${contextText}\n\nUser request: ${trimmed}`,
         systemPrompt: buildChatSystemPrompt({
           writeToolsEnabled,
+          automationModeEnabled,
           modelName: savedSettings.model,
         }),
-        tools: getChatToolDeclarations({ writeToolsEnabled }),
-        executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled }),
+        tools: getChatToolDeclarations({ writeToolsEnabled, automationModeEnabled }),
+        executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled, automationModeEnabled }),
       });
 
       setHistory(result.history);
@@ -321,6 +381,138 @@ export function ChatPage() {
     }
   }
 
+  async function handleDraftJob() {
+    const trimmed = input.trim();
+    if (!trimmed || busy || automationBusy) return;
+    if (!automationModeEnabled) {
+      setError("Enable automation mode before drafting a Job.");
+      return;
+    }
+    if (!savedSettings?.apiKey) {
+      setError("Save Gemini settings first.");
+      setSettingsOpen(true);
+      return;
+    }
+    if (!noticeDismissed) {
+      setError("Review and dismiss the Gemini privacy notice before drafting a Job.");
+      return;
+    }
+
+    setBusy(true);
+    setAutomationBusy(true);
+    setError(null);
+    setWorkflowReviewError(null);
+
+    const userMessage: DisplayMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: trimmed,
+    };
+    setMessages((current) => [...current, userMessage]);
+    setInput("");
+
+    try {
+      const env = await getActiveEnv();
+      if (!env) throw new Error("No active environment. Unlock or select a connection before drafting a Job.");
+
+      const draftPrompt = buildChatWorkflowDraftPrompt({
+        userRequest: trimmed,
+        env,
+        entityId: effectiveContext?.entityId,
+        entityType: effectiveContext?.entityType,
+        entityName: detectedContext?.entityName,
+        section: detectedContext?.section,
+      });
+
+      const result = await runGeminiTurn({
+        apiKey: savedSettings.apiKey,
+        model: savedSettings.model,
+        history: [],
+        userText: draftPrompt,
+        systemPrompt: buildChatSystemPrompt({
+          writeToolsEnabled: true,
+          automationModeEnabled: true,
+          draftJobTurn: true,
+          modelName: savedSettings.model,
+        }),
+        tools: [],
+        executeTool: async () => {
+          throw new Error("Tools are not available while drafting a reviewed Job.");
+        },
+      });
+
+      const draft = parseWorkflowDraft(result.assistantText);
+      setWorkflowReview({
+        label: draft.label,
+        script: draft.script,
+        totalCalls: draft.totalCalls,
+        env,
+        prompt: trimmed,
+        entityId: effectiveContext?.entityId,
+        entityType: effectiveContext?.entityType,
+        entityName: detectedContext?.entityName,
+        section: detectedContext?.section,
+      });
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "I drafted a workflow for review. Check the script before starting the background Job.",
+        },
+      ]);
+    } catch (draftError) {
+      setError(draftError instanceof Error ? draftError.message : "Failed to draft workflow Job.");
+    } finally {
+      setBusy(false);
+      setAutomationBusy(false);
+    }
+  }
+
+  async function handleStartReviewedJob() {
+    if (!workflowReview || automationBusy) return;
+
+    setAutomationBusy(true);
+    setWorkflowReviewError(null);
+    try {
+      const activeEnv = await getActiveEnv();
+      if (!activeEnv) throw new Error("No active environment. Unlock or select a connection, then re-approve.");
+      if (activeEnv !== workflowReview.env) {
+        throw new Error(`Environment changed since draft (${workflowReview.env.toUpperCase()}). Switch back or draft again.`);
+      }
+
+      const creds = await getCredentials(workflowReview.env);
+      if (!creds) throw new Error("Session locked. Unlock credentials and re-approve the workflow.");
+
+      const throttleRate = await getThrottleRate();
+      const job = await startJob({
+        label: workflowReview.label,
+        script: workflowReview.script,
+        entityId: workflowReview.entityId,
+        entityType: workflowReview.entityType,
+        totalCalls: workflowReview.totalCalls,
+        throttleRate,
+        creds,
+        env: workflowReview.env,
+        source: "chat",
+      });
+
+      setWorkflowReview(null);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: `Started Job ${job.label} (${job.id}) in ${job.state}. Open the Jobs tab to monitor progress, pause, resume, or inspect failures.`,
+        },
+      ]);
+    } catch (startError) {
+      setWorkflowReviewError(startError instanceof Error ? startError.message : "Failed to start reviewed Job.");
+    } finally {
+      setAutomationBusy(false);
+    }
+  }
+
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     // Cmd+Enter (macOS) or Ctrl+Enter (others) sends the message.
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !busy && input.trim()) {
@@ -333,11 +525,13 @@ export function ChatPage() {
     <div className="flex flex-col h-full space-y-3">
       <div className="flex items-center gap-2">
         <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
-          writeToolsEnabled
+          automationModeEnabled
+            ? "bg-red-50 text-red-700"
+            : writeToolsEnabled
             ? "bg-amber-50 text-amber-700"
             : "bg-emerald-50 text-emerald-700"
         }`}>
-          {writeToolsEnabled ? "Write tools enabled" : "Safe mode"}
+          {automationModeEnabled ? "Automation mode" : writeToolsEnabled ? "Write tools enabled" : "Safe mode"}
         </span>
         <button
           onClick={() => setSettingsOpen((open) => !open)}
@@ -394,6 +588,27 @@ export function ChatPage() {
                     : "Enable"}
               </button>
             </div>
+            <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+              <p className="text-slate-500">
+                {automationModeEnabled
+                  ? "Automation mode enabled. Draft Job creates reviewed scripts that start background Jobs."
+                  : "Automation mode is a higher-trust path for reviewed workflow scripts and background Jobs."}
+              </p>
+              <button
+                onClick={() => void handleToggleAutomationMode()}
+                disabled={modeBusy || busy || !writeToolsEnabled}
+                className="shrink-0 rounded-md bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                {modeBusy
+                  ? "..."
+                  : automationModeEnabled
+                    ? "Disable"
+                    : "Enable"}
+              </button>
+            </div>
+            {!writeToolsEnabled && (
+              <p className="text-slate-500">Enable write tools first. Automation scripts may combine many reads and writes after review.</p>
+            )}
           </div>
 
           {/* Context */}
@@ -545,7 +760,7 @@ export function ChatPage() {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {CURATED_CHIPS.map((chip) => (
+        {[...CURATED_CHIPS, ...(automationModeEnabled ? AUTOMATION_CHIPS : [])].map((chip) => (
           <button
             key={chip}
             onClick={() => setInput(chip)}
@@ -560,7 +775,9 @@ export function ChatPage() {
         {messages.length === 0 ? (
           <p className="text-xs text-slate-500">
             {writeToolsEnabled
-              ? "Ask about the current entity, inspect configuration, or request a scoped change that can go through confirmation."
+              ? automationModeEnabled
+                ? "Ask about the current entity, request a confirmed change, or use Draft Job for reviewed workflow automation."
+                : "Ask about the current entity, inspect configuration, or request a scoped change that can go through confirmation."
               : "Ask a read-only question about the current entity, its settings, hierarchy, contacts, or merchant accounts."}
           </p>
         ) : (
@@ -596,6 +813,19 @@ export function ChatPage() {
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
+      {workflowReview && (
+        <WorkflowReviewDialog
+          draft={workflowReview}
+          error={workflowReviewError}
+          busy={automationBusy}
+          onStart={() => void handleStartReviewedJob()}
+          onCancel={() => {
+            setWorkflowReview(null);
+            setWorkflowReviewError(null);
+          }}
+        />
+      )}
+
       <div className="flex gap-2">
         <textarea
           value={input}
@@ -604,18 +834,118 @@ export function ChatPage() {
           onFocus={() => setInputFocused(true)}
           onBlur={() => setInputFocused(false)}
           placeholder={inputFocused ? "" : (writeToolsEnabled
-            ? "Ask about the current entity or request a confirmed change... (Cmd+Enter to send)"
+            ? automationModeEnabled
+              ? "Ask normally, or use Draft Job for workflow automation... (Cmd+Enter to send)"
+              : "Ask about the current entity or request a confirmed change... (Cmd+Enter to send)"
             : "Ask a read-only question about the current entity... (Cmd+Enter to send)")}
           rows={3}
           className="flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
         />
         <button
           onClick={() => void handleSend()}
-          disabled={busy || !input.trim()}
+          disabled={busy || automationBusy || !input.trim()}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {busy ? "Sending..." : "Send"}
         </button>
+        {automationModeEnabled && (
+          <button
+            onClick={() => void handleDraftJob()}
+            disabled={busy || automationBusy || !input.trim()}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {automationBusy ? "Drafting..." : "Draft Job"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowReviewDialog({
+  draft,
+  error,
+  busy,
+  onStart,
+  onCancel,
+}: {
+  draft: WorkflowReviewState;
+  error: string | null;
+  busy: boolean;
+  onStart: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+        <div className="border-b border-slate-200 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Review workflow Job</h2>
+              <p className="mt-1 text-xs text-slate-500">Approve the TypeScript source as a whole before it starts in the Jobs tab.</p>
+            </div>
+            <span className="rounded-full bg-red-50 px-2 py-0.5 text-2xs font-medium text-red-700">
+              {draft.env.toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-xs">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+              <div className="font-medium text-slate-600">Label</div>
+              <div className="mt-1 text-slate-800">{draft.label}</div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+              <div className="font-medium text-slate-600">Estimated calls</div>
+              <div className="mt-1 text-slate-800">{draft.totalCalls}</div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 sm:col-span-2">
+              <div className="font-medium text-slate-600">Snapshot context</div>
+              <div className="mt-1 text-slate-800">
+                {draft.entityType && draft.entityId
+                  ? `${draft.entityType} ${draft.entityId}${draft.entityName ? ` (${draft.entityName})` : ""}`
+                  : "No entity context captured"}
+                {draft.section ? ` - ${draft.section}` : ""}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 font-medium text-slate-600">Original request</div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-slate-700">{draft.prompt}</div>
+          </div>
+
+          <div>
+            <div className="mb-1 font-medium text-slate-600">Script</div>
+            <pre className="max-h-96 overflow-auto rounded-md border border-slate-200 bg-slate-950 p-3 text-2xs text-slate-100">
+              {draft.script}
+            </pre>
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-2 text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 p-4">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onStart}
+            disabled={busy}
+            className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? "Starting..." : "Start Job"}
+          </button>
+        </div>
       </div>
     </div>
   );

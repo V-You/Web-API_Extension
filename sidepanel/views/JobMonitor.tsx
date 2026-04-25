@@ -56,7 +56,7 @@ export function JobMonitor() {
       <div className="text-center py-8 text-slate-500">
         <p className="text-sm">No active or recoverable jobs.</p>
         <p className="text-2xs mt-1 text-slate-400">
-          Jobs are created when your AI agent runs a workflow script.
+          Jobs are created when a WebMCP agent runs a workflow script or Chat starts a reviewed Draft Job.
         </p>
       </div>
     );
@@ -119,7 +119,10 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
     <div className="border border-slate-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold truncate">{job.label}</span>
-        <StateBadge state={job.state} />
+        <div className="flex items-center gap-1">
+          {job.source === "chat" && <Badge variant="neutral">chat</Badge>}
+          <StateBadge state={job.state} />
+        </div>
       </div>
 
       <ProgressBar

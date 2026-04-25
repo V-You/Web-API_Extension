@@ -92,6 +92,26 @@ describe("job-runner", () => {
     expect(getActiveJobId()).toBe("job-1");
   });
 
+  it("passes Chat provenance to the SW when supplied", async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({ ok: true, jobId: "job-1" });
+
+    await startJob({
+      label: "Chat job",
+      script: "console.log('hi')",
+      totalCalls: 5,
+      creds,
+      env: "uat",
+      source: "chat",
+    });
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "job_start",
+        payload: expect.objectContaining({ source: "chat" }),
+      }),
+    );
+  });
+
   it("throws when SW reports failure", async () => {
     vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({ ok: false, error: "Boom" });
 

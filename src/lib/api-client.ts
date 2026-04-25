@@ -120,7 +120,7 @@ export async function apiRequest<T = unknown>(
 }
 
 /** Append an entry to the local audit log (capped at 500 entries). */
-async function appendAuditEntry(entry: AuditEntry): Promise<void> {
+export async function appendAuditEntry(entry: AuditEntry): Promise<void> {
   const result = await chrome.storage.local.get("audit");
   const log = (result.audit ?? []) as AuditEntry[];
   log.push(entry);

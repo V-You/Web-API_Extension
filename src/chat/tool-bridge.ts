@@ -4,6 +4,7 @@ import type { ChatToolDeclaration } from "./llm-adapter";
 
 export interface ChatToolCatalogOptions {
   writeToolsEnabled?: boolean;
+  automationModeEnabled?: boolean;
 }
 
 const READ_ONLY_ACTIONS: Record<string, string[]> = {
@@ -164,6 +165,7 @@ function filterSchemaProperties(schema: ToolSchema): ToolSchema {
 }
 
 function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}): ToolSchema | null {
+  void options.automationModeEnabled;
   if (schema.name === "execute_workflow") return null;
 
   // Generated per-action tools: skip writes in safe mode; pass-through reads.

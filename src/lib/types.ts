@@ -48,8 +48,9 @@ export type JobState =
  * Part-II P2-D4: the API-derived portion is generated from
  * `src_data/webapi-audit-events.ts` (itself derived from the manifest).
  * The three extension-only events -- `setting_change` (local RiRo writes),
- * `env_switch` (UI environment toggles), and `contact_attach` (no per-action
- * tool in the bundled spec) -- are declared here as literals. An alignment
+ * `env_switch` (UI environment toggles), `contact_attach` (no per-action
+ * tool in the bundled spec), and `chat_automation_job_started` (reviewed Chat
+ * job provenance) -- are declared here as literals. An alignment
  * test asserts both sides stay in sync.
  */
 import type { ApiAuditEventType } from "../../src_data/webapi-audit-events";
@@ -58,7 +59,8 @@ export type AuditEventType =
   | ApiAuditEventType
   | "setting_change"
   | "env_switch"
-  | "contact_attach";
+  | "contact_attach"
+  | "chat_automation_job_started";
 
 export interface AuditEntry {
   id: string;

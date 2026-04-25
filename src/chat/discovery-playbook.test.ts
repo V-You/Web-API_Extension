@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChatSystemPrompt, CHAT_DISCOVERY_PROMPT_CHIPS, getDiscoveryPlaybookPurpose } from "./discovery-playbook";
+import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt, CHAT_DISCOVERY_PROMPT_CHIPS, getDiscoveryPlaybookPurpose } from "./discovery-playbook";
 
 describe("chat discovery playbook", () => {
   it("builds a system prompt that includes the discovery playbook guidance", () => {
@@ -9,6 +9,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("The underlying LLM currently configured for this chat is Gemini.");
     expect(prompt).toContain("Do not describe safe mode or write mode as your model name or version");
     expect(prompt).toContain("This chat runs in safe mode.");
+    expect(prompt).toContain("Automation mode is disabled.");
     expect(prompt).toContain("When current BIP section context is available, use it to disambiguate scope-sensitive questions such as attached vs owned merchant accounts or contacts.");
     expect(prompt).toContain("Resolve cheap read-only ambiguity by checking the two most likely interpretations before asking the user to clarify.");
     expect(prompt).toContain("Discovery playbook:");
@@ -26,9 +27,34 @@ describe("chat discovery playbook", () => {
     const prompt = buildChatSystemPrompt({ writeToolsEnabled: true });
 
     expect(prompt).toContain("Write tools are enabled for this browser session.");
+    expect(prompt).toContain("Automation mode is disabled.");
     expect(prompt).toContain("Every mutating tool call still goes through the existing preview-confirm flow before execution.");
     expect(prompt).toContain("Prefer read tools first when you need to inspect current state before writing.");
     expect(prompt).not.toContain("This chat runs in safe mode.");
+  });
+
+  it("builds an automation-enabled prompt variant", () => {
+    const prompt = buildChatSystemPrompt({ writeToolsEnabled: true, automationModeEnabled: true, draftJobTurn: true });
+
+    expect(prompt).toContain("Automation mode is enabled for this browser session.");
+    expect(prompt).toContain("This is a Draft Job turn.");
+    expect(prompt).not.toContain("Automation mode is disabled.");
+  });
+
+  it("builds a workflow draft prompt with snapshot context", () => {
+    const prompt = buildChatWorkflowDraftPrompt({
+      userRequest: "Audit dupe check",
+      env: "uat",
+      entityType: "merchant",
+      entityId: "m1",
+      entityName: "Demo merchant",
+      section: "risk",
+    });
+
+    expect(prompt).toContain("Environment snapshot: uat.");
+    expect(prompt).toContain("Target context: merchant m1.");
+    expect(prompt).toContain("Entity name: Demo merchant.");
+    expect(prompt).toContain("Return only valid JSON");
   });
 
   it("includes the configured model name for meta questions", () => {

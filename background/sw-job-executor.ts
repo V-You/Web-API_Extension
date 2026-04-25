@@ -9,7 +9,8 @@
  * The SW owns the actual execution lifecycle: start, pause, resume, cancel.
  */
 
-import { createJob, updateJob, getJob, type JobRecord, type JobProgress } from "../src/jobs/job-store";
+import { createJob, updateJob, getJob, type JobRecord, type JobProgress, type JobSource } from "../src/jobs/job-store";
+import { appendAuditEntry } from "../src/lib/api-client";
 import { compileSandboxScript, type WriteRecord, type LogEntry } from "../src/sandbox";
 import { executeManageEntity } from "../src/tools/manage-entity";
 import { executeGetHierarchy } from "../src/tools/get-hierarchy";
@@ -220,6 +221,7 @@ export interface SwJobStartInput {
   throttleRate?: number;
   creds: ApiCredentials;
   env: Environment;
+  source?: JobSource;
 }
 
 /** Start or resume a job in the service worker. */
@@ -247,6 +249,7 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
       totalCalls: input.totalCalls,
       throttleRate: input.throttleRate ?? 9,
       env: input.env,
+      source: input.source,
     });
   }
 
@@ -324,6 +327,25 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
     startedAt: job.startedAt ?? new Date().toISOString(),
     pausedAt: undefined,
   });
+
+  if (job.source === "chat" && !job.chatStartedAuditAt) {
+    const timestamp = new Date().toISOString();
+    await appendAuditEntry({
+      id: crypto.randomUUID(),
+      timestamp,
+      eventType: "chat_automation_job_started",
+      entityId: job.entityId ?? job.id,
+      entityType: job.entityType ?? "workflow",
+      parameters: {
+        jobId: job.id,
+        label: job.label,
+        totalCalls: job.totalCalls,
+      },
+      responseStatus: 0,
+      environment: env,
+    });
+    await updateJob(jobId, { chatStartedAuditAt: timestamp });
+  }
 
   abortController = new AbortController();
   const { signal } = abortController;

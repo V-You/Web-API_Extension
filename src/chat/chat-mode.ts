@@ -1,4 +1,5 @@
 export const CHAT_WRITE_TOOLS_KEY = "chat:writeToolsEnabled";
+export const CHAT_AUTOMATION_MODE_KEY = "chat:automationModeEnabled";
 export const CHAT_SHOW_TOOL_TRACES_KEY = "chat:showToolTraces";
 export const CHAT_RENDER_MARKDOWN_KEY = "chat:renderMarkdown";
 
@@ -8,8 +9,39 @@ export async function isChatWriteToolsEnabled(): Promise<boolean> {
 }
 
 export async function setChatWriteToolsEnabled(enabled: boolean): Promise<void> {
+  if (enabled) {
+    await chrome.storage.session.set({
+      [CHAT_WRITE_TOOLS_KEY]: true,
+    });
+    return;
+  }
+
   await chrome.storage.session.set({
-    [CHAT_WRITE_TOOLS_KEY]: enabled,
+    [CHAT_WRITE_TOOLS_KEY]: false,
+    [CHAT_AUTOMATION_MODE_KEY]: false,
+  });
+}
+
+export async function isChatAutomationModeEnabled(): Promise<boolean> {
+  const result = await chrome.storage.session.get([CHAT_AUTOMATION_MODE_KEY, CHAT_WRITE_TOOLS_KEY]);
+  return result[CHAT_WRITE_TOOLS_KEY] === true && result[CHAT_AUTOMATION_MODE_KEY] === true;
+}
+
+export async function setChatAutomationModeEnabled(enabled: boolean): Promise<void> {
+  if (!enabled) {
+    await chrome.storage.session.set({
+      [CHAT_AUTOMATION_MODE_KEY]: false,
+    });
+    return;
+  }
+
+  const result = await chrome.storage.session.get(CHAT_WRITE_TOOLS_KEY);
+  if (result[CHAT_WRITE_TOOLS_KEY] !== true) {
+    throw new Error("Enable write tools before enabling automation mode.");
+  }
+
+  await chrome.storage.session.set({
+    [CHAT_AUTOMATION_MODE_KEY]: true,
   });
 }
 
