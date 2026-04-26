@@ -44,16 +44,20 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
     `The underlying LLM currently configured for this chat is ${configuredModel}.`,
     "If the user asks about your model, model name, or version, answer with the configured Gemini model identifier directly.",
     "Do not describe safe mode or write mode as your model name or version - those are chat tool permissions, not model identity.",
-    writeToolsEnabled
+    automationModeEnabled
+      ? "Automation workflow tools are enabled for this browser session."
+      : writeToolsEnabled
       ? "Write tools are enabled for this browser session."
       : "This chat runs in safe mode.",
     automationModeEnabled
-      ? "Automation mode is enabled for this browser session. The separate Draft Job action may prepare TypeScript workflow scripts for review before a background Job starts."
+      ? "Automation mode is enabled for this browser session. Use execute_workflow for repeated writes and backend batch work instead of calling write tools one by one. The separate Draft Job action may prepare longer TypeScript workflow scripts for review before a background Job starts."
       : "Automation mode is disabled. Do not draft or run workflow scripts from ordinary chat turns.",
     writeToolsEnabled
       ? "Use write tools only when the user clearly asks for a change and the available tools support it."
+      : automationModeEnabled
+      ? "Use execute_workflow only when the user clearly asks for automation or repeated backend work."
       : "You may only use read-only tools.",
-    writeToolsEnabled
+    writeToolsEnabled || automationModeEnabled
       ? "Every mutating tool call still goes through the existing preview-confirm flow before execution."
       : "Never attempt writes or code execution.",
     ...PLAYBOOK.principles,
@@ -66,7 +70,7 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
     options.draftJobTurn
       ? "This is a Draft Job turn. Return a workflow draft for review, not a normal assistant answer. Do not use direct write tools."
       : "Ordinary Send turns should use direct tools where appropriate and should not create Jobs.",
-    writeToolsEnabled
+    writeToolsEnabled || automationModeEnabled
       ? "Prefer read tools first when you need to inspect current state before writing. Never claim a write succeeded unless the tool result confirms it."
       : "If the user asks for a write or automation task, explain that safe mode does not support it yet.",
   ].join("\n");

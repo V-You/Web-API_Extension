@@ -322,13 +322,17 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     title: "Execute workflow",
     description:
       "Execute a TypeScript/JS script in the local sandbox with the virtual SDK. " +
+      "Use this for repeated writes and backend batch work instead of calling write tools one by one. " +
       "The agent writes code; this tool runs it locally. The script has access to " +
       "sdk.config, sdk.entities, sdk.contacts, sdk.merchantAccounts, sdk.hierarchy, " +
       "sdk.clearingInstitutes, sdk.audit, plus console, sleep(ms), results array, and context.",
     inputSchema: {
       type: "object",
       properties: {
-        script: { type: "string", description: "TypeScript/JS source code to execute." },
+        script: {
+          type: "string",
+          description: "TypeScript/JS source code to execute, or a JSON declarative workflow with a calls array for CSP-safe backend batches.",
+        },
         entityId: { type: "string", description: "Entity context for the script." },
         entityType: {
           type: "string",
@@ -338,6 +342,10 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
         dryRun: {
           type: "boolean",
           description: "If true, validate syntax only -- do not execute.",
+        },
+        planOnly: {
+          type: "boolean",
+          description: "If true, execute locally and record planned writes without mutating backend state.",
         },
         timeoutMs: {
           type: "number",

@@ -1,3 +1,4 @@
+import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { confirmIfMutating, describeMutatingCall } from "../bridge/write-confirm-utils";
 import type { EntityType } from "../lib/entity-types";
 import { getActiveEnv, getCredentials } from "../lib/storage";
@@ -65,6 +66,27 @@ async function confirmOrDescribeIfMutating(
     return describeMutatingCall(tool, params)?.description;
   }
   return confirmIfMutating(tool, params, env);
+}
+
+async function confirmWorkflowIfNeeded(
+  params: Record<string, unknown>,
+  env: Environment,
+  options: ExecuteMapOptions,
+): Promise<boolean> {
+  if (params.dryRun === true || params.planOnly === true) return false;
+  if (options.bypassWriteConfirmation) return true;
+
+  const preview: WritePreview = {
+    tool: "execute_workflow",
+    action: "execute",
+    method: "POST",
+    description: "Execute workflow script",
+    params,
+    env,
+  };
+  const choice = await requestConfirm(preview);
+  if (choice === "cancel") throw new Error("Operation cancelled by user.");
+  return true;
 }
 
 export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string, ExecuteFn> {
@@ -228,14 +250,16 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
 
     execute_workflow: async (params) => {
       const { creds, env } = await sessionOrError();
+      const autoConfirmWrites = await confirmWorkflowIfNeeded(params, env, options);
       return executeWorkflow(
         {
           script: params.script as string,
           entityId: params.entityId as string | undefined,
           entityType: params.entityType as string | undefined,
           dryRun: params.dryRun as boolean | undefined,
+          planOnly: params.planOnly as boolean | undefined,
           timeoutMs: params.timeoutMs as number | undefined,
-          autoConfirmWrites: options.bypassWriteConfirmation,
+          autoConfirmWrites,
         },
         creds,
         env,

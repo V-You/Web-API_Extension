@@ -29,6 +29,7 @@ function generatedDescription(tool: string, params: Record<string, unknown>): st
 export function isWebMcpReadOnlyInvocation(tool: string, params: Record<string, unknown>): boolean {
   const schema = TOOL_SCHEMAS.find((entry) => entry.name === tool);
   if (!schema) return false;
+  if (tool === "execute_workflow" && (params.dryRun === true || params.planOnly === true)) return true;
   if (schema.annotations?.readOnlyHint === true) return true;
 
   const allowedActions = WEBMCP_READ_ACTIONS[tool];

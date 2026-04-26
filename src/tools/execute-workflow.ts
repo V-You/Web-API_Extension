@@ -17,6 +17,8 @@
  */
 
 import { runSandbox, type SandboxResult } from "../sandbox/sandbox";
+import type { WriteRecord } from "../sandbox/sdk-facade";
+import { executeTypedTool, isReadOnlyTool } from "./adapter";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 export interface ExecuteWorkflowInput {
@@ -27,10 +29,119 @@ export interface ExecuteWorkflowInput {
   entityType?: string;
   /** If true, dry-run only -- parse and validate but do not execute. */
   dryRun?: boolean;
+  /** If true, execute locally but record writes instead of mutating backend state. */
+  planOnly?: boolean;
   /** Timeout in milliseconds (default: 10 minutes). */
   timeoutMs?: number;
   /** Bypass per-write prompts after an outer WebMCP confirmation. */
   autoConfirmWrites?: boolean;
+}
+
+interface DeclarativeWorkflowCall {
+  tool: string;
+  params: Record<string, unknown>;
+}
+
+interface DeclarativeWorkflow {
+  workflowVersion?: number;
+  kind?: string;
+  calls: DeclarativeWorkflowCall[];
+}
+
+function parseDeclarativeWorkflow(script: string): DeclarativeWorkflow | null {
+  const trimmed = script.trim();
+  if (!trimmed.startsWith("{")) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (!parsed || typeof parsed !== "object") return null;
+  const workflow = parsed as Record<string, unknown>;
+  if (!Array.isArray(workflow.calls)) return null;
+
+  const calls = workflow.calls.map((call, index) => {
+    if (!call || typeof call !== "object") {
+      throw new Error(`Declarative workflow call ${index + 1} must be an object.`);
+    }
+    const entry = call as Record<string, unknown>;
+    if (typeof entry.tool !== "string" || !entry.tool) {
+      throw new Error(`Declarative workflow call ${index + 1} is missing tool.`);
+    }
+    if (!entry.params || typeof entry.params !== "object" || Array.isArray(entry.params)) {
+      throw new Error(`Declarative workflow call ${index + 1} is missing params.`);
+    }
+    return { tool: entry.tool, params: entry.params as Record<string, unknown> };
+  });
+
+  return {
+    workflowVersion: typeof workflow.workflowVersion === "number" ? workflow.workflowVersion : undefined,
+    kind: typeof workflow.kind === "string" ? workflow.kind : undefined,
+    calls,
+  };
+}
+
+function recordForCall(call: DeclarativeWorkflowCall): WriteRecord {
+  const params = call.params;
+  const entityId = String(
+    params.parentId ??
+    params.entityId ??
+    params.contactId ??
+    params.merchantAccountId ??
+    params.attachedMerchantAccountId ??
+    "",
+  );
+  const entityType = String(params.parentType ?? params.entityType ?? "unknown");
+  return {
+    tool: call.tool,
+    action: call.tool,
+    entityId,
+    entityType,
+    params,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function executeDeclarativeWorkflow(
+  workflow: DeclarativeWorkflow,
+  input: ExecuteWorkflowInput,
+  creds: ApiCredentials,
+  env: Environment,
+) {
+  const start = Date.now();
+  const results: unknown[] = [];
+  const writes: WriteRecord[] = [];
+
+  for (const call of workflow.calls) {
+    if (!isReadOnlyTool(call.tool)) {
+      writes.push(recordForCall(call));
+    }
+
+    if (input.planOnly) {
+      results.push({ tool: call.tool, planned: true, params: call.params });
+      continue;
+    }
+
+    const result = await executeTypedTool(call.tool, call.params, {
+      creds,
+      env,
+      confirm: true,
+    });
+    results.push({ tool: call.tool, result });
+  }
+
+  return {
+    status: input.planOnly ? "planned" : "completed",
+    returnValue: null,
+    results,
+    logs: [],
+    writeCount: writes.length,
+    writes,
+    durationMs: Date.now() - start,
+  };
 }
 
 export async function executeWorkflow(
@@ -42,6 +153,11 @@ export async function executeWorkflow(
     return { error: "script is required." };
   }
 
+  const declarativeWorkflow = parseDeclarativeWorkflow(input.script);
+  if (declarativeWorkflow) {
+    return executeDeclarativeWorkflow(declarativeWorkflow, input, creds, env);
+  }
+
   const result: SandboxResult = await runSandbox({
     script: input.script,
     creds,
@@ -49,6 +165,7 @@ export async function executeWorkflow(
     entityId: input.entityId,
     entityType: input.entityType,
     dryRun: input.dryRun,
+    planOnly: input.planOnly,
     timeoutMs: input.timeoutMs,
     autoConfirmWrites: input.autoConfirmWrites,
   });

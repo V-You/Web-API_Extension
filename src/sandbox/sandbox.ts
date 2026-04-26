@@ -17,6 +17,7 @@
  * preview/confirm bridge (build step 5).
  */
 
+import * as tsRuntime from "typescript";
 import type * as ts from "typescript";
 
 import { buildSdkFacade, type WriteRecord } from "./sdk-facade";
@@ -37,6 +38,8 @@ export interface SandboxInput {
   entityType?: string;
   /** If true, validate/parse only -- do not execute. */
   dryRun?: boolean;
+  /** If true, execute script but record writes without mutating backend state. */
+  planOnly?: boolean;
   /** Timeout in milliseconds (default: 10 minutes). 0 = no timeout. */
   timeoutMs?: number;
   /** Resume checkpoint from a previous interrupted run. */
@@ -50,7 +53,7 @@ export interface SandboxInput {
 }
 
 export interface SandboxResult {
-  status: "completed" | "error" | "timeout" | "dry_run";
+  status: "completed" | "error" | "timeout" | "dry_run" | "planned";
   /** Value returned by the script (if any). */
   returnValue: unknown;
   /** Structured results the script pushed to the `results` array. */
@@ -117,9 +120,6 @@ const FORBIDDEN_CONSTRUCTORS = new Map<string, string>([
   ["AsyncFunction", "AsyncFunction is not allowed inside sandbox scripts."],
 ]);
 
-let typescriptPromise: Promise<TsModule> | null = null;
-let typescriptRuntime: TsModule | null = null;
-
 function getSandboxTranspileOptions(tsModule: TsModule): ts.TranspileOptions {
   return {
     fileName: "sandbox-workflow.ts",
@@ -135,22 +135,11 @@ function getSandboxTranspileOptions(tsModule: TsModule): ts.TranspileOptions {
 }
 
 async function getTypeScriptRuntime(): Promise<TsModule> {
-  if (!typescriptPromise) {
-    typescriptPromise = import("typescript").then((module) => {
-      typescriptRuntime = module;
-      return module;
-    });
-  }
-
-  return typescriptPromise;
+  return tsRuntime;
 }
 
 function getTypeScript(): TsModule {
-  if (!typescriptRuntime) {
-    throw new Error("TypeScript runtime has not been loaded.");
-  }
-
-  return typescriptRuntime;
+  return tsRuntime;
 }
 
 function addBindingName(name: ts.BindingName, names: Set<string>) {
@@ -422,6 +411,7 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
   // Build the SDK facade
   const sdk = buildSdkFacade(input.creds, input.env, writes, {
     autoConfirmWrites: input.autoConfirmWrites === true,
+    planOnlyWrites: input.planOnly === true,
   });
 
   // Captured console
@@ -497,7 +487,7 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
     }
 
     return {
-      status: "completed",
+      status: input.planOnly ? "planned" : "completed",
       returnValue: returnValue ?? null,
       results,
       logs,

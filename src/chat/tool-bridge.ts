@@ -165,8 +165,12 @@ function filterSchemaProperties(schema: ToolSchema): ToolSchema {
 }
 
 function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}): ToolSchema | null {
-  void options.automationModeEnabled;
-  if (schema.name === "execute_workflow") return null;
+  if (schema.name === "execute_workflow") {
+    if (!options.automationModeEnabled) return null;
+    const chatSchema = buildChatSchema(cloneSchema(schema));
+    assertChatSafeSchema(chatSchema.inputSchema);
+    return chatSchema;
+  }
 
   // Generated per-action tools: skip writes in safe mode; pass-through reads.
   const isGenerated = !(schema.name in READ_ONLY_PROPERTIES)
@@ -219,7 +223,7 @@ export async function executeChatTool(
 ): Promise<unknown> {
   const schema = getChatToolSchemas(options).find((tool) => tool.name === name);
   if (!schema) {
-    throw new Error(`Tool ${name} is not available in chat safe mode.`);
+    throw new Error(`Tool ${name} is not available in the current chat mode.`);
   }
 
   const allowedActions = READ_ONLY_ACTIONS[name];

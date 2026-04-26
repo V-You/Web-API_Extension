@@ -120,8 +120,13 @@ describe("chat tool bridge", () => {
     expect(getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
   });
 
-  it("still excludes raw execute_workflow when automation mode is enabled", () => {
-    expect(getChatToolSchemas({ writeToolsEnabled: true, automationModeEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
+  it("exposes execute_workflow only when automation mode is enabled", () => {
+    expect(getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
+
+    const automationSchemas = getChatToolSchemas({ writeToolsEnabled: true, automationModeEnabled: true });
+    const workflow = automationSchemas.find((schema) => schema.name === "execute_workflow");
+    expect(workflow).toBeDefined();
+    expect((workflow?.inputSchema as { properties?: Record<string, unknown> }).properties?.planOnly).toBeDefined();
   });
 
   // Phase 3 / D11 – Gemini-safe chat declarations.

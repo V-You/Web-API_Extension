@@ -36,7 +36,9 @@ describe("chat discovery playbook", () => {
   it("builds an automation-enabled prompt variant", () => {
     const prompt = buildChatSystemPrompt({ writeToolsEnabled: true, automationModeEnabled: true, draftJobTurn: true });
 
+    expect(prompt).toContain("Automation workflow tools are enabled for this browser session.");
     expect(prompt).toContain("Automation mode is enabled for this browser session.");
+    expect(prompt).toContain("Use execute_workflow for repeated writes and backend batch work instead of calling write tools one by one.");
     expect(prompt).toContain("This is a Draft Job turn.");
     expect(prompt).not.toContain("Automation mode is disabled.");
   });

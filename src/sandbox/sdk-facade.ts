@@ -85,6 +85,11 @@ export interface WriteRecord {
 
 export interface SdkFacadeOptions {
   autoConfirmWrites?: boolean;
+  planOnlyWrites?: boolean;
+}
+
+function plannedResult(tool: string, params: Record<string, unknown>): AdapterResult {
+  return { ok: true, status: 0, data: { planned: true, tool, params } };
 }
 
 /**
@@ -115,6 +120,11 @@ export function buildSdkFacade(
     description: string,
     params: Record<string, unknown>,
   ) {
+    if (options.planOnlyWrites) {
+      writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
+      return;
+    }
+
     if (options.autoConfirmWrites) {
       writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
       recordWrite(description);
@@ -155,6 +165,7 @@ export function buildSdkFacade(
           `Update ${keys.length} setting(s) on ${entityType} ${entityId}`,
           { settings },
         );
+        if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
         return virtualSdk.config.update(entityType, entityId, settings);
       },
       async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
@@ -164,6 +175,7 @@ export function buildSdkFacade(
           `Batch update ${keys.length} setting(s) on ${entityType} ${entityId}`,
           { settings },
         );
+        if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
         return virtualSdk.config.batchUpdate(entityType, entityId, settings);
       },
     },
@@ -189,6 +201,7 @@ export function buildSdkFacade(
           childType === "division" ? "create_division"
           : childType === "merchant" ? "create_merchant"
           : "create_channel";
+        if (options.planOnlyWrites) return plannedResult(toolName, { parentType, parentId, ...fields });
         return runTyped(toolName, { parentType, parentId, ...fields });
       },
       async edit(entityType: EntityType, entityId: string, fields: Record<string, string>) {
@@ -197,6 +210,7 @@ export function buildSdkFacade(
           `Edit ${entityType} ${entityId}`,
           { fields },
         );
+        if (options.planOnlyWrites) return plannedResult("edit_entity", { parentType: entityType, parentId: entityId, ...fields });
         return runTyped("edit_entity", { parentType: entityType, parentId: entityId, ...fields });
       },
       async delete(entityType: EntityType, entityId: string) {
@@ -205,6 +219,7 @@ export function buildSdkFacade(
           `Delete ${entityType} ${entityId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("delete_entity", { parentType: entityType, parentId: entityId });
         return runTyped("delete_entity", { parentType: entityType, parentId: entityId });
       },
     },
@@ -233,6 +248,7 @@ export function buildSdkFacade(
           `Create contact on ${entityType} ${entityId}`,
           { fields },
         );
+        if (options.planOnlyWrites) return plannedResult("create_contact", { parentType: entityType, parentId: entityId, ...fields });
         return runTyped("create_contact", { parentType: entityType, parentId: entityId, ...fields });
       },
       async edit(contactId: string, fields: Record<string, string>) {
@@ -241,6 +257,7 @@ export function buildSdkFacade(
           `Edit contact ${contactId}`,
           { fields },
         );
+        if (options.planOnlyWrites) return plannedResult("edit_contact", { contactId, ...fields });
         return runTyped("edit_contact", { contactId, ...fields });
       },
       async delete(contactId: string) {
@@ -249,6 +266,7 @@ export function buildSdkFacade(
           `Delete contact ${contactId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("delete_contact", { contactId });
         return runTyped("delete_contact", { contactId });
       },
       async attach(entityType: EntityType, entityId: string, contactId: string) {
@@ -259,6 +277,7 @@ export function buildSdkFacade(
           `Attach contact ${contactId} to ${entityType} ${entityId}`,
           { contactId },
         );
+        if (options.planOnlyWrites) return plannedResult("manage_contact", { action: "attach", entityType, entityId, contactId });
         return executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env);
       },
       async detach(entityType: EntityType, entityId: string, contactId: string) {
@@ -267,6 +286,7 @@ export function buildSdkFacade(
           `Detach contact ${contactId} from ${entityType} ${entityId}`,
           { contactId },
         );
+        if (options.planOnlyWrites) return plannedResult("detach_contact", { parentType: entityType, parentId: entityId, contactId });
         return runTyped("detach_contact", { parentType: entityType, parentId: entityId, contactId });
       },
       async lock(contactId: string) {
@@ -275,6 +295,7 @@ export function buildSdkFacade(
           `Lock contact ${contactId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("lock_contact", { contactId });
         return runTyped("lock_contact", { contactId });
       },
       async unlock(contactId: string) {
@@ -283,6 +304,7 @@ export function buildSdkFacade(
           `Unlock contact ${contactId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("unlock_contact", { contactId });
         return runTyped("unlock_contact", { contactId });
       },
       async resetPassword(contactId: string, _newPassword?: string) {
@@ -294,6 +316,7 @@ export function buildSdkFacade(
           `Reset password for contact ${contactId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("set_contact_password", { contactId });
         return runTyped("set_contact_password", { contactId });
       },
     },
@@ -312,6 +335,7 @@ export function buildSdkFacade(
           `Create merchant account on ${entityType} ${entityId}`,
           { fields },
         );
+        if (options.planOnlyWrites) return plannedResult("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields });
         return runTyped("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields });
       },
       async edit(merchantAccountId: string, fields: Record<string, string>) {
@@ -320,6 +344,7 @@ export function buildSdkFacade(
           `Edit merchant account ${merchantAccountId}`,
           { fields },
         );
+        if (options.planOnlyWrites) return plannedResult("edit_merchant_account", { merchantAccountId, ...fields });
         return runTyped("edit_merchant_account", { merchantAccountId, ...fields });
       },
       async delete(merchantAccountId: string) {
@@ -328,6 +353,7 @@ export function buildSdkFacade(
           `Delete merchant account ${merchantAccountId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("delete_merchant_account", { merchantAccountId });
         return runTyped("delete_merchant_account", { merchantAccountId });
       },
       async attach(entityType: EntityType, entityId: string, merchantAccountId: string, subTypes: string, currency: string) {
@@ -339,6 +365,15 @@ export function buildSdkFacade(
           `Attach merchant account ${merchantAccountId} to ${entityType} ${entityId}`,
           { merchantAccountId, subTypes, currency },
         );
+        if (options.planOnlyWrites) {
+          return plannedResult("attach_merchant_account", {
+            parentType: entityType,
+            parentId: entityId,
+            merchantAccountId,
+            subTypes,
+            currency,
+          });
+        }
         return runTyped("attach_merchant_account", {
           parentType: entityType,
           parentId: entityId,
@@ -353,6 +388,7 @@ export function buildSdkFacade(
           `Detach merchant account relationship ${attachedMerchantAccountId}`,
           {},
         );
+        if (options.planOnlyWrites) return plannedResult("detach_merchant_account", { attachedMerchantAccountId });
         return runTyped("detach_merchant_account", { attachedMerchantAccountId });
       },
       async threeDCheck(merchantAccountId: string) {

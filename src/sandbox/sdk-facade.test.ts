@@ -118,4 +118,32 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     expect(executeTypedToolMock).not.toHaveBeenCalled();
     expect(writes).toHaveLength(0);
   });
+
+  it("records planned writes without confirmation or backend execution", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes, { planOnlyWrites: true });
+
+    const result = await sdk.contacts.create("division", "div-1", {
+      email: "planned@example.test",
+      name: "Planned User",
+      role: "OPERATOR",
+      kind: "SEND",
+      language: "en",
+    });
+
+    expect(requestConfirmMock).not.toHaveBeenCalled();
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      status: 0,
+      data: { planned: true, tool: "create_contact" },
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({
+      tool: "manage_contact",
+      action: "create",
+      entityId: "div-1",
+      entityType: "division",
+    });
+  });
 });
