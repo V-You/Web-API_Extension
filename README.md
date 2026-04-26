@@ -607,7 +607,7 @@ npm run generate:manifest
 - **POST, not PUT.** All updates use POST. The API does not support PUT.
 - **Custom credentials header.** `credentials: username:password` (raw, not base64, not standard Basic Auth).
 - **Eventual consistency.** After creating or updating entities, changes may take up to 3 minutes to propagate through the API cache.
-- **GET /setting limited.** Only works at merchant and channel level. POST /setting works at all levels (PSP, division, merchant, channel).
+- **GET /setting limited.** Only works at merchant and channel level. POST /setting works at all levels (PSP, division, merchant, channel). Settings are inherited, so an empty value means "not set here" rather than "off". The extension resolves effective values upward where the API permits it, e.g. channel -> merchant. If the chain reaches division or PSP, the effective value is unknown through the API; the result includes the known default and the agent can use context binding to inspect the dashboard manually when the user needs the true operational value.
 
 ### Settings coverage
 

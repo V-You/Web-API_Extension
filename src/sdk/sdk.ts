@@ -31,6 +31,8 @@ import { flattenSettings, parseValue, type FlattenResult } from "./proxy";
 export interface SdkContext {
   creds: ApiCredentials;
   env: Environment;
+  signal?: AbortSignal;
+  throttleRate?: number;
 }
 
 export interface ConfigGetResult {
@@ -97,7 +99,11 @@ class SdkConfig {
     }
 
     const path = `/${ENTITY_PLURAL[entityType]}/${entityId}/setting?key=${encodeURIComponent(flatKey)}`;
-    const res = await apiRequest(this.ctx.creds, this.ctx.env, { path });
+    const res = await apiRequest(this.ctx.creds, this.ctx.env, {
+      path,
+      signal: this.ctx.signal,
+      throttleRate: this.ctx.throttleRate,
+    });
 
     if (!res.ok) {
       throw new Error(`API error ${res.status}: ${JSON.stringify(res.data)}`);
@@ -138,6 +144,8 @@ class SdkConfig {
         method: "POST",
         path: basePath,
         params: { key: s.flatKey, value: s.value },
+        signal: this.ctx.signal,
+        throttleRate: this.ctx.throttleRate,
       }, {
         eventType: "setting_change",
         entityId,

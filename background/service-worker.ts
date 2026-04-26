@@ -11,27 +11,14 @@
 
 import { swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
 import { clearChatContext, upsertChatContext } from "../src/chat/context-store";
-import { createExecuteMap } from "../src/tools/internal-router";
+import { createExecuteMap, resolveSession } from "../src/tools/internal-router";
 import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
 import type { ToolSchema } from "../src/webmcp/tool-schemas";
 import type { EntityType } from "../src/lib/entity-types";
+import type { WritePreview } from "../src/bridge/confirm-bridge";
+import { buildWebMcpWritePreview, isWebMcpReadOnlyInvocation } from "../src/webmcp/execution-policy";
 
-const WEBMCP_EXECUTE_MAP = createExecuteMap();
-
-const WEBMCP_READ_ACTIONS: Record<string, Set<string>> = {
-  manage_settings: new Set(["get", "batch_get", "list_non_default"]),
-};
-
-function isWebMcpReadOnlyInvocation(tool: string, params: Record<string, unknown>): boolean {
-  const schema = TOOL_SCHEMAS.find((entry) => entry.name === tool);
-  if (!schema) return false;
-  if (schema.annotations?.readOnlyHint === true) return true;
-
-  const allowedActions = WEBMCP_READ_ACTIONS[tool];
-  if (!allowedActions) return false;
-  const action = params.action;
-  return typeof action === "string" && allowedActions.has(action);
-}
+const WEBMCP_EXECUTE_MAP = createExecuteMap({ bypassWriteConfirmation: true });
 
 // -- Side panel activation ------------------------------------------------
 
@@ -135,6 +122,7 @@ export interface WebMcpExecuteToolMessage {
   payload: {
     tool: string;
     params?: Record<string, unknown>;
+    confirmed?: boolean;
   };
 }
 
@@ -278,7 +266,7 @@ chrome.runtime.onMessage.addListener(
 
 async function handleWebMcpExecuteTool(
   payload: WebMcpExecuteToolMessage["payload"],
-): Promise<{ ok: boolean; result?: string; error?: string }> {
+): Promise<{ ok: boolean; result?: string; error?: string; needsConfirmation?: boolean; preview?: WritePreview }> {
   const params = payload.params ?? {};
   const execute = WEBMCP_EXECUTE_MAP[payload.tool];
   if (!execute) {
@@ -286,12 +274,15 @@ async function handleWebMcpExecuteTool(
   }
 
   if (!isWebMcpReadOnlyInvocation(payload.tool, params)) {
-    return {
-      ok: false,
-      error:
-        "WebMCP write execution is temporarily disabled while the service-worker confirmation path is implemented. " +
-        "Read tools are available; use the side panel or Chat tab for confirmed writes for now.",
-    };
+    const session = await resolveSession();
+    if (!session) {
+      return { ok: false, error: "Session not unlocked. Open the side panel and enter your PIN first." };
+    }
+
+    const preview = buildWebMcpWritePreview(payload.tool, params, session.env);
+    if (preview && payload.confirmed !== true) {
+      return { ok: false, needsConfirmation: true, preview };
+    }
   }
 
   const result = await execute(params);

@@ -1,8 +1,7 @@
 /**
  * Shared utilities for write confirmation across bridge.ts and register-tools.ts.
  *
- * Extracted to avoid duplication of describeDirectWrite and related helpers
- * which had identical copies in content/bridge.ts and src/webmcp/register-tools.ts.
+ * Keeps write descriptions consistent across Chat, side panel, sandbox, and WebMCP paths.
  */
 
 import type { Environment } from "../lib/types";
@@ -53,6 +52,21 @@ export function describeDirectWrite(tool: string, action: string, params: Record
   }
 }
 
+export function describeMutatingCall(
+  tool: string,
+  params: Record<string, unknown>,
+): { action: string; method: "POST" | "DELETE"; description: string } | null {
+  const actions = MUTATING_ACTIONS[tool];
+  if (!actions) return null;
+  const action = params.action as string;
+  if (!actions.has(action)) return null;
+  return {
+    action,
+    method: httpMethod(action),
+    description: describeDirectWrite(tool, action, params),
+  };
+}
+
 /**
  * Check whether a tool call is mutating; if so, request user confirmation.
  * Returns the write description if the call was mutating and confirmed,
@@ -62,21 +76,18 @@ export function describeDirectWrite(tool: string, action: string, params: Record
 export async function confirmIfMutating(
   tool: string, params: Record<string, unknown>, env: Environment
 ): Promise<string | undefined> {
-  const actions = MUTATING_ACTIONS[tool];
-  if (!actions) return undefined;
-  const action = params.action as string;
-  if (!actions.has(action)) return undefined;
+  const mutatingCall = describeMutatingCall(tool, params);
+  if (!mutatingCall) return undefined;
 
-  const description = describeDirectWrite(tool, action, params);
   const preview: WritePreview = {
     tool,
-    action,
-    method: httpMethod(action),
-    description,
+    action: mutatingCall.action,
+    method: mutatingCall.method,
+    description: mutatingCall.description,
     params,
     env,
   };
   const choice = await requestConfirm(preview);
   if (choice === "cancel") throw new Error("Operation cancelled by user.");
-  return description;
+  return mutatingCall.description;
 }

@@ -51,8 +51,8 @@ async function flushProgress(jobId: string, force = false) {
 
 // -- SDK facade for SW (no confirm bridge) --------------------------------
 
-function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord[]) {
-  const ctx: SdkContext = { creds, env };
+function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord[], signal?: AbortSignal, throttleRate?: number) {
+  const ctx: SdkContext = { creds, env, signal, throttleRate };
   const virtualSdk = createSdk(ctx);
 
   function recordWrite(
@@ -355,7 +355,7 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
   const results: unknown[] = [];
   const writes: WriteRecord[] = [];
 
-  const sdk = buildSwSdk(creds, env, writes);
+  const sdk = buildSwSdk(creds, env, writes, signal, job.throttleRate);
 
   const consoleProxy = {
     log: (...args: unknown[]) => logs.push({ level: "log", args, timestamp: new Date().toISOString() }),

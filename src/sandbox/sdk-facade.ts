@@ -83,6 +83,10 @@ export interface WriteRecord {
   timestamp: string;
 }
 
+export interface SdkFacadeOptions {
+  autoConfirmWrites?: boolean;
+}
+
 /**
  * Build the full `sdk` object injected into sandbox scripts.
  *
@@ -95,7 +99,8 @@ export interface WriteRecord {
 export function buildSdkFacade(
   creds: ApiCredentials,
   env: Environment,
-  writes: WriteRecord[]
+  writes: WriteRecord[],
+  options: SdkFacadeOptions = {},
 ) {
   const ctx: SdkContext = { creds, env };
   const virtualSdk = createSdk(ctx);
@@ -110,6 +115,12 @@ export function buildSdkFacade(
     description: string,
     params: Record<string, unknown>,
   ) {
+    if (options.autoConfirmWrites) {
+      writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
+      recordWrite(description);
+      return;
+    }
+
     const preview: WritePreview = { tool, action, method, description, params, env };
     const choice = await requestConfirm(preview);
     if (choice === "cancel") throw new Error("Operation cancelled by user.");

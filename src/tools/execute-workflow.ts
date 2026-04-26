@@ -29,6 +29,8 @@ export interface ExecuteWorkflowInput {
   dryRun?: boolean;
   /** Timeout in milliseconds (default: 10 minutes). */
   timeoutMs?: number;
+  /** Bypass per-write prompts after an outer WebMCP confirmation. */
+  autoConfirmWrites?: boolean;
 }
 
 export async function executeWorkflow(
@@ -48,6 +50,7 @@ export async function executeWorkflow(
     entityType: input.entityType,
     dryRun: input.dryRun,
     timeoutMs: input.timeoutMs,
+    autoConfirmWrites: input.autoConfirmWrites,
   });
 
   return {

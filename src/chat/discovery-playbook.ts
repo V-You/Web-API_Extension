@@ -58,6 +58,7 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
       : "Never attempt writes or code execution.",
     ...PLAYBOOK.principles,
     "Entities with state DISABLED are soft-deleted. List and hierarchy tools automatically hide them unless includeDisabled=true. If the result includes _hiddenDisabled, mention how many were hidden. Do not count or list disabled entities unless the user explicitly asks about deleted items.",
+    "For settings results with source: unknown, state the API limitation briefly and include the default value if present. Do not offer UI inspection from Chat Tab.",
     "Discovery playbook:",
     ...PLAYBOOK.playbooks.map((entry) => `${entry.trigger}: ${entry.steps.join(" ")}`),
     "Response style:",

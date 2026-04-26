@@ -14,7 +14,9 @@
 import { RateLimiter } from "./rate-limiter";
 import type { ApiCredentials, AuditEntry, AuditEventType, Environment } from "./types";
 
-const limiter = new RateLimiter(9);
+const DEFAULT_RATE_LIMIT = 9;
+const defaultLimiter = new RateLimiter(DEFAULT_RATE_LIMIT);
+const limiters = new Map<number, RateLimiter>();
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 500;
@@ -37,6 +39,34 @@ export interface RequestOptions {
   path: string;
   /** Form fields for POST requests (url-encoded). */
   params?: Record<string, string>;
+  /** Optional abort signal for jobs and cancellable workflows. */
+  signal?: AbortSignal;
+  /** Optional request throttle rate in requests per second. */
+  throttleRate?: number;
+}
+
+function limiterFor(rate: number | undefined): RateLimiter {
+  if (!rate || rate === DEFAULT_RATE_LIMIT) return defaultLimiter;
+  const normalized = Math.max(1, Math.floor(rate));
+  const existing = limiters.get(normalized);
+  if (existing) return existing;
+  const next = new RateLimiter(normalized);
+  limiters.set(normalized, next);
+  return next;
+}
+
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
 }
 
 /**
@@ -46,6 +76,8 @@ export interface RequestOptions {
 async function fetchWithRetry(
   url: string,
   init: RequestInit,
+  signal?: AbortSignal,
+  limiter = defaultLimiter,
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -61,8 +93,8 @@ async function fetchWithRetry(
       // Network error -- wait and try again
     }
     const delay = RETRY_BASE_MS * Math.pow(2, attempt);
-    await new Promise((r) => setTimeout(r, delay));
-    await limiter.acquire(); // re-acquire rate limit token
+    await abortableDelay(delay, signal);
+    await limiter.acquire(signal); // re-acquire rate limit token
   }
   throw lastError ?? new Error(`Request failed after ${MAX_RETRIES + 1} attempts`);
 }
@@ -77,7 +109,8 @@ export async function apiRequest<T = unknown>(
   opts: RequestOptions,
   auditMeta?: { eventType: AuditEventType; entityId: string; entityType: string }
 ): Promise<ApiResponse<T>> {
-  await limiter.acquire();
+  const limiter = limiterFor(opts.throttleRate);
+  await limiter.acquire(opts.signal);
 
   const url = `${creds.baseUrl}${opts.path}`;
   const method = opts.method ?? "GET";
@@ -92,7 +125,7 @@ export async function apiRequest<T = unknown>(
     body = new URLSearchParams(opts.params).toString();
   }
 
-  const res = await fetchWithRetry(url, { method, headers, body });
+  const res = await fetchWithRetry(url, { method, headers, body, signal: opts.signal }, opts.signal, limiter);
 
   let data: T;
   const contentType = res.headers.get("content-type") ?? "";

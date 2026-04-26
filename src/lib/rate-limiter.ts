@@ -26,7 +26,7 @@ export class RateLimiter {
   }
 
   /** Wait until a token is available, then consume it. */
-  async acquire(): Promise<void> {
+  async acquire(signal?: AbortSignal): Promise<void> {
     this.refill();
     if (this.tokens >= 1) {
       this.tokens -= 1;
@@ -35,7 +35,17 @@ export class RateLimiter {
     // Calculate wait time for the next token
     const deficit = 1 - this.tokens;
     const waitMs = Math.ceil(deficit / this.refillRate);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    await new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+      const timer = setTimeout(resolve, waitMs);
+      signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      }, { once: true });
+    });
     this.refill();
     this.tokens -= 1;
   }

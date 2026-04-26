@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "WEBAPI_TEST_LIVE=1 vitest run --dir src --testNamePattern=. src/**/*.live.test.ts",
+    "smoke:webmcp": "node tools-cli/webmcp-smoke.mjs",
     "verify:tokens": "node tools-cli/token-benchmark.mjs",
     "verify:security": "node tools-cli/security-verify.mjs",
     "generate:manifest": "node tools-cli/generate-manifest.mjs",

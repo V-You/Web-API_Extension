@@ -1,4 +1,4 @@
-import { confirmIfMutating } from "../bridge/write-confirm-utils";
+import { confirmIfMutating, describeMutatingCall } from "../bridge/write-confirm-utils";
 import type { EntityType } from "../lib/entity-types";
 import { getActiveEnv, getCredentials } from "../lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
@@ -24,6 +24,7 @@ export type ExecuteFn = (params: Record<string, unknown>) => Promise<unknown>;
 
 export interface ExecuteMapOptions {
   onWriteAccepted?: (description: string) => void;
+  bypassWriteConfirmation?: boolean;
 }
 
 export async function resolveSession(): Promise<ToolSession | null> {
@@ -54,6 +55,18 @@ function reportWriteAccepted(
   }
 }
 
+async function confirmOrDescribeIfMutating(
+  tool: string,
+  params: Record<string, unknown>,
+  env: Environment,
+  options: ExecuteMapOptions,
+): Promise<string | undefined> {
+  if (options.bypassWriteConfirmation) {
+    return describeMutatingCall(tool, params)?.description;
+  }
+  return confirmIfMutating(tool, params, env);
+}
+
 export function createExecuteMap(options: ExecuteMapOptions = {}): Record<string, ExecuteFn> {
   const map = buildHandwrittenExecuteMap(options);
   return registerGeneratedToolExecutors(map, options);
@@ -82,7 +95,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     manage_entity: async (params) => {
       guardReadOnly("manage_entity", params.action);
       const { creds, env } = await sessionOrError();
-      const description = await confirmIfMutating("manage_entity", params, env);
+      const description = await confirmOrDescribeIfMutating("manage_entity", params, env, options);
       const result = await executeManageEntity(
         {
           action: params.action as "get",
@@ -119,7 +132,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     manage_contact: async (params) => {
       guardReadOnly("manage_contact", params.action);
       const { creds, env } = await sessionOrError();
-      const description = await confirmIfMutating("manage_contact", params, env);
+      const description = await confirmOrDescribeIfMutating("manage_contact", params, env, options);
       const result = await executeManageContact(
         {
           action: params.action as "get",
@@ -141,7 +154,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     manage_merchant_account: async (params) => {
       guardReadOnly("manage_merchant_account", params.action);
       const { creds, env } = await sessionOrError();
-      const description = await confirmIfMutating("manage_merchant_account", params, env);
+      const description = await confirmOrDescribeIfMutating("manage_merchant_account", params, env, options);
       const result = await executeManageMerchantAccount(
         {
           action: params.action as "get",
@@ -184,7 +197,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
 
     manage_settings: async (params) => {
       const { creds, env } = await sessionOrError();
-      const description = await confirmIfMutating("manage_settings", params, env);
+      const description = await confirmOrDescribeIfMutating("manage_settings", params, env, options);
       const result = await executeManageSettings(
         {
           action: params.action as "get",
@@ -195,6 +208,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
           entityIds: params.entityIds as string[] | undefined,
           keys: params.keys as string[] | undefined,
           settings: params.settings as Record<string, string> | undefined,
+          query: params.query as string | undefined,
         },
         creds,
         env,
@@ -221,6 +235,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
           entityType: params.entityType as string | undefined,
           dryRun: params.dryRun as boolean | undefined,
           timeoutMs: params.timeoutMs as number | undefined,
+          autoConfirmWrites: options.bypassWriteConfirmation,
         },
         creds,
         env,
@@ -255,7 +270,7 @@ export function registerGeneratedToolExecutors(
       return executeTypedTool(toolName, params, {
         creds,
         env,
-        confirm: params.confirm === true,
+        confirm: options.bypassWriteConfirmation === true,
         onWriteAccepted: isReadOnlyTool(toolName) ? undefined : options.onWriteAccepted,
       });
     };

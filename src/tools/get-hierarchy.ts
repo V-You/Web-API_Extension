@@ -12,6 +12,7 @@
  */
 
 import { apiRequest } from "../lib/api-client";
+import { extractEntityCollection, unwrapEntityRecord } from "../lib/api-shapes";
 import { ENTITY_PLURAL, entityPath, type EntityType } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 
@@ -49,40 +50,6 @@ const CHILD_TYPE_BY_PARENT: Partial<Record<EntityType, EntityType>> = {
   division: "merchant",
   merchant: "channel",
 };
-
-function unwrapEntityRecord(type: EntityType, data: Record<string, unknown>): Record<string, unknown> {
-  const directKey = type;
-  const infoKey = `${type}Info`;
-
-  if (data[directKey] && typeof data[directKey] === "object" && !Array.isArray(data[directKey])) {
-    return data[directKey] as Record<string, unknown>;
-  }
-
-  if (data[infoKey] && typeof data[infoKey] === "object" && !Array.isArray(data[infoKey])) {
-    return data[infoKey] as Record<string, unknown>;
-  }
-
-  return data;
-}
-
-function extractChildItems(childType: EntityType, data: unknown): Record<string, unknown>[] {
-  if (Array.isArray(data)) {
-    return data.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
-  }
-
-  if (!data || typeof data !== "object") {
-    return [];
-  }
-
-  const source = data as Record<string, unknown>;
-  const pluralKey = ENTITY_PLURAL[childType];
-  const direct = source[pluralKey];
-  if (Array.isArray(direct)) {
-    return direct.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
-  }
-
-  return [];
-}
 
 function splitDisabledNodes(nodes: HierarchyNode[]): { visible: HierarchyNode[]; hiddenDisabled: number } {
   let hiddenDisabled = 0;
@@ -145,7 +112,7 @@ async function fetchChildren(
 ): Promise<{ ok: boolean; status: number; data: unknown; nodes: HierarchyNode[]; hiddenDisabled: number }> {
   const path = `/${ENTITY_PLURAL[parentType]}/${parentId}/${ENTITY_PLURAL[childType]}`;
   const res = await apiRequest<unknown>(creds, env, { path });
-  const items = res.ok ? extractChildItems(childType, res.data) : [];
+  const items = res.ok ? extractEntityCollection(childType, res.data) : [];
   const allNodes = items.map((item) => toNode(childType, item, ""));
   const { visible, hiddenDisabled } = includeDisabled
     ? { visible: allNodes, hiddenDisabled: 0 }

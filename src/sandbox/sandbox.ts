@@ -45,6 +45,8 @@ export interface SandboxInput {
   progressFn?: (p: { completedCalls: number; totalCalls: number; checkpoint?: unknown }) => void;
   /** External abort signal (from job runner). Overrides internal controller. */
   abortSignal?: AbortSignal;
+  /** Bypass per-write prompts when an outer caller already confirmed execution. */
+  autoConfirmWrites?: boolean;
 }
 
 export interface SandboxResult {
@@ -418,7 +420,9 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
   }
 
   // Build the SDK facade
-  const sdk = buildSdkFacade(input.creds, input.env, writes);
+  const sdk = buildSdkFacade(input.creds, input.env, writes, {
+    autoConfirmWrites: input.autoConfirmWrites === true,
+  });
 
   // Captured console
   const consoleProxy = {

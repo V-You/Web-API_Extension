@@ -10,6 +10,51 @@
  * script via chrome.scripting.executeScript (bypasses page CSP).
  */
 
+interface BridgeResponse {
+  ok?: boolean;
+  result?: string;
+  error?: string;
+  needsConfirmation?: boolean;
+  preview?: {
+    tool: string;
+    action: string;
+    method: "POST" | "DELETE";
+    description: string;
+    params: Record<string, unknown>;
+    env: "uat" | "prod";
+  };
+}
+
+async function sendExecuteTool(
+  tool: string,
+  params: Record<string, unknown>,
+  confirmed = false,
+): Promise<BridgeResponse | undefined> {
+  return chrome.runtime.sendMessage({
+    type: "webmcp:execute-tool",
+    payload: { tool, params, confirmed },
+  }) as Promise<BridgeResponse | undefined>;
+}
+
+function confirmWrite(preview: NonNullable<BridgeResponse["preview"]>): boolean {
+  const prettyParams = Object.keys(preview.params).length > 0
+    ? JSON.stringify(preview.params, null, 2)
+    : "(none)";
+
+  const message = [
+    `Confirm write (${preview.env.toUpperCase()})`,
+    "",
+    preview.description,
+    "",
+    `Method: ${preview.method}`,
+    `Tool: ${preview.tool}/${preview.action}`,
+    "",
+    `Params: ${prettyParams}`,
+  ].join("\n");
+
+  return window.confirm(message);
+}
+
 // -- Message listener (main world -> isolated world) ----------------------
 
 window.addEventListener("message", async (event: MessageEvent) => {
@@ -24,10 +69,19 @@ window.addEventListener("message", async (event: MessageEvent) => {
   };
 
   try {
-    const response = await chrome.runtime.sendMessage({
-      type: "webmcp:execute-tool",
-      payload: { tool, params },
-    }) as { ok?: boolean; result?: string; error?: string } | undefined;
+    let response = await sendExecuteTool(tool, params);
+
+    if (response?.needsConfirmation && response.preview) {
+      if (!confirmWrite(response.preview)) {
+        window.postMessage({
+          type: "webmcp:tool-result",
+          callId,
+          error: "Operation cancelled by user.",
+        }, "*");
+        return;
+      }
+      response = await sendExecuteTool(tool, params, true);
+    }
 
     if (!response?.ok) {
       window.postMessage({
