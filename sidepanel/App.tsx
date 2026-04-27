@@ -21,6 +21,7 @@ import { JobMonitor } from "./views/JobMonitor";
 import { WriteStatusToast } from "./views/WriteStatusToast";
 import type { Environment } from "../src/lib/types";
 import { isSupportedDashboardUrl } from "../src/lib/scoped-domains";
+import { setSidePanelConfirmReady } from "../src/bridge/remote-confirm";
 
 type View = "home" | "chat" | "jobs" | "history" | "connections";
 
@@ -63,6 +64,13 @@ export function App() {
   useEffect(() => {
     checkState();
   }, [checkState]);
+
+  useEffect(() => {
+    void setSidePanelConfirmReady(true);
+    return () => {
+      void setSidePanelConfirmReady(false);
+    };
+  }, []);
 
   // Still loading tab info
   if (onScopedDomain === null) return null;

@@ -11,11 +11,14 @@ dist/
 base_data/*
 !base_data/character-value-mapping.yaml
 .venv
-.claude/
 CLAUDE.md
 .remember/
-.agents/
 
+# vendors
+.claude/
+.agents/
+#.github/ 
+ 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

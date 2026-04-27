@@ -45,7 +45,7 @@
 
 # Skills
 
-- Skills are located in `.github/skills/`
+- Skills are located in `.agents/skills/`
 
 # Code style
 

@@ -16,6 +16,7 @@ import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
 import type { ToolSchema } from "../src/webmcp/tool-schemas";
 import type { EntityType } from "../src/lib/entity-types";
 import type { WritePreview } from "../src/bridge/confirm-bridge";
+import { buildRemoteConfirmRequest, clearRemoteConfirmState, isSidePanelConfirmReady, setRemoteConfirmRequest, waitForRemoteConfirmResponse } from "../src/bridge/remote-confirm";
 import { buildWebMcpWritePreview, isWebMcpReadOnlyInvocation } from "../src/webmcp/execution-policy";
 
 const WEBMCP_EXECUTE_MAP = createExecuteMap({ bypassWriteConfirmation: true });
@@ -281,7 +282,23 @@ async function handleWebMcpExecuteTool(
 
     const preview = buildWebMcpWritePreview(payload.tool, params, session.env);
     if (preview && payload.confirmed !== true) {
-      return { ok: false, needsConfirmation: true, preview };
+      if (!(await isSidePanelConfirmReady())) {
+        return { ok: false, needsConfirmation: true, preview };
+      }
+
+      const request = buildRemoteConfirmRequest(preview);
+      await clearRemoteConfirmState();
+      await setRemoteConfirmRequest(request);
+      const choice = await waitForRemoteConfirmResponse(request.requestId);
+      await clearRemoteConfirmState();
+
+      if (choice === null) {
+        return { ok: false, error: "Timed out waiting for side-panel confirmation." };
+      }
+
+      if (choice === "cancel") {
+        return { ok: false, error: "Operation cancelled by user." };
+      }
     }
   }
 
