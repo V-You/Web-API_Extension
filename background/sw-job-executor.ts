@@ -1,7 +1,7 @@
 /**
  * Service worker job executor.
  *
- * Runs long-running job scripts in the service worker context per PRD 8.1.
+ * Owns long-running job orchestration per PRD 8.1.
  * Reuses tool handlers (which are SW-safe -- they only use fetch + chrome.storage)
  * but skips the confirm bridge (writes during a job are pre-approved at start time).
  *
@@ -20,6 +20,7 @@ import { executeLookupClearingInstitutes } from "../src/tools/lookup-clearing-in
 import { executeDescribeSettings } from "../src/tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
+import { abortOffscreenJob, executeJobInOffscreen } from "./offscreen-job-host";
 import type { EntityType } from "../src/lib/entity-types";
 import type { ApiCredentials, Environment } from "../src/lib/types";
 
@@ -28,6 +29,7 @@ import type { ApiCredentials, Environment } from "../src/lib/types";
 let activeJobId: string | null = null;
 let abortController: AbortController | null = null;
 let segmentStart = 0;
+let activeSandboxRuntime: { jobId: string; sdk: unknown; writes: WriteRecord[] } | null = null;
 
 // -- Progress persistence -------------------------------------------------
 
@@ -203,12 +205,6 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
   };
 }
 
-// -- AsyncFunction constructor --------------------------------------------
-
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-  ...args: string[]
-) => (...args: unknown[]) => Promise<unknown>;
-
 // -- Job execution --------------------------------------------------------
 
 export interface SwJobStartInput {
@@ -254,7 +250,19 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
   }
 
   activeJobId = job.id;
-  executeInSw(job.id, input.creds, input.env);
+  await updateJob(job.id, {
+    state: "running",
+    startedAt: job.startedAt ?? new Date().toISOString(),
+    pausedAt: undefined,
+  });
+  void executeInSw(job.id, input.creds, input.env).catch(async (err) => {
+    await updateJob(job.id, {
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      error: err instanceof Error ? err.message : String(err),
+    });
+    cleanup();
+  });
   return { ok: true, jobId: job.id };
 }
 
@@ -263,6 +271,7 @@ export async function swPauseJob(): Promise<void> {
   if (!activeJobId) return;
   const jobId = activeJobId;
   abortController?.abort();
+  await abortOffscreenJob(jobId).catch(() => undefined);
   await flushProgress(jobId, true);
 
   const segmentElapsed = Date.now() - segmentStart;
@@ -282,6 +291,7 @@ export async function swCancelJob(): Promise<void> {
   if (!activeJobId) return;
   const jobId = activeJobId;
   abortController?.abort();
+  await abortOffscreenJob(jobId).catch(() => undefined);
   await flushProgress(jobId, true);
 
   const segmentElapsed = Date.now() - segmentStart;
@@ -316,6 +326,53 @@ function cleanup() {
   activeJobId = null;
   abortController = null;
   pendingProgress = null;
+  activeSandboxRuntime = null;
+}
+
+function getRuntimeFunction(path: string[]): ((...args: unknown[]) => Promise<unknown>) | null {
+  let current: unknown = activeSandboxRuntime?.sdk;
+  for (const segment of path) {
+    if (!current || typeof current !== "object") return null;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === "function" ? current as (...args: unknown[]) => Promise<unknown> : null;
+}
+
+export async function handleSandboxSdkCall(message: {
+  jobId?: unknown;
+  path?: unknown;
+  args?: unknown;
+}): Promise<unknown> {
+  const jobId = String(message.jobId ?? "");
+  if (!activeSandboxRuntime || activeSandboxRuntime.jobId !== jobId) {
+    throw new Error("No active sandbox runtime for this job.");
+  }
+
+  const path = Array.isArray(message.path) ? message.path.map(String) : [];
+  const args = Array.isArray(message.args) ? message.args : [];
+  const fn = getRuntimeFunction(path);
+  if (!fn) {
+    throw new Error(`Unknown sandbox SDK method: ${path.join(".")}`);
+  }
+
+  return fn(...args);
+}
+
+export async function handleSandboxProgress(message: {
+  jobId?: unknown;
+  completedCalls?: unknown;
+  totalCalls?: unknown;
+  checkpoint?: unknown;
+}): Promise<void> {
+  const jobId = String(message.jobId ?? "");
+  if (activeJobId !== jobId) return;
+
+  pendingProgress = {
+    completedCalls: Number(message.completedCalls ?? 0),
+    totalCalls: Number(message.totalCalls ?? 0),
+    checkpoint: message.checkpoint,
+  };
+  await flushProgress(jobId, true);
 }
 
 async function executeInSw(jobId: string, creds: ApiCredentials, env: Environment) {
@@ -356,28 +413,7 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
   const writes: WriteRecord[] = [];
 
   const sdk = buildSwSdk(creds, env, writes, signal, job.throttleRate);
-
-  const consoleProxy = {
-    log: (...args: unknown[]) => logs.push({ level: "log", args, timestamp: new Date().toISOString() }),
-    warn: (...args: unknown[]) => logs.push({ level: "warn", args, timestamp: new Date().toISOString() }),
-    error: (...args: unknown[]) => logs.push({ level: "error", args, timestamp: new Date().toISOString() }),
-  };
-
-  const sleep = (ms: number) =>
-    new Promise<void>((resolve, reject) => {
-      if (signal.aborted) return reject(new DOMException("Aborted", "AbortError"));
-      const timer = setTimeout(resolve, ms);
-      signal.addEventListener("abort", () => {
-        clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
-      }, { once: true });
-    });
-
-  const progress = (completedCalls: number, totalCalls: number, checkpoint?: unknown) => {
-    pendingProgress = { completedCalls, totalCalls, checkpoint };
-    // Force-flush immediately when a checkpoint is set (resume safety)
-    flushProgress(jobId, checkpoint !== undefined);
-  };
+  activeSandboxRuntime = { jobId, sdk, writes };
 
   const context = {
     entityId: job.entityId ?? null,
@@ -400,15 +436,10 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
     return;
   }
 
-  const jsCode = compiled.jsCode;
-
   try {
-    const fn = new AsyncFunction(
-      "sdk", "console", "sleep", "results", "context", "signal", "progress",
-      jsCode,
-    );
-
-    await fn(sdk, consoleProxy, sleep, results, context, signal, progress);
+    const execution = await executeJobInOffscreen({ jobId, jsCode: compiled.jsCode, context });
+    results.push(...execution.results);
+    logs.push(...execution.logs as LogEntry[]);
 
     await flushProgress(jobId, true);
     const segmentElapsed = Date.now() - segmentStart;

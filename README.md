@@ -303,7 +303,7 @@ In other words: the IDE + CDP flow has not spoiled us - it really can do more. T
 2. Agent sees which Entity, gets confirmation from user
 3. The tool `manage_contact` supports list and delete, but not “delete all” as one atomic action. The agent would either:
     - Call manage_contact with action: "list" to get all contacts for entity X, then call manage_contact with action: "delete" once per contact.
-    - For a larger batch, call `execute_workflow` and let the local script iterate and delete (will not be a tracked background Job).
+    - For a larger batch, call `execute_workflow` and let one local script iterate and delete under the Jobs system.
 4. The agent reasons:
     - first I need the contacts on that entity
     - then I need to delete them
@@ -367,14 +367,16 @@ The user's LLM agent does not call the Web API. It calls the extension's WebMCP 
 
 ### Jobs
 
-Long-running scripts (e.g. a hierarchy-wide settings audit at 9 req/s) run as background jobs:
+Long-running workflow scripts (e.g. a hierarchy-wide settings audit at 9 req/s) are tracked as Jobs:
 
 - **Progress monitor** in the Jobs tab shows state (running / paused / completed / failed), estimated time remaining, and call count.
 - **Pause/resume** -- user-initiated or automatic on tab close. State is persisted to `chrome.storage.local`.
 - **Browser restart recovery** -- on startup, incomplete jobs are marked as paused and offered for resume after re-authentication.
 - **Cancel** produces partial results.
 
-Jobs are created when Extension's job system is used explicitly, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`. Jobs are only used via execute_workflow + job runner, they are independent from History.
+Jobs are created when the extension's job system is used explicitly, via `job-runner.ts` and the service worker executor in `sw-job-executor.ts`. Jobs are only used via `execute_workflow` + job runner, and they are independent from History.
+
+Current implementation note: job state, pause/resume, audit, and API execution are already service-worker-owned. The code-mode runtime is being corrected so `AsyncFunction` execution moves out of the MV3 service worker and into a manifest-declared sandbox hosted by an offscreen document. The service worker remains the orchestrator and privileged API gateway.
 
 
 ### History / Jobs diagram
@@ -425,7 +427,7 @@ Example flow in practice:
 1. Agent inspects the available tools and maybe calls read tools first, like `manage_contact`, `get_hierarchy`, or `describe_settings`.
 2. For a larger multi-step task, the agent composes a short imperative script.
 3. Agent sends that script to `execute_workflow`.
-4. Extension runs it through the sandbox in `sandbox.ts`.
+4. Extension runs it through the code-mode sandbox.
 
 
 **What constrains the script**
@@ -443,7 +445,7 @@ Example flow in practice:
 - `dryRun` checks parseability, not business correctness.
 - The extension governs quality mainly through constrained SDK shape, typed discovery, validation, confirmation, timeout/cancel, and audit.
 - There is no full compiler-grade or lint-grade quality gate.
-- The sandbox uses a lightweight TypeScript-stripping step, then executes via `AsyncFunction` in sandbox.ts.
+- The sandbox uses a parser-backed TypeScript validation/transpile step. `AsyncFunction` is the intended code-mode execution primitive, but the runtime host must be a manifest-declared sandbox page rather than the MV3 service worker.
 - Semantic quality depends heavily on agent reasoning and the quality of the prompts and tool descriptions.
 
 ### Confirm dialog overlay
@@ -481,7 +483,7 @@ All write operations go through a **preview-then-confirm** flow: the extension s
 
 ### Code mode
 
-For complex operations (hierarchy-wide audits, bulk updates, cross-referencing), the agent writes a script and passes it to `execute_workflow`. The script runs locally in a sandboxed `AsyncFunction` with access to:
+For complex operations (hierarchy-wide audits, bulk updates, cross-referencing), the agent writes a script and passes it to `execute_workflow`. The script runs locally in the code-mode sandbox with access to:
 
 - `sdk` -- a facade over all 9 tool handlers with SDK-style methods
 - `sdk.config` -- the virtual SDK for typed settings access (get, update, batchGet, batchUpdate, validate, describe, coverage)
@@ -491,7 +493,7 @@ For complex operations (hierarchy-wide audits, bulk updates, cross-referencing),
 - `progress(pct, msg)` -- report progress to the job runner
 - `checkpoint(state)` -- persist state for pause/resume recovery
 
-Note: Web API Extension contains a custom Code Mode implementation, built from scratch. It's browser-native (no Node.js VM available), across 4 modules: sandbox.ts (AsynFunction-based sandbox), sdk-facade.ts (wraps tool handlers), sdk.ts (typed settings access), proxy.ts (flattens nested objects, with Zod validation).
+Note: Web API Extension contains a custom Code Mode implementation, built from scratch. It's browser-native (no Node.js VM available), across 4 modules: sandbox.ts (validation/transpile and runtime contract), sdk-facade.ts (wraps tool handlers), sdk.ts (typed settings access), proxy.ts (flattens nested objects, with Zod validation). The runtime correction tracked in `md/2026-05-05_PRD_runtime-correction-offscreen-sandbox.md` moves dynamic code execution into a sandbox/offscreen host while keeping privileged API work in the service worker.
 
 
 ### Environment switching
@@ -541,7 +543,7 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 |---|---|---|
 | **WebMCP registration** | `src/webmcp/register-tools.ts` | Registers 37 tools via `navigator.modelContext.registerTool()` (10 handwritten + 27 generated). Intercepts direct writes with a confirmation prompt. |
 | **Tool handlers** | `src/tools/*.ts` + generated adapter | Handwritten umbrellas + a typed adapter (`src/tools/adapter.ts`) that runs every generated per-action tool via the manifest. Each validates input (Zod for umbrellas; manifest-derived field validation for per-action tools), calls the API client, and returns structured results. |
-| **Sandbox** | `src/sandbox/sandbox.ts`, `sdk-facade.ts` | `AsyncFunction`-based sandbox for code mode. The SDK facade wraps all handlers as callable methods and routes writes through the confirm bridge. |
+| **Sandbox** | `src/sandbox/sandbox.ts`, `sdk-facade.ts` | Code-mode validation and SDK facade. Runtime execution is being moved to a manifest sandbox hosted by an offscreen document; SDK calls route back to privileged handlers. |
 | **Virtual SDK** | `src/sdk/riro-tree.ts`, `proxy.ts`, `sdk.ts` | Type-on-demand settings layer. Parses `riro_consolidated_lookup.json` into a nested tree with Zod schemas, flattens typed objects back to flat RiRo keys at write time. |
 | **Confirm bridge** | `src/bridge/confirm-bridge.ts` | Singleton promise-based bridge: tool handler requests confirmation, side panel UI resolves it. Supports scoped auto-confirm ("confirm all") for batch operations. |
 | **Job runner** | `src/jobs/job-runner.ts`, `job-store.ts` | Singleton engine for long-running scripts. Supports start, pause, resume, cancel. Progress is flushed every 5 seconds. Checkpoints enable resume after pause or restart. |
@@ -562,7 +564,7 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 | Tool publication | WebMCP imperative API (`navigator.modelContext`) |
 | Schema validation | Zod 3.25 |
 | Encryption | Web Crypto API (PBKDF2 + AES-GCM) |
-| Sandbox | `AsyncFunction` constructor |
+| Sandbox | Parser-backed code-mode validation; `AsyncFunction` runtime hosted in manifest sandbox |
 
 ### Generated artifacts
 
@@ -653,9 +655,9 @@ Handle it conservatively: keep authoritative settings metadata in `riro_consolid
 | Audit log | `chrome.storage.local` (capped at 500 entries) | Only via `get_audit_log` tool (agent must explicitly request) |
 | Job scripts | `chrome.storage.local` as part of job record | Script text visible when created by the agent |
 | Job results | `chrome.storage.local` until downloaded or discarded | Only final summary returned to agent; intermediate API responses stay local |
-| Code-mode execution | Local `AsyncFunction` sandbox in SW | Intermediate results never leave the browser |
+| Code-mode execution | Local sandboxed browser runtime with SW as API gateway | Intermediate results never leave the browser |
 
-Code mode provides strong privacy by default: the LLM writes the script once, the script executes locally for the duration of the job (which can run for hours), and only the final summary is returned to the LLM. Intermediate API responses never leave the browser.
+Code mode provides strong privacy by default: the LLM writes the script once, the script executes locally under the Jobs system, and only the final summary is returned to the LLM. Intermediate API responses never leave the browser. Chrome may still suspend browser execution contexts, so long jobs are designed around persisted progress and pause/resume rather than an indefinite service-worker runtime.
 
 v1 assumes a local or trusted LLM. No data redaction is applied. A one-time notice informs the user that chat content and tool results are available to their configured LLM provider.
 

@@ -57,6 +57,11 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Target context: merchant m1.");
     expect(prompt).toContain("Entity name: Demo merchant.");
     expect(prompt).toContain("Return only valid JSON");
+    expect(prompt).toContain("The BIP glossary maps users to contacts.");
+    expect(prompt).toContain("Create contacts with sdk.contacts.create(entityType, entityId, fields).");
+    expect(prompt).toContain("sdk.contacts.list(entityType, entityId, \"owned\")");
+    expect(prompt).toContain("sdk.contacts.attach(entityType, entityId, contactId)");
+    expect(prompt).toContain("role: \"OPERATOR\", kind: \"SEND\", and language: \"en\"");
   });
 
   it("includes the configured model name for meta questions", () => {

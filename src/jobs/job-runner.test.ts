@@ -4,10 +4,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const storageStore: Record<string, unknown> = {};
 const sessionStore: Record<string, unknown> = {};
 const storageListeners: Array<(changes: Record<string, unknown>, area: string) => void> = [];
+const portDisconnectListeners: Array<() => void> = [];
+const mockPort = {
+  postMessage: vi.fn(),
+  disconnect: vi.fn(() => {
+    for (const listener of portDisconnectListeners) listener();
+  }),
+  onDisconnect: {
+    addListener: vi.fn((fn: () => void) => {
+      portDisconnectListeners.push(fn);
+    }),
+  },
+};
 
 vi.stubGlobal("chrome", {
   runtime: {
     sendMessage: vi.fn(),
+    connect: vi.fn(() => mockPort),
   },
   storage: {
     local: {
@@ -42,6 +55,7 @@ let getActiveJobId: typeof import("./job-runner").getActiveJobId;
 describe("job-runner", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    portDisconnectListeners.length = 0;
     for (const key of Object.keys(storageStore)) delete storageStore[key];
     for (const key of Object.keys(sessionStore)) delete sessionStore[key];
 
@@ -88,8 +102,56 @@ describe("job-runner", () => {
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: "job_start" }),
     );
+    expect(chrome.runtime.connect).toHaveBeenCalledWith({ name: "job_keepalive" });
     expect(job.id).toBe("job-1");
     expect(getActiveJobId()).toBe("job-1");
+  });
+
+  it("stops the keepalive port when the active job reaches a terminal state", async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({ ok: true, jobId: "job-1" });
+    await startJob({ label: "T", script: "x", totalCalls: 1, creds, env: "uat" });
+
+    for (const listener of storageListeners) {
+      listener({ jobs: { newValue: [{ ...(storageStore.jobs as Record<string, unknown>[])[0], state: "completed" }] } }, "local");
+    }
+
+    expect(mockPort.disconnect).toHaveBeenCalled();
+  });
+
+  it("reads the started job from fresh storage after the SW creates it", async () => {
+    const { loadJobs } = await import("./job-store");
+    await loadJobs();
+
+    storageStore.jobs = [
+      ...(storageStore.jobs as unknown[]),
+      {
+        id: "job-2",
+        label: "Fresh job",
+        script: "console.log('fresh')",
+        state: "running",
+        createdAt: "2026-01-01T00:00:00Z",
+        totalCalls: 1,
+        completedCalls: 0,
+        throttleRate: 9,
+        elapsedMs: 0,
+        results: [],
+        logs: [],
+        writes: [],
+        env: "uat",
+      },
+    ];
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({ ok: true, jobId: "job-2" });
+
+    const job = await startJob({
+      label: "Fresh job",
+      script: "console.log('fresh')",
+      totalCalls: 1,
+      creds,
+      env: "uat",
+    });
+
+    expect(job.id).toBe("job-2");
+    expect(job.label).toBe("Fresh job");
   });
 
   it("passes Chat provenance to the SW when supplied", async () => {

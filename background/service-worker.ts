@@ -9,7 +9,7 @@
  *   5. Execute long-running jobs (per PRD 8.1).
  */
 
-import { swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
+import { handleSandboxProgress, handleSandboxSdkCall, swStartJob, swPauseJob, swCancelJob, swCancelJobById, swGetActiveJobId, type SwJobStartInput } from "./sw-job-executor";
 import { clearChatContext, upsertChatContext } from "../src/chat/context-store";
 import { createExecuteMap, resolveSession } from "../src/tools/internal-router";
 import { TOOL_SCHEMAS } from "../src/webmcp/tool-schemas";
@@ -36,25 +36,52 @@ if (chrome.sidePanel?.setPanelBehavior) {
 // panel can show a "domain not supported" message on non-oppwa tabs instead
 // of silently swallowing the click.
 
-// -- Browser restart recovery ---------------------------------------------
-// If the browser restarted while a job was running, mark it as paused
-// so the side panel can offer to resume.
+// -- Job recovery ----------------------------------------------------------
+// If the worker or browser stopped while a job was running, mark it as paused
+// so the side panel can offer to resume instead of hiding an orphaned run.
+
+async function pauseInterruptedJobs() {
+  const result = await chrome.storage.local.get("jobs");
+  const jobs = (result.jobs ?? []) as Array<{ id: string; state: string; pausedAt?: string }>;
+  const interruptedIds = new Set(
+    jobs
+      .filter((job) => job.state === "running" || job.state === "resumed")
+      .map((job) => job.id),
+  );
+
+  if (interruptedIds.size === 0) return;
+
+  const latest = await chrome.storage.local.get("jobs");
+  const latestJobs = (latest.jobs ?? []) as Array<{ id: string; state: string; pausedAt?: string }>;
+  let changed = false;
+
+  for (const job of latestJobs) {
+    if (interruptedIds.has(job.id) && (job.state === "running" || job.state === "resumed")) {
+      job.state = "paused";
+      job.pausedAt = new Date().toISOString();
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await chrome.storage.local.set({ jobs: latestJobs });
+  }
+}
+
+pauseInterruptedJobs().catch(console.error);
 
 if (chrome.runtime?.onStartup) {
-  chrome.runtime.onStartup.addListener(async () => {
-    const result = await chrome.storage.local.get("jobs");
-    const jobs = (result.jobs ?? []) as Array<{ id: string; state: string; pausedAt?: string }>;
-    let changed = false;
-    for (const job of jobs) {
-      if (job.state === "running" || job.state === "resumed") {
-        job.state = "paused";
-        job.pausedAt = new Date().toISOString();
-        changed = true;
-      }
-    }
-    if (changed) {
-      await chrome.storage.local.set({ jobs });
-    }
+  chrome.runtime.onStartup.addListener(() => {
+    pauseInterruptedJobs().catch(console.error);
+  });
+}
+
+if (chrome.runtime?.onConnect) {
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== "job_keepalive") return;
+    port.onMessage.addListener(() => {
+      // Messages over this port keep the MV3 worker active while a side-panel job runs.
+    });
   });
 }
 
@@ -191,6 +218,20 @@ chrome.runtime.onMessage.addListener(
     if (message.type === "job_status") {
       sendResponse({ activeJobId: swGetActiveJobId() });
       return false;
+    }
+
+    if (message.type === "sandbox_sdk_call") {
+      handleSandboxSdkCall(message as { jobId?: unknown; path?: unknown; args?: unknown })
+        .then((result) => sendResponse({ ok: true, result }))
+        .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      return true;
+    }
+
+    if (message.type === "sandbox_progress") {
+      handleSandboxProgress(message as { jobId?: unknown; completedCalls?: unknown; totalCalls?: unknown; checkpoint?: unknown })
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      return true;
     }
 
     if (message.type === "chat:context-update") {

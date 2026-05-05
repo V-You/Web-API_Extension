@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock chrome.storage.local
 const storageStore: Record<string, unknown> = {};
+const storageListeners: Array<(changes: Record<string, { newValue?: unknown }>, area: string) => void> = [];
 vi.stubGlobal("chrome", {
   storage: {
     local: {
       get: vi.fn(async (key: string) => ({ [key]: storageStore[key] })),
       set: vi.fn(async (data: Record<string, unknown>) => {
         Object.assign(storageStore, data);
+      }),
+    },
+    onChanged: {
+      addListener: vi.fn((fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => {
+        storageListeners.push(fn);
       }),
     },
   },
@@ -32,6 +38,7 @@ import { estimateRuntime, estimateRemaining, type JobRecord } from "./job-store"
 describe("job-store", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    storageListeners.length = 0;
     for (const key of Object.keys(storageStore)) delete storageStore[key];
     // Re-import module to reset internal cache
     vi.resetModules();
@@ -82,6 +89,25 @@ describe("job-store", () => {
     expect(jobs[0].label).toBe("Stored");
   });
 
+  it("updates the cache when another extension context changes storage", async () => {
+    storageStore.jobs = [{ id: "j1", label: "Stored", state: "paused" }];
+    await loadJobs();
+
+    const nextJobs = [
+      { id: "j1", label: "Stored", state: "paused" },
+      { id: "j2", label: "External", state: "running" },
+    ];
+    storageStore.jobs = nextJobs;
+
+    for (const listener of storageListeners) {
+      listener({ jobs: { newValue: nextJobs } }, "local");
+    }
+
+    const job = await getJob("j2");
+    expect(job).not.toBeNull();
+    expect(job!.label).toBe("External");
+  });
+
   it("normalizes malformed job records", async () => {
     storageStore.jobs = [{}]; // empty object
     const jobs = await loadJobs();
@@ -109,6 +135,23 @@ describe("job-store", () => {
     expect(updated).not.toBeNull();
     expect(updated!.state).toBe("running");
     expect(updated!.completedCalls).toBe(5);
+  });
+
+  it("updates against fresh storage instead of overwriting newer records from another context", async () => {
+    storageStore.jobs = [{ id: "j1", label: "Stored", state: "paused" }];
+    await loadJobs();
+
+    storageStore.jobs = [
+      { id: "j1", label: "Stored", state: "paused" },
+      { id: "j2", label: "External", state: "running" },
+    ];
+
+    await updateJob("j1", { state: "completed" });
+
+    const stored = storageStore.jobs as JobRecord[];
+    expect(stored.map((job) => job.id)).toEqual(["j1", "j2"]);
+    expect(stored.find((job) => job.id === "j1")?.state).toBe("completed");
+    expect(stored.find((job) => job.id === "j2")?.state).toBe("running");
   });
 
   it("returns null when updating non-existent job", async () => {

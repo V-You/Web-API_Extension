@@ -59,10 +59,15 @@ module.exports = {
     ];
 
     // Inject build timestamp and package version as global constants.
-    const { DefinePlugin } = require("@rspack/core");
+    const { CopyRspackPlugin, DefinePlugin } = require("@rspack/core");
     const pkg = require("./package.json");
     config.plugins = config.plugins || [];
     config.plugins.push(
+      new CopyRspackPlugin({
+        patterns: [
+          { from: "offscreen", to: "offscreen" },
+        ],
+      }),
       new DefinePlugin({
         __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
         __APP_VERSION__: JSON.stringify(pkg.version),

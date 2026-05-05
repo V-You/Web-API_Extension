@@ -1,3 +1,5 @@
+/// <reference types="chrome" />
+
 /**
  * Job runner -- side panel messaging proxy.
  *
@@ -9,7 +11,7 @@
  * Per PRD 8.1: long-running queries execute in the extension's service worker.
  */
 
-import { getJob, type JobRecord, type JobSource } from "./job-store";
+import { getJob, getJobFresh, type JobRecord, type JobSource } from "./job-store";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 // -- SW message helper with retry -----------------------------------------
@@ -17,6 +19,37 @@ import type { ApiCredentials, Environment } from "../lib/types";
 
 const SW_MSG_RETRIES = 3;
 const SW_MSG_RETRY_DELAY_MS = 500;
+const SW_KEEP_ALIVE_INTERVAL_MS = 20_000;
+
+let keepAlivePort: chrome.runtime.Port | null = null;
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopJobKeepAlive() {
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+  }
+  try { keepAlivePort?.disconnect(); } catch { /* already disconnected */ }
+  keepAlivePort = null;
+}
+
+function startJobKeepAlive() {
+  if (keepAlivePort) return;
+  try {
+    keepAlivePort = chrome.runtime.connect({ name: "job_keepalive" });
+    keepAlivePort.onDisconnect.addListener(() => {
+      if (keepAliveTimer) clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+      keepAlivePort = null;
+    });
+    keepAlivePort.postMessage({ type: "job_keepalive", activeJobId });
+    keepAliveTimer = setInterval(() => {
+      keepAlivePort?.postMessage({ type: "job_keepalive", activeJobId });
+    }, SW_KEEP_ALIVE_INTERVAL_MS);
+  } catch {
+    stopJobKeepAlive();
+  }
+}
 
 async function sendToSw<T = unknown>(message: unknown): Promise<T> {
   let lastError: unknown;
@@ -78,6 +111,11 @@ setInterval(syncActiveJobId, 3_000);
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.jobs) {
     syncActiveJobId();
+    const jobs = Array.isArray(changes.jobs.newValue) ? changes.jobs.newValue : [];
+    const activeJob = jobs.find((job) => job?.id === activeJobId) as { state?: string } | undefined;
+    if (activeJob && ["completed", "failed", "paused", "cancelled"].includes(String(activeJob.state))) {
+      stopJobKeepAlive();
+    }
   }
 });
 
@@ -103,6 +141,8 @@ export interface StartJobInput {
  * Returns the job record.
  */
 export async function startJob(input: StartJobInput): Promise<JobRecord> {
+  startJobKeepAlive();
+
   const res = await sendToSw<{ ok: boolean; jobId?: string; error?: string }>({
     type: "job_start",
     payload: {
@@ -119,14 +159,18 @@ export async function startJob(input: StartJobInput): Promise<JobRecord> {
   });
 
   if (!res?.ok || !res.jobId) {
+    stopJobKeepAlive();
     throw new Error(res?.error ?? "Failed to start job.");
   }
 
   activeJobId = res.jobId;
   notifyState();
 
-  const job = await getJob(res.jobId);
-  if (!job) throw new Error("Job created but not found in storage.");
+  const job = await getJobFresh(res.jobId);
+  if (!job) {
+    stopJobKeepAlive();
+    throw new Error("Job created but not found in storage.");
+  }
   return job;
 }
 
@@ -163,6 +207,7 @@ export async function resumeJob(
   }
 
   activeJobId = jobId;
+  startJobKeepAlive();
   notifyState();
   return job;
 }
@@ -176,6 +221,7 @@ export async function pauseJob(): Promise<void> {
   if (!activeJobId) return;
   await sendToSw({ type: "job_pause" });
   activeJobId = null;
+  stopJobKeepAlive();
   notifyState();
 }
 
@@ -188,6 +234,7 @@ export async function cancelJob(): Promise<void> {
   if (!activeJobId) return;
   await sendToSw({ type: "job_cancel" });
   activeJobId = null;
+  stopJobKeepAlive();
   notifyState();
 }
 

@@ -41,14 +41,15 @@ export function JobMonitor() {
     findRecoverableJobs().then(setRecoverable);
   }, [jobs]);
 
-  // Filter out the active job from the recoverable list
+  // Filter out the active job from the recoverable list.
+  // A stored running job with no active SW owner is recoverable after worker restart.
   const pausedJobs = recoverable.filter(
-    (j) => j.id !== activeJob?.id && (j.state === "paused" || j.state === "failed")
+    (j) => j.id !== activeJob?.id && ["running", "resumed", "paused", "failed"].includes(j.state)
   );
 
-  // Completed jobs with results (for download per PRD 2.2)
+  // Completed jobs, including empty reports so silent completions are visible.
   const completedJobs = jobs.filter(
-    (j) => j.id !== activeJob?.id && j.state === "completed" && j.results.length > 0
+    (j) => j.id !== activeJob?.id && j.state === "completed"
   );
 
   if (!activeJob && pausedJobs.length === 0 && completedJobs.length === 0) {
@@ -72,7 +73,7 @@ export function JobMonitor() {
         {pausedJobs.length > 0 ? (
           pausedJobs.map((job) => <RecoverableJobCard key={job.id} job={job} />)
         ) : (
-          <p className="text-2xs text-slate-400">No paused jobs.</p>
+          <p className="text-2xs text-slate-400">No recoverable jobs.</p>
         )}
       </div>
       {completedJobs.length > 0 && (
@@ -211,7 +212,7 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
         <div className="text-xs text-red-600">{actionError}</div>
       )}
       <div className="flex gap-2">
-        <ResumeButton jobId={job.id} />
+        {(job.state === "paused" || job.state === "failed") && <ResumeButton jobId={job.id} />}
         <button
           onClick={() => cancelJobById(job.id).catch((err) => setActionError(err instanceof Error ? err.message : "Failed to discard job"))}
           className="flex-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"

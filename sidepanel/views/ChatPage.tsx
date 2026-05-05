@@ -503,7 +503,7 @@ export function ChatPage() {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          text: `Started Job ${job.label} (${job.id}) in ${job.state}. Open the Jobs tab to monitor progress, pause, resume, or inspect failures.`,
+          text: `Started Job ${job.label} (${job.id}) in state: ${job.state}. Open the Jobs tab to monitor progress, pause, resume, or inspect failures.`,
         },
       ]);
     } catch (startError) {

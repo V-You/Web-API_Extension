@@ -76,8 +76,7 @@ const EMPTY_JOBS: JobRecord[] = [];
 const listeners = new Set<() => void>();
 let cachedJobs: JobRecord[] | null = null;
 
-function notifyListeners() {
-  cachedJobs = null; // invalidate
+function emitListeners() {
   for (const fn of listeners) fn();
 }
 
@@ -118,13 +117,34 @@ function normalizeJob(raw: unknown): JobRecord {
   };
 }
 
-/** Load all jobs from storage. */
-export async function loadJobs(): Promise<JobRecord[]> {
-  if (cachedJobs) return cachedJobs;
-  const result = await chrome.storage.local.get(STORAGE_KEY);
-  const raw = Array.isArray(result[STORAGE_KEY]) ? (result[STORAGE_KEY] as unknown[]) : [];
-  cachedJobs = raw.map(normalizeJob);
+function normalizeJobs(raw: unknown): JobRecord[] {
+  return Array.isArray(raw) ? raw.map(normalizeJob) : [];
+}
+
+function cacheJobs(raw: unknown): JobRecord[] {
+  cachedJobs = normalizeJobs(raw);
   return cachedJobs;
+}
+
+if (typeof chrome !== "undefined") {
+  chrome.storage.onChanged?.addListener((changes, area) => {
+    if (area === "local" && changes[STORAGE_KEY]) {
+      cacheJobs(changes[STORAGE_KEY].newValue);
+      emitListeners();
+    }
+  });
+}
+
+/** Load all jobs from storage. */
+export async function loadJobs(options: { fresh?: boolean } = {}): Promise<JobRecord[]> {
+  if (!options.fresh && cachedJobs) return cachedJobs;
+  const result = await chrome.storage.local.get(STORAGE_KEY);
+  return cacheJobs(result[STORAGE_KEY]);
+}
+
+/** Load all jobs from storage, bypassing the in-memory cache. */
+export async function loadJobsFresh(): Promise<JobRecord[]> {
+  return loadJobs({ fresh: true });
 }
 
 /** Persist the jobs array. */
@@ -133,7 +153,7 @@ async function saveJobs(jobs: JobRecord[]): Promise<void> {
   const trimmed = jobs.length > MAX_JOBS ? jobs.slice(jobs.length - MAX_JOBS) : jobs;
   await chrome.storage.local.set({ [STORAGE_KEY]: trimmed });
   cachedJobs = trimmed;
-  notifyListeners();
+  emitListeners();
 }
 
 /** Get a snapshot for useSyncExternalStore. */
@@ -163,7 +183,7 @@ export async function createJob(
     env: init.env,
     source: init.source,
   };
-  const jobs = await loadJobs();
+  const jobs = await loadJobsFresh();
   jobs.push(job);
   await saveJobs(jobs);
   return job;
@@ -174,7 +194,7 @@ export async function updateJob(
   id: string,
   patch: Partial<Omit<JobRecord, "id">>
 ): Promise<JobRecord | null> {
-  const jobs = await loadJobs();
+  const jobs = await loadJobsFresh();
   const idx = jobs.findIndex((j) => j.id === id);
   if (idx === -1) return null;
   Object.assign(jobs[idx], patch);
@@ -188,16 +208,22 @@ export async function getJob(id: string): Promise<JobRecord | null> {
   return jobs.find((j) => j.id === id) ?? null;
 }
 
+/** Get a single job by ID from fresh storage. */
+export async function getJobFresh(id: string): Promise<JobRecord | null> {
+  const jobs = await loadJobsFresh();
+  return jobs.find((j) => j.id === id) ?? null;
+}
+
 /** Delete a job by ID. */
 export async function deleteJob(id: string): Promise<void> {
-  const jobs = await loadJobs();
+  const jobs = await loadJobsFresh();
   const filtered = jobs.filter((j) => j.id !== id);
   await saveJobs(filtered);
 }
 
 /** Find jobs that were interrupted (running/paused when browser closed). */
 export async function findRecoverableJobs(): Promise<JobRecord[]> {
-  const jobs = await loadJobs();
+  const jobs = await loadJobsFresh();
   return jobs.filter((j) => j.state === "running" || j.state === "paused" || j.state === "resumed");
 }
 
