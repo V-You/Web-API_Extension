@@ -1,45 +1,57 @@
 const SANDBOX_FRAME_ID = "sandbox-frame";
 
 const pendingSandboxRequests = new Map();
+let sandboxFramePromise = null;
 
-function getSandboxUrl() {
-  const page = chrome.runtime.getManifest().sandbox?.pages?.[0];
+async function getSandboxUrl() {
+  const manifestUrl = new URL("../manifest.json", location.href);
+  const manifest = await fetch(manifestUrl).then((response) => response.json());
+  const page = manifest.sandbox?.pages?.[0];
   if (!page) throw new Error("No sandbox page is declared in manifest.json.");
-  return chrome.runtime.getURL(page);
+  return new URL(`../${page}`, location.href).href;
 }
 
-function ensureSandboxFrame() {
+async function createSandboxFrame() {
   const existing = document.getElementById(SANDBOX_FRAME_ID);
   if (existing instanceof HTMLIFrameElement) return existing;
 
   const frame = document.createElement("iframe");
   frame.id = SANDBOX_FRAME_ID;
   frame.title = "Code mode sandbox";
-  frame.src = getSandboxUrl();
   frame.hidden = true;
+  frame.src = await getSandboxUrl();
+
+  const loaded = new Promise((resolve, reject) => {
+    frame.addEventListener("load", () => resolve(frame), { once: true });
+    frame.addEventListener("error", () => reject(new Error("Sandbox frame failed to load.")), { once: true });
+  });
+
   document.body.appendChild(frame);
-  return frame;
+  return loaded;
 }
 
-function getSandboxFrame() {
-  return ensureSandboxFrame();
+function ensureSandboxFrame() {
+  if (!sandboxFramePromise) {
+    sandboxFramePromise = createSandboxFrame();
+  }
+  return sandboxFramePromise;
 }
 
-function postToSandbox(message) {
-  const frame = getSandboxFrame();
+async function postToSandbox(message) {
+  const frame = await ensureSandboxFrame();
   frame.contentWindow?.postMessage(message, "*");
 }
 
-function requestSandbox(message) {
+async function requestSandbox(message) {
   const requestId = crypto.randomUUID();
-  postToSandbox({ ...message, requestId });
-
-  return new Promise((resolve, reject) => {
+  const response = new Promise((resolve, reject) => {
     pendingSandboxRequests.set(requestId, { resolve, reject });
   });
+  await postToSandbox({ ...message, requestId });
+  return response;
 }
 
-ensureSandboxFrame();
+ensureSandboxFrame().catch(console.error);
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
@@ -51,9 +63,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (type === "sandbox_ping") {
-    postToSandbox({ type: "sandbox_ping" });
-    sendResponse({ ok: true, target: "offscreen", forwarded: true });
-    return false;
+    postToSandbox({ type: "sandbox_ping" })
+      .then(() => sendResponse({ ok: true, target: "offscreen", forwarded: true }))
+      .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+    return true;
   }
 
   if (type === "offscreen_job_execute") {
@@ -69,16 +82,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (type === "offscreen_job_abort") {
-    postToSandbox({ type: "sandbox_abort", jobId: message.jobId });
-    sendResponse({ ok: true });
-    return false;
+    postToSandbox({ type: "sandbox_abort", jobId: message.jobId })
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+    return true;
   }
 
   return false;
 });
 
 window.addEventListener("message", (event) => {
-  if (event.source !== getSandboxFrame().contentWindow) return;
+  const sandboxFrame = document.getElementById(SANDBOX_FRAME_ID);
+  if (!(sandboxFrame instanceof HTMLIFrameElement) || event.source !== sandboxFrame.contentWindow) return;
   const data = event.data ?? {};
 
   if (data?.type === "sandbox_ready") {

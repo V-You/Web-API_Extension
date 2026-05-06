@@ -35,6 +35,7 @@ import { parseWorkflowDraft } from "../../src/chat/workflow-draft";
 import { startJob } from "../../src/jobs/job-runner";
 import { getActiveEnv, getCredentials, getThrottleRate } from "../../src/lib/storage";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
+import { copyTextToClipboard } from "../utils/clipboard";
 
 type DisplayMessage =
   | { id: string; role: "user"; text: string }
@@ -875,6 +876,14 @@ function WorkflowReviewDialog({
   onStart: () => void;
   onCancel: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    await copyTextToClipboard(draft.script);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
@@ -931,6 +940,13 @@ function WorkflowReviewDialog({
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-200 p-4">
+          <button
+            onClick={() => void handleCopy()}
+            disabled={busy}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
           <button
             onClick={onCancel}
             disabled={busy}

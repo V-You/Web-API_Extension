@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import type { AuditEntry, Environment } from "../../src/lib/types";
 import { Input, Select } from "../components";
+import { copyTextToClipboard } from "../utils/clipboard";
 
 type TimeRange = "all" | "24h" | "7d" | "30d";
 const TIME_RANGE_MS: Record<Exclude<TimeRange, "all">, number> = {
@@ -26,6 +27,7 @@ export function RunHistoryPage() {
   const [filterEntity, setFilterEntity] = useState("");
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     chrome.storage.local.get("audit").then((result) => {
@@ -81,6 +83,12 @@ export function RunHistoryPage() {
     setEntries(updated);
     // Persist in original (chronological) order
     await chrome.storage.local.set({ audit: [...updated].reverse() });
+  }
+
+  async function handleCopy(entry: AuditEntry) {
+    await copyTextToClipboard(JSON.stringify(entry, null, 2));
+    setCopiedId(entry.id);
+    setTimeout(() => setCopiedId((current) => current === entry.id ? null : current), 1500);
   }
 
   // Suppress both the empty state and the list while the audit log is still
@@ -179,14 +187,22 @@ export function RunHistoryPage() {
             </div>
             <div className="flex items-center justify-between text-slate-400 mt-0.5">
               <span>{new Date(entry.timestamp).toLocaleString()}</span>
-              <button
-                onClick={() =>
-                  setExpandedId(expandedId === entry.id ? null : entry.id)
-                }
-                className="text-2xs text-blue-500 hover:text-blue-700"
-              >
-                {expandedId === entry.id ? "collapse" : "raw"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void handleCopy(entry)}
+                  className="text-2xs text-blue-500 hover:text-blue-700"
+                >
+                  {copiedId === entry.id ? "copied" : "copy"}
+                </button>
+                <button
+                  onClick={() =>
+                    setExpandedId(expandedId === entry.id ? null : entry.id)
+                  }
+                  className="text-2xs text-blue-500 hover:text-blue-700"
+                >
+                  {expandedId === entry.id ? "collapse" : "raw"}
+                </button>
+              </div>
             </div>
             {/* Expand/raw toggle per PRD 2.3 */}
             {expandedId === entry.id && (
