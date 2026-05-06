@@ -20,6 +20,9 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Risk or fraud configuration question:");
     expect(prompt).toContain("3DS or SCA question:");
     expect(prompt).toContain("Merchant-account troubleshooting:");
+    expect(prompt).toContain("The dashboard binds context, but the Web API is authoritative.");
+    expect(prompt).toContain("channel accessToken");
+    expect(prompt).toContain("absent from that specific endpoint response");
     expect(prompt).toContain("Never attempt writes or code execution.");
   });
 
@@ -57,10 +60,14 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Target context: merchant m1.");
     expect(prompt).toContain("Entity name: Demo merchant.");
     expect(prompt).toContain("Return only valid JSON");
+    expect(prompt).toContain("The response must parse with JSON.parse");
+    expect(prompt).toContain("Do not use sdk.management or sdk.manage_entity namespaces.");
     expect(prompt).toContain("The BIP glossary maps users to contacts.");
     expect(prompt).toContain("Create contacts with sdk.contacts.create(entityType, entityId, fields).");
     expect(prompt).toContain("sdk.contacts.list(entityType, entityId, \"owned\")");
     expect(prompt).toContain("sdk.contacts.attach(entityType, entityId, contactId)");
+    expect(prompt).toContain("Do not climb to the parent entity unless the user explicitly asks");
+    expect(prompt).toContain("totalCalls must include the two list calls");
     expect(prompt).toContain("role: \"OPERATOR\", kind: \"SEND\", and language: \"en\"");
   });
 

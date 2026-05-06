@@ -14,6 +14,7 @@ describe("tool schema definitions", () => {
       "manage_settings",
       "get_audit_log",
       "execute_workflow",
+      "get_job_status",
       "describe_operation",
     ]);
   });
@@ -44,6 +45,7 @@ describe("tool schema definitions", () => {
       "describe_settings",
       "get_audit_log",
       "get_hierarchy",
+      "get_job_status",
       "lookup_clearing_institutes",
       "manage_contact",
       "manage_entity",
@@ -75,5 +77,23 @@ describe("tool schema definitions", () => {
     for (const schema of generated) {
       expect((schema.inputSchema as { additionalProperties?: unknown }).additionalProperties).toBe(false);
     }
+  });
+
+  it("documents execute_workflow as an asynchronous Job handoff", () => {
+    const workflow = TOOL_SCHEMAS.find((schema) => schema.name === "execute_workflow");
+    expect(workflow?.description).toContain("returns a Job receipt immediately");
+    expect((workflow?.inputSchema as { properties?: Record<string, unknown> }).properties).toHaveProperty("totalCalls");
+  });
+
+  it("documents channel entity get as the Web API channelInfo payload", () => {
+    const manageEntity = TOOL_SCHEMAS.find((schema) => schema.name === "manage_entity");
+    expect(manageEntity?.description).toContain("channelInfo");
+    expect(manageEntity?.description).toContain("accessToken");
+  });
+
+  it("exposes get_job_status as a read-only polling tool", () => {
+    const status = TOOL_SCHEMAS.find((schema) => schema.name === "get_job_status");
+    expect(status?.annotations?.readOnlyHint).toBe(true);
+    expect((status?.inputSchema as { required?: string[] }).required).toEqual(["jobId"]);
   });
 });

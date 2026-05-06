@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "extension dev --chromium-binary=\"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe\"",
     "build": "extension build",
-    "postbuild": "node tools-cli/tier-coverage.mjs",
+    "postbuild": "node tools-cli/fix-runtime-assets.mjs && node tools-cli/tier-coverage.mjs",
     "preview": "extension preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",

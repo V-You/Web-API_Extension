@@ -34,6 +34,7 @@ let activeSandboxRuntime: { jobId: string; sdk: unknown; writes: WriteRecord[] }
 // -- Progress persistence -------------------------------------------------
 
 const PROGRESS_FLUSH_INTERVAL = 5_000;
+const MIN_OFFSCREEN_JOB_TIMEOUT_MS = 120_000;
 let lastFlush = 0;
 let pendingProgress: JobProgress | null = null;
 
@@ -56,6 +57,22 @@ async function flushProgress(jobId: string, force = false) {
 function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord[], signal?: AbortSignal, throttleRate?: number) {
   const ctx: SdkContext = { creds, env, signal, throttleRate };
   const virtualSdk = createSdk(ctx);
+
+  function unwrapApiData(result: unknown): unknown {
+    if (result && typeof result === "object" && "data" in result) {
+      return (result as { data: unknown }).data;
+    }
+    return result;
+  }
+
+  function unwrapApiList(result: unknown): unknown[] {
+    const data = unwrapApiData(result);
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
+      return (data as { items: unknown[] }).items;
+    }
+    return [];
+  }
 
   function recordWrite(
     tool: string, action: string,
@@ -83,7 +100,7 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
     },
     entities: {
       async get(entityType: EntityType, entityId: string) {
-        return executeManageEntity({ action: "get", entityType, entityId }, creds, env);
+        return unwrapApiData(await executeManageEntity({ action: "get", entityType, entityId }, creds, env));
       },
       async search(namePath: string) {
         return executeManageEntity({ action: "search", namePath }, creds, env);
@@ -114,10 +131,10 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
     },
     contacts: {
       async get(contactId: string) {
-        return executeManageContact({ action: "get", contactId }, creds, env);
+        return unwrapApiData(await executeManageContact({ action: "get", contactId }, creds, env));
       },
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return executeManageContact({ action: "list", entityType, entityId, scope }, creds, env);
+        return unwrapApiList(await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env));
       },
       async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
         recordWrite("manage_contact", "create", entityId, entityType, { fields });
@@ -200,6 +217,13 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
     audit: {
       async get(opts?: GetAuditLogInput) {
         return executeGetAuditLog(opts ?? {});
+      },
+    },
+    management: {
+      entities: {
+        async get(entityType: EntityType, entityId: string) {
+          return unwrapApiData(await executeManageEntity({ action: "get", entityType, entityId }, creds, env));
+        },
       },
     },
   };
@@ -375,6 +399,12 @@ export async function handleSandboxProgress(message: {
   await flushProgress(jobId, true);
 }
 
+function estimateOffscreenTimeoutMs(job: JobRecord): number {
+  const throttleRate = Math.max(1, job.throttleRate || 9);
+  const estimatedMs = Math.ceil((Math.max(1, job.totalCalls) / throttleRate) * 1000);
+  return Math.max(MIN_OFFSCREEN_JOB_TIMEOUT_MS, estimatedMs * 3 + MIN_OFFSCREEN_JOB_TIMEOUT_MS);
+}
+
 async function executeInSw(jobId: string, creds: ApiCredentials, env: Environment) {
   const job = await getJob(jobId);
   if (!job) { cleanup(); return; }
@@ -437,7 +467,12 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
   }
 
   try {
-    const execution = await executeJobInOffscreen({ jobId, jsCode: compiled.jsCode, context });
+    const execution = await executeJobInOffscreen({
+      jobId,
+      jsCode: compiled.jsCode,
+      context,
+      timeoutMs: estimateOffscreenTimeoutMs(job),
+    });
     results.push(...execution.results);
     logs.push(...execution.logs as LogEntry[]);
 

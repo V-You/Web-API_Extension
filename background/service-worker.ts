@@ -19,7 +19,33 @@ import type { WritePreview } from "../src/bridge/confirm-bridge";
 import { buildRemoteConfirmRequest, clearRemoteConfirmState, isSidePanelConfirmReady, setRemoteConfirmRequest, waitForRemoteConfirmResponse } from "../src/bridge/remote-confirm";
 import { buildWebMcpWritePreview, isWebMcpReadOnlyInvocation } from "../src/webmcp/execution-policy";
 
-const WEBMCP_EXECUTE_MAP = createExecuteMap({ bypassWriteConfirmation: true });
+const WEBMCP_EXECUTE_MAP = createExecuteMap({
+  bypassWriteConfirmation: true,
+  startWorkflowJob: async (input) => {
+    const result = await swStartJob({
+      label: input.label,
+      script: input.script,
+      entityId: input.entityId,
+      entityType: input.entityType,
+      totalCalls: input.totalCalls,
+      throttleRate: input.throttleRate,
+      creds: input.creds,
+      env: input.env,
+      source: "webmcp",
+    });
+
+    if (!result.ok || !result.jobId) {
+      throw new Error(result.error ?? "Failed to start workflow Job.");
+    }
+
+    return {
+      jobId: result.jobId,
+      state: "running",
+      label: input.label,
+      totalCalls: input.totalCalls,
+    };
+  },
+});
 
 // -- Side panel activation ------------------------------------------------
 

@@ -342,7 +342,7 @@ That call goes into the WebMCP registration callback in `register-main.ts`.
     - method DELETE
     - path /contacts/{contactId}
     - header credentials: username:password
-10. In effect, the extenstion is acting as the local API client. Finally, it records local history. Because `deleteContact` passes audit metadata, `api-client.ts` appends an audit entry into `chrome.storage.local.audit`. This is rendered in the "History" tab, `RunHistoryPage.tsx`.
+10. In effect, the extenstion is acting as the local API client. Finally, it records local history. When a handler passes audit metadata, `api-client.ts` appends an audit entry into `chrome.storage.local.audit`. This is rendered in the "History" tab, `RunHistoryPage.tsx`.
 11. History tab shows:
     - event type contact_delete
     - entity id
@@ -363,6 +363,10 @@ The user's LLM agent does not call the Web API. It calls the extension's WebMCP 
 - Performs fetch
 - Records audit/history
 - Returns result
+
+History has a `Mode` filter. `Write` is the default so mutating operations and operational events stay easy to scan. `Read` shows audited read calls such as entity GETs, which is useful when the user wants proof that Chat queried the Web API rather than only summarizing the dashboard.
+
+The audit log is trimmed on write to keep the newest 200 entries and roughly 200 KB of serialized JSON. Existing local storage is not migrated destructively; trimming happens the next time a new audit entry is written.
 
 
 ### Jobs
@@ -546,8 +550,8 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 | **Sandbox** | `src/sandbox/sandbox.ts`, `sdk-facade.ts` | Code-mode validation and SDK facade. Runtime execution is being moved to a manifest sandbox hosted by an offscreen document; SDK calls route back to privileged handlers. |
 | **Virtual SDK** | `src/sdk/riro-tree.ts`, `proxy.ts`, `sdk.ts` | Type-on-demand settings layer. Parses `riro_consolidated_lookup.json` into a nested tree with Zod schemas, flattens typed objects back to flat RiRo keys at write time. |
 | **Confirm bridge** | `src/bridge/confirm-bridge.ts` | Singleton promise-based bridge: tool handler requests confirmation, side panel UI resolves it. Supports scoped auto-confirm ("confirm all") for batch operations. |
-| **Job runner** | `src/jobs/job-runner.ts`, `job-store.ts` | Singleton engine for long-running scripts. Supports start, pause, resume, cancel. Progress is flushed every 5 seconds. Checkpoints enable resume after pause or restart. |
-| **API client** | `src/lib/api-client.ts` | `fetch()` wrapper with the custom `credentials: username:password` header, rate limiting (token bucket, 9 req/s default), and audit logging (capped at 500 entries). |
+| **Job runner** | `src/jobs/job-runner.ts`, `job-store.ts` | Singleton engine for long-running scripts. Supports start, pause, resume, cancel. Progress is flushed every 5 seconds. Checkpoints enable resume after pause or restart. Job storage is trimmed to the newest 50 jobs and roughly 200 KB on write. |
+| **API client** | `src/lib/api-client.ts` | `fetch()` wrapper with the custom `credentials: username:password` header, rate limiting (token bucket, 9 req/s default), and audit logging (trimmed to the newest 200 entries and roughly 200 KB on write). |
 | **Crypto** | `src/lib/crypto.ts` | PBKDF2 (600K iterations, SHA-256) key derivation + AES-GCM-256 encryption/decryption via Web Crypto API. |
 | **Storage** | `src/lib/storage.ts` | Manages encrypted credentials in `chrome.storage.local` and decrypted session cache in `chrome.storage.session`. |
 | **Service worker** | `background/service-worker.ts` | Side panel activation, API request relay, startup recovery (marks interrupted jobs as paused), tab-close detection. |
@@ -652,7 +656,7 @@ Handle it conservatively: keep authoritative settings metadata in `riro_consolid
 | API credentials | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never |
 | Tool call parameters | Extension memory only (not persisted) | Tool schema visible; parameter values visible to the calling agent |
 | API responses | Returned to calling agent as tool results | Yes -- the agent sees the structured result |
-| Audit log | `chrome.storage.local` (capped at 500 entries) | Only via `get_audit_log` tool (agent must explicitly request) |
+| Audit log | `chrome.storage.local` (trimmed to newest 200 entries and roughly 200 KB on write) | Only via `get_audit_log` tool (agent must explicitly request) |
 | Job scripts | `chrome.storage.local` as part of job record | Script text visible when created by the agent |
 | Job results | `chrome.storage.local` until downloaded or discarded | Only final summary returned to agent; intermediate API responses stay local |
 | Code-mode execution | Local sandboxed browser runtime with SW as API gateway | Intermediate results never leave the browser |

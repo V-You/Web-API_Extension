@@ -66,6 +66,8 @@ module.exports = {
       new CopyRspackPlugin({
         patterns: [
           { from: "offscreen", to: "offscreen" },
+          { from: "sandbox/sandbox.html", to: "sandbox/sandbox.html" },
+          { from: "sandbox/sandbox.js", to: "sandbox/sandbox.js" },
         ],
       }),
       new DefinePlugin({

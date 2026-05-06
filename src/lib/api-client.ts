@@ -20,6 +20,8 @@ const limiters = new Map<number, RateLimiter>();
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 500;
+const MAX_AUDIT_ENTRIES = 200;
+const MAX_AUDIT_BYTES = 200_000;
 
 /** Check if a status code is retryable (server error or rate limit). */
 function isRetryableStatus(status: number): boolean {
@@ -143,7 +145,11 @@ export async function apiRequest<T = unknown>(
       eventType: auditMeta.eventType,
       entityId: auditMeta.entityId,
       entityType: auditMeta.entityType,
-      parameters: opts.params ?? {},
+      parameters: {
+        _method: method,
+        _path: opts.path,
+        ...(opts.params ?? {}),
+      },
       responseStatus: res.status,
       environment: env,
     });
@@ -152,12 +158,19 @@ export async function apiRequest<T = unknown>(
   return { ok: res.ok, status: res.status, data };
 }
 
-/** Append an entry to the local audit log (capped at 500 entries). */
+/** Append an entry to the local audit log. Trims on write to protect local storage. */
 export async function appendAuditEntry(entry: AuditEntry): Promise<void> {
   const result = await chrome.storage.local.get("audit");
   const log = (result.audit ?? []) as AuditEntry[];
   log.push(entry);
-  // Keep only the last 500 entries
-  const trimmed = log.length > 500 ? log.slice(log.length - 500) : log;
+  const trimmed = trimAuditLog(log);
   await chrome.storage.local.set({ audit: trimmed });
+}
+
+function trimAuditLog(log: AuditEntry[]): AuditEntry[] {
+  const trimmed = log.length > MAX_AUDIT_ENTRIES ? log.slice(log.length - MAX_AUDIT_ENTRIES) : [...log];
+  while (trimmed.length > 1 && JSON.stringify(trimmed).length > MAX_AUDIT_BYTES) {
+    trimmed.shift();
+  }
+  return trimmed;
 }

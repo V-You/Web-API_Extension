@@ -189,6 +189,17 @@ describe("job-store", () => {
 
     unsub();
   });
+
+  it("trims persisted jobs by count", async () => {
+    for (let index = 0; index < 55; index++) {
+      await createJob({ ...jobInit, label: `Job ${index}` });
+    }
+
+    const stored = storageStore.jobs as JobRecord[];
+    expect(stored).toHaveLength(50);
+    expect(stored[0].label).toBe("Job 5");
+    expect(stored.at(-1)?.label).toBe("Job 54");
+  });
 });
 
 describe("estimateRuntime", () => {

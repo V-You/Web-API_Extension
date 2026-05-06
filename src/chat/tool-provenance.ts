@@ -1,5 +1,6 @@
 interface ToolEventLike {
   name: string;
+  args?: Record<string, unknown>;
   result: unknown;
 }
 
@@ -40,6 +41,12 @@ export function summarizeToolResources(toolEvents: ToolEventLike[]): string[] {
         resources.add("Contacts API");
         break;
       case "manage_entity":
+        if (event.args?.action === "get") {
+          resources.add("Web API entity GET");
+          break;
+        }
+        resources.add("Hierarchy API");
+        break;
       case "get_hierarchy":
         resources.add("Hierarchy API");
         break;

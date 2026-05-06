@@ -16,13 +16,14 @@ describe("audit event types align with the generated manifest module", () => {
     // contact-attach is achieved via `autoAttach: true` in the create call;
     // there is no dedicated API operation to bind an audit entry to.
     "contact_attach",
+    "get_entity",
   ] as const;
 
   it("AUDIT_EVENT_TYPES matches the live manifest derivation", () => {
     expect([...AUDIT_EVENT_TYPES].sort()).toEqual([...manifestAuditEventTypes()].sort());
   });
 
-  it("the runtime union equals AUDIT_EVENT_TYPES plus the three extension-only events", () => {
+  it("the runtime union equals AUDIT_EVENT_TYPES plus extension-only events", () => {
     // Compile-time: each generated type assigns into the runtime union.
     const api: AuditEventType[] = [...AUDIT_EVENT_TYPES];
     // Compile-time: each extension-only event is part of the runtime union.

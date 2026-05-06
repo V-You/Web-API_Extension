@@ -141,5 +141,37 @@ describe("api-client", () => {
     expect(audit[0].entityId).toBe("m1");
     expect(audit[0].eventType).toBe("entity_create");
     expect(audit[0].environment).toBe("uat");
+    expect(audit[0].parameters).toEqual({ _method: "POST", _path: "/merchants", name: "X" });
+  });
+
+  it("trims audit entries by count", async () => {
+    storageStore.audit = Array.from({ length: 200 }, (_, index) => ({
+      id: `old-${index}`,
+      timestamp: new Date(index).toISOString(),
+      eventType: "get_entity",
+      entityId: `e-${index}`,
+      entityType: "merchant",
+      parameters: {},
+      responseStatus: 200,
+      environment: "uat",
+    }));
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await apiRequest(creds, "uat", { path: "/merchants/new" }, {
+      eventType: "get_entity",
+      entityId: "new",
+      entityType: "merchant",
+    });
+
+    const audit = storageStore.audit as Array<Record<string, unknown>>;
+    expect(audit).toHaveLength(200);
+    expect(audit[0].id).toBe("old-1");
+    expect(audit.at(-1)?.entityId).toBe("new");
   });
 });

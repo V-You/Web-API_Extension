@@ -81,6 +81,10 @@ async function getEntity(
 
   const res = await apiRequest(creds, env, {
     path: entityPath(input.entityType, input.entityId),
+  }, {
+    eventType: "get_entity",
+    entityId: input.entityId,
+    entityType: input.entityType,
   });
 
   if (res.ok && res.data && !Array.isArray(res.data) && typeof res.data === "object") {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EntityType } from "../../src/lib/entity-types";
 import type { Environment } from "../../src/lib/types";
 import {
@@ -31,8 +31,10 @@ import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt } from "../../src/c
 import { getActiveChatContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
-import { parseWorkflowDraft } from "../../src/chat/workflow-draft";
+import { parseWorkflowDraft, WorkflowDraftParseError } from "../../src/chat/workflow-draft";
 import { startJob } from "../../src/jobs/job-runner";
+import { estimateRuntime } from "../../src/jobs/job-store";
+import { useJobs } from "../../src/jobs/use-jobs";
 import { getActiveEnv, getCredentials, getThrottleRate } from "../../src/lib/storage";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
 import { copyTextToClipboard } from "../utils/clipboard";
@@ -57,6 +59,7 @@ interface WorkflowReviewState {
   label: string;
   script: string;
   totalCalls: number;
+  throttleRate: number;
   env: Environment;
   prompt: string;
   entityId?: string;
@@ -65,7 +68,93 @@ interface WorkflowReviewState {
   section?: string;
 }
 
+interface ApiReadPreflight {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  method: "GET";
+  path: string;
+  result: unknown;
+  requestedFields: string[];
+  displayResult: unknown;
+}
+
+interface FieldEvidence {
+  field: string;
+  found: boolean;
+  paths: string[];
+  presentTopLevelKeys: string[];
+  presentChannelInfoKeys: string[];
+}
+
+function entityApiPath(entityType: EntityType, entityId: string): string {
+  const plural: Record<EntityType, string> = {
+    psp: "psps",
+    division: "divisions",
+    merchant: "merchants",
+    channel: "channels",
+  };
+  return `/${plural[entityType]}/${entityId}`;
+}
+
+function buildFieldEvidence(response: unknown, fields: string[]): FieldEvidence[] {
+  const responseObject = response && typeof response === "object" && !Array.isArray(response)
+    ? response as Record<string, unknown>
+    : {};
+  const data = responseObject.data;
+  const dataObject = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : {};
+  const channelInfo = dataObject.channelInfo;
+  const channelInfoObject = channelInfo && typeof channelInfo === "object" && !Array.isArray(channelInfo)
+    ? channelInfo as Record<string, unknown>
+    : {};
+
+  return fields.map((field) => {
+    const paths = findFieldPaths(response, field);
+    return {
+      field,
+      found: paths.length > 0,
+      paths,
+      presentTopLevelKeys: Object.keys(dataObject),
+      presentChannelInfoKeys: Object.keys(channelInfoObject),
+    };
+  });
+}
+
+function findFieldPaths(value: unknown, field: string, path = "$", matches: string[] = []): string[] {
+  if (!value || typeof value !== "object") return matches;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => findFieldPaths(item, field, `${path}[${index}]`, matches));
+    return matches;
+  }
+
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    const childPath = `${path}.${key}`;
+    if (key === field) matches.push(childPath);
+    findFieldPaths(child, field, childPath, matches);
+  }
+  return matches;
+}
+
+function formatJobStateNotice(label: string, jobId: string, state: string, error?: string): string {
+  if (state === "completed") {
+    return `Job ${label} (${jobId}) completed. Open the Jobs tab to preview or download the result.`;
+  }
+  if (state === "paused") {
+    return `Job ${label} (${jobId}) paused. Open the Jobs tab to preview details or resume it.`;
+  }
+  if (state === "cancelled") {
+    return `Job ${label} (${jobId}) was cancelled. It remains visible in the Jobs tab under finished jobs.`;
+  }
+  if (state === "failed") {
+    return `Job ${label} (${jobId}) failed${error ? `: ${error}` : "."} Open the Jobs tab to inspect details.`;
+  }
+  return `Job ${label} (${jobId}) is now ${state}.`;
+}
+
 export function ChatPage() {
+  const jobs = useJobs();
   const [history, setHistory] = useState<GeminiContent[]>([]);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
@@ -94,11 +183,31 @@ export function ChatPage() {
   const [showManualOverride, setShowManualOverride] = useState(false);
   const [workflowReview, setWorkflowReview] = useState<WorkflowReviewState | null>(null);
   const [workflowReviewError, setWorkflowReviewError] = useState<string | null>(null);
+  const watchedJobIds = useRef(new Set<string>());
+  const announcedJobStates = useRef(new Map<string, string>());
 
   const refreshContext = useCallback(async () => {
     const context = await getActiveChatContext();
     setDetectedContext(context);
   }, []);
+
+  useEffect(() => {
+    const notifyStates = new Set(["paused", "failed", "completed", "cancelled"]);
+    for (const job of jobs) {
+      if (!watchedJobIds.current.has(job.id) || !notifyStates.has(job.state)) continue;
+      if (announcedJobStates.current.get(job.id) === job.state) continue;
+
+      announcedJobStates.current.set(job.id, job.state);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: formatJobStateNotice(job.label, job.id, job.state, job.error),
+        },
+      ]);
+    }
+  }, [jobs]);
 
   useEffect(() => {
     getLlmProviderSettings(DEFAULT_CHAT_PROVIDER).then((settings) => {
@@ -116,6 +225,7 @@ export function ChatPage() {
     isChatAutomationModeEnabled().then(setAutomationModeEnabledState);
     isChatRenderMarkdownEnabled().then(setRenderMarkdownState);
     isChatShowToolTracesEnabled().then(setShowToolTracesState);
+
     isProviderNoticeDismissed(DEFAULT_CHAT_PROVIDER).then(setNoticeDismissed);
     refreshContext();
 
@@ -343,11 +453,31 @@ export function ChatPage() {
       : "No dashboard context is available. Ask for explicit entity identifiers when needed.";
 
     try {
+      const preflight = await runApiReadPreflight(trimmed, effectiveContext);
+      if (preflight) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: `tool-${preflight.id}`,
+            role: "tool",
+            toolName: preflight.name,
+            args: preflight.args,
+            result: preflight.displayResult,
+          },
+        ]);
+      }
+
       const result = await runGeminiTurn({
         apiKey: savedSettings.apiKey,
         model: savedSettings.model,
         history,
-        userText: `${contextText}\n\nUser request: ${trimmed}`,
+        userText: [
+          contextText,
+          preflight
+            ? buildPreflightPrompt(preflight)
+            : null,
+          `User request: ${trimmed}`,
+        ].filter(Boolean).join("\n\n"),
         systemPrompt: buildChatSystemPrompt({
           writeToolsEnabled,
           automationModeEnabled,
@@ -358,7 +488,15 @@ export function ChatPage() {
       });
 
       setHistory(result.history);
-      const consultedResources = summarizeToolResources(result.toolEvents);
+      const consultedResources = summarizeToolResources([
+        ...(preflight ? [{
+          id: preflight.id,
+          name: preflight.name,
+          args: preflight.args,
+          result: preflight.displayResult,
+        }] : []),
+        ...result.toolEvents,
+      ]);
       setMessages((current) => [
         ...current,
         ...result.toolEvents.map((event) => ({
@@ -380,6 +518,69 @@ export function ChatPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function runApiReadPreflight(
+    request: string,
+    context: { entityType: EntityType; entityId: string } | null,
+  ): Promise<ApiReadPreflight | null> {
+    if (!context || !shouldPreflightEntityRead(request)) return null;
+
+    const args = {
+      action: "get",
+      entityType: context.entityType,
+      entityId: context.entityId,
+    };
+    const result = await executeChatTool("manage_entity", args, { writeToolsEnabled, automationModeEnabled });
+    const requestedFields = requestedApiFields(request);
+    return {
+      id: crypto.randomUUID(),
+      name: "manage_entity",
+      args,
+      method: "GET",
+      path: entityApiPath(context.entityType, context.entityId),
+      result,
+      requestedFields,
+      displayResult: {
+        endpoint: `GET ${entityApiPath(context.entityType, context.entityId)}`,
+        requestedFields,
+        fieldEvidence: buildFieldEvidence(result, requestedFields),
+        response: result,
+      },
+    };
+  }
+
+  function shouldPreflightEntityRead(request: string): boolean {
+    const normalized = request.toLowerCase();
+    const asksForApi = /\b(api|web api|query|raw|details?|inspect|retrieve|get|show|access\s*token|accesstoken|secret|pwd|login|sender)\b/.test(normalized);
+    const mentionsEntity = /\b(this|current|entity|channel|merchant|division|psp)\b/.test(normalized);
+    const isWriteIntent = /\b(create|edit|update|delete|attach|detach|lock|unlock|reset|set)\b/.test(normalized);
+    return asksForApi && mentionsEntity && !isWriteIntent;
+  }
+
+  function requestedApiFields(request: string): string[] {
+    const normalized = request.toLowerCase();
+    const fields: string[] = [];
+    if (/access\s*token|accesstoken/.test(normalized)) fields.push("accessToken");
+    if (/\bsecret\b/.test(normalized)) fields.push("secret");
+    if (/\bpwd\b|password/.test(normalized)) fields.push("pwd");
+    if (/\blogin\b/.test(normalized)) fields.push("login");
+    return fields;
+  }
+
+  function buildPreflightPrompt(preflight: ApiReadPreflight): string {
+    const fieldEvidence = preflight.requestedFields.length > 0
+      ? `Requested field evidence:\n${JSON.stringify(buildFieldEvidence(preflight.result, preflight.requestedFields), null, 2)}\n`
+      : "";
+
+    return [
+      `Preflight API query was executed before this answer: ${preflight.method} ${preflight.path}.`,
+      `Tool call: ${preflight.name} with args ${JSON.stringify(preflight.args)}.`,
+      fieldEvidence,
+      `Raw API response:\n${JSON.stringify(preflight.result, null, 2)}`,
+      "Use this raw API response as the authoritative source for this answer.",
+      "If a requested field is absent from this raw response, say that the field is absent from this specific response and list the keys that were present. Do not say the API never exposes the field globally unless the provided API metadata proves that.",
+    ].filter(Boolean).join("\n\n");
   }
 
   async function handleDraftJob() {
@@ -424,6 +625,7 @@ export function ChatPage() {
         entityName: detectedContext?.entityName,
         section: detectedContext?.section,
       });
+      const throttleRate = await getThrottleRate();
 
       const result = await runGeminiTurn({
         apiKey: savedSettings.apiKey,
@@ -442,11 +644,27 @@ export function ChatPage() {
         },
       });
 
-      const draft = parseWorkflowDraft(result.assistantText);
+      let draft;
+      try {
+        draft = parseWorkflowDraft(result.assistantText);
+      } catch (parseError) {
+        if (parseError instanceof WorkflowDraftParseError) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              text: `The workflow draft could not be parsed. Raw model output:\n\n\`\`\`text\n${parseError.rawText.slice(0, 4000)}\n\`\`\``,
+            },
+          ]);
+        }
+        throw parseError;
+      }
       setWorkflowReview({
         label: draft.label,
         script: draft.script,
         totalCalls: draft.totalCalls,
+        throttleRate,
         env,
         prompt: trimmed,
         entityId: effectiveContext?.entityId,
@@ -497,6 +715,9 @@ export function ChatPage() {
         env: workflowReview.env,
         source: "chat",
       });
+
+      watchedJobIds.current.add(job.id);
+      announcedJobStates.current.set(job.id, job.state);
 
       setWorkflowReview(null);
       setMessages((current) => [
@@ -877,6 +1098,8 @@ function WorkflowReviewDialog({
   onCancel: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const estimate = estimateRuntime(draft.totalCalls, draft.throttleRate);
+  const apiPreview = inferWorkflowApiPreview(draft);
 
   async function handleCopy() {
     await copyTextToClipboard(draft.script);
@@ -926,10 +1149,32 @@ function WorkflowReviewDialog({
           </div>
 
           <div>
+            <div className="mb-1 font-medium text-slate-600">Likely Web API calls</div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-slate-700">
+              {apiPreview.length > 0 ? (
+                <ul className="space-y-1">
+                  {apiPreview.map((entry, index) => (
+                    <li key={`${entry.method}-${entry.path}-${index}`}>
+                      <span className="font-mono text-2xs">{entry.method} {entry.path}</span>
+                      <span className="text-slate-500"> - {entry.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span>Unable to infer exact endpoints from this script before runtime. Review the SDK calls below.</span>
+              )}
+            </div>
+          </div>
+
+          <div>
             <div className="mb-1 font-medium text-slate-600">Script</div>
             <pre className="max-h-96 overflow-auto rounded-md border border-slate-200 bg-slate-950 p-3 text-2xs text-slate-100">
               {draft.script}
             </pre>
+          </div>
+
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-800">
+            Estimated runtime: {estimate.display}. If Chrome suspends the execution context, the job will pause or fail and can be resumed or inspected from the Jobs tab.
           </div>
 
           {error && (
@@ -965,6 +1210,57 @@ function WorkflowReviewDialog({
       </div>
     </div>
   );
+}
+
+interface ApiPreviewEntry {
+  method: "GET" | "POST" | "DELETE";
+  path: string;
+  reason: string;
+}
+
+function inferWorkflowApiPreview(draft: WorkflowReviewState): ApiPreviewEntry[] {
+  const entries: ApiPreviewEntry[] = [];
+  const entityPathValue = draft.entityType && draft.entityId
+    ? entityPathForPreview(draft.entityType, draft.entityId)
+    : null;
+
+  if (entityPathValue && /sdk\.(?:management\.)?entities\.get\(\s*context\.entityType\s*,\s*context\.entityId\s*\)/.test(draft.script)) {
+    entries.push({ method: "GET", path: entityPathValue, reason: "query current entity details" });
+  }
+
+  if (entityPathValue && /sdk\.contacts\.list\(\s*context\.entityType\s*,\s*context\.entityId\s*,\s*["']owned["']\s*\)/.test(draft.script)) {
+    entries.push({ method: "GET", path: `${entityPathValue}/ownedContacts`, reason: "list contacts created on this entity" });
+  }
+
+  if (entityPathValue && /sdk\.contacts\.list\(\s*context\.entityType\s*,\s*context\.entityId\s*,\s*["']attached["']\s*\)/.test(draft.script)) {
+    entries.push({ method: "GET", path: `${entityPathValue}/attachedContacts`, reason: "list contacts attached to this entity" });
+  }
+
+  if (entityPathValue && /sdk\.contacts\.attach\(\s*context\.entityType\s*,\s*context\.entityId\s*,/.test(draft.script)) {
+    entries.push({ method: "POST", path: `${entityPathValue}/attachedContacts/{contactId}`, reason: "attach each missing contact" });
+  }
+
+  return dedupeApiPreview(entries);
+}
+
+function entityPathForPreview(entityType: EntityType, entityId: string): string {
+  const plural: Record<EntityType, string> = {
+    psp: "psps",
+    division: "divisions",
+    merchant: "merchants",
+    channel: "channels",
+  };
+  return `/${plural[entityType]}/${entityId}`;
+}
+
+function dedupeApiPreview(entries: ApiPreviewEntry[]): ApiPreviewEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    const key = `${entry.method} ${entry.path}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function ToolMessage({

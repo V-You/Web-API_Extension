@@ -1,4 +1,5 @@
 const SANDBOX_FRAME_ID = "sandbox-frame";
+const DEFAULT_JOB_TIMEOUT_MS = 120_000;
 
 const pendingSandboxRequests = new Map();
 let sandboxFramePromise = null;
@@ -42,10 +43,23 @@ async function postToSandbox(message) {
   frame.contentWindow?.postMessage(message, "*");
 }
 
-async function requestSandbox(message) {
+function rejectPendingJobRequests(jobId, error) {
+  for (const [requestId, entry] of pendingSandboxRequests.entries()) {
+    if (entry.jobId !== jobId) continue;
+    clearTimeout(entry.timer);
+    pendingSandboxRequests.delete(requestId);
+    entry.reject(error);
+  }
+}
+
+async function requestSandbox(message, timeoutMs = DEFAULT_JOB_TIMEOUT_MS) {
   const requestId = crypto.randomUUID();
   const response = new Promise((resolve, reject) => {
-    pendingSandboxRequests.set(requestId, { resolve, reject });
+    const timer = setTimeout(() => {
+      pendingSandboxRequests.delete(requestId);
+      reject(new Error(`Sandbox execution timed out after ${Math.round(timeoutMs / 1000)} seconds.`));
+    }, timeoutMs);
+    pendingSandboxRequests.set(requestId, { resolve, reject, timer, jobId: message.jobId });
   });
   await postToSandbox({ ...message, requestId });
   return response;
@@ -75,13 +89,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       jobId: message.jobId,
       jsCode: message.jsCode,
       context: message.context,
-    })
+    }, Number(message.timeoutMs) || DEFAULT_JOB_TIMEOUT_MS)
       .then((result) => sendResponse({ ok: true, result }))
       .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
     return true;
   }
 
   if (type === "offscreen_job_abort") {
+    rejectPendingJobRequests(message.jobId, new Error("Sandbox execution was aborted."));
     postToSandbox({ type: "sandbox_abort", jobId: message.jobId })
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
@@ -106,6 +121,7 @@ window.addEventListener("message", (event) => {
   if (data.type === "sandbox_result" || data.type === "sandbox_error") {
     const entry = pendingSandboxRequests.get(data.requestId);
     if (!entry) return;
+    clearTimeout(entry.timer);
     pendingSandboxRequests.delete(data.requestId);
     if (data.type === "sandbox_error") entry.reject(new Error(String(data.error ?? "Sandbox execution failed.")));
     else entry.resolve(data.result);

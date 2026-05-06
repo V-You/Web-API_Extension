@@ -238,6 +238,7 @@ describe("chat tool bridge", () => {
           "get_contact",
           "get_entity",
           "get_hierarchy",
+          "get_job_status",
           "get_merchant_account",
           "list_attached_contacts",
           "list_attached_merchant_accounts",

@@ -36,6 +36,7 @@ export interface OffscreenJobExecuteInput {
   jobId: string;
   jsCode: string;
   context: unknown;
+  timeoutMs: number;
 }
 
 export interface OffscreenJobExecuteResult {
@@ -53,6 +54,7 @@ export async function executeJobInOffscreen(input: OffscreenJobExecuteInput): Pr
     jobId: input.jobId,
     jsCode: input.jsCode,
     context: input.context,
+    timeoutMs: input.timeoutMs,
   });
 
   if (!response || typeof response !== "object") {

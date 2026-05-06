@@ -1,5 +1,6 @@
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { confirmIfMutating, describeMutatingCall } from "../bridge/write-confirm-utils";
+import { getJobFresh, type JobRecord } from "../jobs/job-store";
 import type { EntityType } from "../lib/entity-types";
 import { getActiveEnv, getCredentials } from "../lib/storage";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
@@ -26,6 +27,26 @@ export type ExecuteFn = (params: Record<string, unknown>) => Promise<unknown>;
 export interface ExecuteMapOptions {
   onWriteAccepted?: (description: string) => void;
   bypassWriteConfirmation?: boolean;
+  startWorkflowJob?: (input: StartWorkflowJobInput) => Promise<StartWorkflowJobResult>;
+}
+
+export interface StartWorkflowJobInput {
+  label: string;
+  script: string;
+  entityId?: string;
+  entityType?: string;
+  totalCalls: number;
+  throttleRate?: number;
+  timeoutMs?: number;
+  creds: ApiCredentials;
+  env: Environment;
+}
+
+export interface StartWorkflowJobResult {
+  jobId: string;
+  state: string;
+  label: string;
+  totalCalls: number;
 }
 
 export async function resolveSession(): Promise<ToolSession | null> {
@@ -248,9 +269,39 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
       });
     },
 
+    get_job_status: async (params) => {
+      return getJobStatus(params.jobId as string | undefined, params.includeDetails === true);
+    },
+
     execute_workflow: async (params) => {
       const { creds, env } = await sessionOrError();
       const autoConfirmWrites = await confirmWorkflowIfNeeded(params, env, options);
+
+      if (params.dryRun !== true && params.planOnly !== true && options.startWorkflowJob) {
+        const label = typeof params.label === "string" && params.label.trim()
+          ? params.label.trim()
+          : "WebMCP workflow";
+        const totalCalls = normalizeTotalCalls(params.totalCalls);
+        const receipt = await options.startWorkflowJob({
+          label,
+          script: params.script as string,
+          entityId: params.entityId as string | undefined,
+          entityType: params.entityType as string | undefined,
+          totalCalls,
+          timeoutMs: params.timeoutMs as number | undefined,
+          creds,
+          env,
+        });
+        return {
+          status: "accepted",
+          jobId: receipt.jobId,
+          state: receipt.state,
+          label: receipt.label,
+          totalCalls: receipt.totalCalls,
+          message: "Workflow accepted as a background Job. Poll get_job_status with this jobId, and the user can monitor or cancel it in the extension Jobs tab.",
+        };
+      }
+
       return executeWorkflow(
         {
           script: params.script as string,
@@ -269,6 +320,56 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     describe_operation: async (params) => {
       return describeOperation({ toolName: params.toolName as string | undefined });
     },
+  };
+}
+
+function normalizeTotalCalls(value: unknown): number {
+  const totalCalls = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(totalCalls) && totalCalls > 0 ? totalCalls : 1;
+}
+
+async function getJobStatus(jobId: string | undefined, includeDetails: boolean) {
+  if (!jobId) return { error: "jobId is required." };
+  const job = await getJobFresh(jobId);
+  if (!job) return { error: `Job ${jobId} was not found.` };
+
+  const base = summarizeJob(job);
+  if (!includeDetails) return base;
+
+  return {
+    ...base,
+    script: job.script,
+    logs: job.logs,
+    writes: job.writes,
+    results: job.results,
+  };
+}
+
+function summarizeJob(job: JobRecord) {
+  return {
+    jobId: job.id,
+    label: job.label,
+    state: job.state,
+    source: job.source,
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    pausedAt: job.pausedAt,
+    completedAt: job.completedAt,
+    env: job.env,
+    entityType: job.entityType,
+    entityId: job.entityId,
+    progress: {
+      completedCalls: job.completedCalls,
+      totalCalls: job.totalCalls,
+      throttleRate: job.throttleRate,
+    },
+    error: job.error,
+    counts: {
+      results: job.results.length,
+      logs: job.logs.length,
+      writes: job.writes.length,
+    },
+    results: job.state === "completed" ? job.results : undefined,
   };
 }
 

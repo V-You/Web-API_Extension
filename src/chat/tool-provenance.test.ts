@@ -26,4 +26,12 @@ describe("tool provenance", () => {
 
     expect(resources).toEqual(["Contacts API", "Hierarchy API"]);
   });
+
+  it("labels entity get calls as Web API entity GET", () => {
+    const resources = summarizeToolResources([
+      { name: "manage_entity", args: { action: "get" }, result: {} },
+    ]);
+
+    expect(resources).toEqual(["Web API entity GET"]);
+  });
 });

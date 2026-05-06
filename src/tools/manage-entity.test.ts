@@ -35,7 +35,16 @@ describe("manage_entity", () => {
       "uat" as never,
     );
 
-    expect(apiRequestMock).toHaveBeenCalled();
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "uat",
+      { path: "/channels/channel-1" },
+      {
+        eventType: "get_entity",
+        entityId: "channel-1",
+        entityType: "channel",
+      },
+    );
     expect(result).toEqual({
       ok: true,
       status: 200,

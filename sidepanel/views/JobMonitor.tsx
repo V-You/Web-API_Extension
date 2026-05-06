@@ -11,10 +11,10 @@
  *   - Elapsed time
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useActiveJob, useJobs } from "../../src/jobs/use-jobs";
 import { pauseJob, resumeJob, cancelJob, cancelJobById } from "../../src/jobs/job-runner";
-import { estimateRemaining, findRecoverableJobs, type JobRecord } from "../../src/jobs/job-store";
+import { estimateRemaining, type JobRecord } from "../../src/jobs/job-store";
 import { getCredentials, getActiveEnv } from "../../src/lib/storage";
 import { Badge, ProgressBar } from "../components";
 
@@ -35,24 +35,20 @@ function StateBadge({ state }: { state: string }) {
 export function JobMonitor() {
   const activeJob = useActiveJob();
   const jobs = useJobs();
-  const [recoverable, setRecoverable] = useState<JobRecord[]>([]);
-
-  useEffect(() => {
-    findRecoverableJobs().then(setRecoverable);
-  }, [jobs]);
+  const orderedJobs = [...jobs].sort(compareJobsNewestFirst);
 
   // Filter out the active job from the recoverable list.
   // A stored running job with no active SW owner is recoverable after worker restart.
-  const pausedJobs = recoverable.filter(
+  const pausedJobs = orderedJobs.filter(
     (j) => j.id !== activeJob?.id && ["running", "resumed", "paused", "failed"].includes(j.state)
   );
 
-  // Completed jobs, including empty reports so silent completions are visible.
-  const completedJobs = jobs.filter(
-    (j) => j.id !== activeJob?.id && j.state === "completed"
+  // Finished jobs, including empty reports so silent completions and cancellations are visible.
+  const finishedJobs = orderedJobs.filter(
+    (j) => j.id !== activeJob?.id && (j.state === "completed" || j.state === "cancelled")
   );
 
-  if (!activeJob && pausedJobs.length === 0 && completedJobs.length === 0) {
+  if (!activeJob && pausedJobs.length === 0 && finishedJobs.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500">
         <p className="text-sm">No active or recoverable jobs.</p>
@@ -76,12 +72,12 @@ export function JobMonitor() {
           <p className="text-2xs text-slate-400">No recoverable jobs.</p>
         )}
       </div>
-      {completedJobs.length > 0 && (
+      {finishedJobs.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-            Completed reports
+            Finished jobs
           </h3>
-          {completedJobs.map((job) => (
+          {finishedJobs.map((job) => (
             <CompletedJobCard key={job.id} job={job} />
           ))}
         </div>
@@ -92,6 +88,7 @@ export function JobMonitor() {
 
 function ActiveJobCard({ job }: { job: JobRecord }) {
   const [actionError, setActionError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const pct = job.totalCalls > 0
     ? Math.min(100, Math.round((job.completedCalls / job.totalCalls) * 100))
     : 0;
@@ -121,7 +118,6 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold truncate">{job.label}</span>
         <div className="flex items-center gap-1">
-          {job.source === "chat" && <Badge variant="neutral">chat</Badge>}
           <StateBadge state={job.state} />
         </div>
       </div>
@@ -137,6 +133,9 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
         <span>{job.completedCalls} / {job.totalCalls} calls ({pct}%)</span>
         <span>{elapsed}</span>
       </div>
+      {job.source && (
+        <div className="text-2xs text-slate-400">Source: {job.source}</div>
+      )}
 
       {job.state === "running" && (
         <div className="text-xs text-slate-500">
@@ -158,6 +157,12 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
 
       {/* Controls */}
       <div className="flex gap-2 pt-1">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+        >
+          {expanded ? "Hide" : "Preview"}
+        </button>
         {job.state === "running" && (
           <>
             <button
@@ -186,12 +191,14 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
           </>
         )}
       </div>
+      {expanded && <JobPreview job={job} />}
     </div>
   );
 }
 
 function RecoverableJobCard({ job }: { job: JobRecord }) {
   const [actionError, setActionError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const pct = job.totalCalls > 0
     ? Math.round((job.completedCalls / job.totalCalls) * 100)
     : 0;
@@ -212,6 +219,12 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
         <div className="text-xs text-red-600">{actionError}</div>
       )}
       <div className="flex gap-2">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+        >
+          {expanded ? "Hide" : "Preview"}
+        </button>
         {(job.state === "paused" || job.state === "failed") && <ResumeButton jobId={job.id} />}
         <button
           onClick={() => cancelJobById(job.id).catch((err) => setActionError(err instanceof Error ? err.message : "Failed to discard job"))}
@@ -220,6 +233,7 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
           Discard
         </button>
       </div>
+      {expanded && <JobPreview job={job} />}
     </div>
   );
 }
@@ -285,12 +299,43 @@ function CompletedJobCard({ job }: { job: JobRecord }) {
         </button>
       </div>
       {expanded && (
-        <pre className="mt-1 p-2 bg-slate-50 rounded text-2xs text-slate-600 overflow-x-auto max-h-40">
-          {JSON.stringify(job.results.slice(0, 20), null, 2)}
-          {job.results.length > 20 && `\n... (${job.results.length - 20} more)`}
-        </pre>
+        <JobPreview job={job} />
       )}
     </div>
+  );
+}
+
+function JobPreview({ job }: { job: JobRecord }) {
+  const payload = {
+    state: job.state,
+    label: job.label,
+    source: job.source,
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    pausedAt: job.pausedAt,
+    completedAt: job.completedAt,
+    progress: {
+      completedCalls: job.completedCalls,
+      totalCalls: job.totalCalls,
+      throttleRate: job.throttleRate,
+      checkpoint: job.checkpoint,
+    },
+    error: job.error,
+    context: {
+      entityType: job.entityType,
+      entityId: job.entityId,
+      env: job.env,
+    },
+    script: job.script,
+    logs: job.logs,
+    writes: job.writes,
+    results: job.results,
+  };
+
+  return (
+    <pre className="mt-1 p-2 bg-slate-50 rounded text-2xs text-slate-600 overflow-x-auto max-h-56">
+      {JSON.stringify(payload, null, 2)}
+    </pre>
   );
 }
 
@@ -337,4 +382,8 @@ function formatDuration(ms: number): string {
   const hrs = Math.floor(mins / 60);
   const remMins = mins % 60;
   return `${hrs}h ${remMins}m`;
+}
+
+function compareJobsNewestFirst(a: JobRecord, b: JobRecord): number {
+  return Date.parse(b.createdAt) - Date.parse(a.createdAt);
 }

@@ -68,7 +68,8 @@ export interface JobProgress {
 // -- Storage key ----------------------------------------------------------
 
 const STORAGE_KEY = "jobs";
-const MAX_JOBS = 100;
+const MAX_JOBS = 50;
+const MAX_JOBS_BYTES = 200_000;
 const EMPTY_JOBS: JobRecord[] = [];
 
 // -- Subscription ---------------------------------------------------------
@@ -149,11 +150,18 @@ export async function loadJobsFresh(): Promise<JobRecord[]> {
 
 /** Persist the jobs array. */
 async function saveJobs(jobs: JobRecord[]): Promise<void> {
-  // Trim to max, keeping newest
-  const trimmed = jobs.length > MAX_JOBS ? jobs.slice(jobs.length - MAX_JOBS) : jobs;
+  const trimmed = trimJobsForStorage(jobs);
   await chrome.storage.local.set({ [STORAGE_KEY]: trimmed });
   cachedJobs = trimmed;
   emitListeners();
+}
+
+function trimJobsForStorage(jobs: JobRecord[]): JobRecord[] {
+  const trimmed = jobs.length > MAX_JOBS ? jobs.slice(jobs.length - MAX_JOBS) : [...jobs];
+  while (trimmed.length > 1 && JSON.stringify(trimmed).length > MAX_JOBS_BYTES) {
+    trimmed.shift();
+  }
+  return trimmed;
 }
 
 /** Get a snapshot for useSyncExternalStore. */

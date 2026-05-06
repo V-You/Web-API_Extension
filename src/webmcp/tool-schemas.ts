@@ -36,6 +36,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     title: "Manage entity (read-only)",
     description:
       "Read payment hierarchy entities (PSP, division, merchant, channel). " +
+      "For channels, get returns the Web API channelInfo payload, which may include accessToken, login, pwd, and secret when the API exposes them. " +
       "Actions: get, search, list_children. For writes, use the dedicated per-action tools " +
       "(create_division, create_merchant, create_channel, edit_entity, delete_entity).",
     annotations: { readOnlyHint: true },
@@ -299,12 +300,13 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
         eventType: {
           type: "string",
           // Part-II P2-D4: API-backed values come from the generated
-          // manifest-derived list; three extension-only events are appended.
+          // manifest-derived list; extension-only events are appended.
           enum: [
             ...AUDIT_EVENT_TYPES,
             "setting_change",
             "env_switch",
             "contact_attach",
+            "get_entity",
           ],
           description: "Filter by event type.",
         },
@@ -321,9 +323,10 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     name: "execute_workflow",
     title: "Execute workflow",
     description:
-      "Execute a TypeScript/JS script in the local sandbox with the virtual SDK. " +
+      "Start a background Job that executes a TypeScript/JS script in the local sandbox with the virtual SDK. " +
       "Use this for repeated writes and backend batch work instead of calling write tools one by one. " +
-      "The agent writes code; this tool runs it locally. The script has access to " +
+      "For real runs, this tool returns a Job receipt immediately; use get_job_status with the returned jobId to poll progress and retrieve final results. " +
+      "The agent writes code; the extension runs it locally. The script has access to " +
       "sdk.config, sdk.entities, sdk.contacts, sdk.merchantAccounts, sdk.hierarchy, " +
       "sdk.clearingInstitutes, sdk.audit, plus console, sleep(ms), results array, and context.",
     inputSchema: {
@@ -338,6 +341,15 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           type: "string",
           enum: ["psp", "division", "merchant", "channel"],
           description: "Entity type for context.",
+        },
+        label: {
+          type: "string",
+          description: "Optional human-readable Job label shown in the Jobs tab.",
+        },
+        totalCalls: {
+          type: "number",
+          minimum: 1,
+          description: "Optional estimated API call count for Jobs tab progress and runtime estimate.",
         },
         dryRun: {
           type: "boolean",
@@ -357,7 +369,29 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 10. describe_operation
+  // 10. get_job_status
+  {
+    name: "get_job_status",
+    title: "Get job status",
+    description:
+      "Read the status of a background Job started by execute_workflow or the Chat Draft Job flow. " +
+      "Use this after execute_workflow returns a jobId. By default it returns state, progress, timestamps, error, and result counts; set includeDetails=true to include logs, writes, results, and script.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", description: "Job ID returned by execute_workflow." },
+        includeDetails: {
+          type: "boolean",
+          description: "If true, include script, logs, writes, and results. Default false.",
+        },
+      },
+      required: ["jobId"],
+      additionalProperties: false,
+    },
+  },
+
+  // 11. describe_operation
   {
     name: "describe_operation",
     title: "Describe operation",
@@ -381,7 +415,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
 ];
 
 /**
- * Full published WebMCP inventory: 10 handwritten umbrellas + generated
+ * Full published WebMCP inventory: 11 handwritten umbrellas + generated
  * per-action write/read tools derived from the operation manifest.
  */
 export const TOOL_SCHEMAS: ToolSchema[] = [

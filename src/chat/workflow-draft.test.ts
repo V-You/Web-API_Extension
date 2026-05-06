@@ -21,6 +21,34 @@ describe("workflow draft parsing", () => {
     expect(draft.totalCalls).toBe(2);
   });
 
+  it("repairs the common raw multiline script string response", () => {
+    const draft = parseWorkflowDraft(`{
+      "label": "Attach contacts",
+      "totalCalls": 3,
+      "script": "
+        const attached = await sdk.contacts.list(context.entityType, context.entityId, "attached");
+        results.push({ attached });
+      "
+    }`);
+
+    expect(draft.label).toBe("Attach contacts");
+    expect(draft.totalCalls).toBe(3);
+    expect(draft.script).toContain("sdk.contacts.list");
+  });
+
+  it("accepts a backtick script value in an otherwise JSON-like draft", () => {
+    const draft = parseWorkflowDraft(`{
+      "label": "Attach contacts",
+      "totalCalls": "2",
+      "script": \`
+        await sdk.contacts.attach(context.entityType, context.entityId, "c1");
+      \`
+    }`);
+
+    expect(draft.totalCalls).toBe(2);
+    expect(draft.script).toContain("sdk.contacts.attach");
+  });
+
   it("rejects missing or invalid fields", () => {
     expect(() => parseWorkflowDraft("{}")).toThrow(/label/);
     expect(() => parseWorkflowDraft("{\"label\":\"x\",\"totalCalls\":0,\"script\":\"x\"}")).toThrow(/positive integer/);

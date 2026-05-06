@@ -5,6 +5,7 @@ import { Input, Select } from "../components";
 import { copyTextToClipboard } from "../utils/clipboard";
 
 type TimeRange = "all" | "24h" | "7d" | "30d";
+type HistoryMode = "write" | "read";
 const TIME_RANGE_MS: Record<Exclude<TimeRange, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -26,6 +27,7 @@ export function RunHistoryPage() {
   const [filterType, setFilterType] = useState<string>("");
   const [filterEntity, setFilterEntity] = useState("");
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
+  const [mode, setMode] = useState<HistoryMode>("write");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -37,15 +39,20 @@ export function RunHistoryPage() {
     });
   }, []);
 
-  // Unique event types present in data (for filter dropdown)
+  const modeEntries = useMemo(
+    () => entries.filter((entry) => mode === "read" ? isReadAuditEntry(entry) : !isReadAuditEntry(entry)),
+    [entries, mode],
+  );
+
+  // Unique event types present in the selected mode (for filter dropdown)
   const eventTypes = useMemo(
-    () => [...new Set(entries.map((e) => e.eventType))].sort(),
-    [entries],
+    () => [...new Set(modeEntries.map((e) => e.eventType))].sort(),
+    [modeEntries],
   );
 
   // Filtered entries
   const filtered = useMemo(() => {
-    let result = entries;
+    let result = modeEntries;
     if (filterType) result = result.filter((e) => e.eventType === filterType);
     if (filterEntity.trim()) {
       const q = filterEntity.trim().toLowerCase();
@@ -60,7 +67,7 @@ export function RunHistoryPage() {
       result = result.filter((e) => Date.parse(e.timestamp) >= cutoff);
     }
     return result;
-  }, [entries, filterType, filterEntity, timeRange]);
+  }, [modeEntries, filterType, filterEntity, timeRange]);
 
   function downloadJson() {
     const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" });
@@ -129,6 +136,17 @@ export function RunHistoryPage() {
       {/* Filters */}
       <div className="flex gap-2">
         <Select
+          value={mode}
+          onChange={(e) => {
+            setMode(e.target.value as HistoryMode);
+            setFilterType("");
+          }}
+          aria-label="History mode"
+        >
+          <option value="write">Write</option>
+          <option value="read">Read</option>
+        </Select>
+        <Select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
           aria-label="Filter by event type"
@@ -158,9 +176,14 @@ export function RunHistoryPage() {
       />
 
       <p className="text-2xs text-slate-400">
-        {filtered.length} of {entries.length} entries
+        {filtered.length} of {modeEntries.length} {mode} entries ({entries.length} stored)
       </p>
 
+      {filtered.length === 0 ? (
+        <div className="rounded-md border border-slate-200 p-3 text-center text-xs text-slate-500">
+          No {mode} entries match the current filters.
+        </div>
+      ) : (
       <ul className="space-y-1">
         {filtered.map((entry) => (
           <li
@@ -213,8 +236,13 @@ export function RunHistoryPage() {
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
+}
+
+function isReadAuditEntry(entry: AuditEntry): boolean {
+  return /^(get|list|lookup|describe)_/.test(entry.eventType) || /_get$/.test(entry.eventType);
 }
 
 function EnvBadge({ env }: { env: Environment }) {
