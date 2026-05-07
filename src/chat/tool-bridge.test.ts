@@ -218,6 +218,7 @@ describe("chat tool bridge", () => {
         .sort();
       expect(names).toMatchInlineSnapshot(`
         [
+          "attach_contact",
           "attach_merchant_account",
           "create_channel",
           "create_contact",

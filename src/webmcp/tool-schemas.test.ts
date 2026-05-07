@@ -8,6 +8,7 @@ describe("tool schema definitions", () => {
       "manage_entity",
       "get_hierarchy",
       "manage_contact",
+      "attach_contact",
       "manage_merchant_account",
       "lookup_clearing_institutes",
       "describe_settings",
@@ -24,7 +25,7 @@ describe("tool schema definitions", () => {
     // Every handwritten tool is included.
     for (const tool of HANDWRITTEN_TOOL_SCHEMAS) expect(names).toContain(tool.name);
     // A handful of spec-derived tools must be published.
-    for (const expected of ["create_contact", "attach_merchant_account", "create_division", "edit_entity"]) {
+    for (const expected of ["create_contact", "attach_contact", "attach_merchant_account", "create_division", "edit_entity"]) {
       expect(names).toContain(expected);
     }
   });
@@ -96,5 +97,12 @@ describe("tool schema definitions", () => {
     const status = TOOL_SCHEMAS.find((schema) => schema.name === "get_job_status");
     expect(status?.annotations?.readOnlyHint).toBe(true);
     expect((status?.inputSchema as { required?: string[] }).required).toEqual(["jobId"]);
+  });
+
+  it("documents attach_contact as the supported existing-contact attach endpoint", () => {
+    const attachContact = TOOL_SCHEMAS.find((schema) => schema.name === "attach_contact");
+    expect(attachContact?.annotations?.readOnlyHint).toBeUndefined();
+    expect(attachContact?.description).toContain("attachedContacts/{contactId}");
+    expect((attachContact?.inputSchema as { required?: string[] }).required).toEqual(["entityId", "entityType", "contactId"]);
   });
 });

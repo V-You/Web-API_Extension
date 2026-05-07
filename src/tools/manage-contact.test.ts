@@ -79,6 +79,35 @@ describe("manage_contact", () => {
     expect((result.data as { error: { hint?: string } }).error.hint).toContain("firstName, lastName");
   });
 
+  it("attaches an existing contact to an entity", async () => {
+    apiRequestMock.mockResolvedValue({ ok: true, status: 200, data: { ok: true } });
+
+    await executeManageContact(
+      {
+        action: "attach",
+        entityId: "merchant-1",
+        entityType: "merchant",
+        contactId: "contact-1",
+      },
+      {} as never,
+      "uat" as never,
+    );
+
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "uat",
+      {
+        method: "POST",
+        path: "/merchants/merchant-1/attachedContacts/contact-1",
+      },
+      {
+        eventType: "contact_attach",
+        entityId: "contact-1",
+        entityType: "contact",
+      },
+    );
+  });
+
   it("does not invent non-spec contact create aliases", () => {
     expect(normalizeCreateContactFields({ email: "random.user@example.com" })).toEqual({
       email: "random.user@example.com",

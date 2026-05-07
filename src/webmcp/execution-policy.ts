@@ -68,6 +68,20 @@ export function buildWebMcpWritePreview(
     };
   }
 
+  if (tool === "attach_contact") {
+    const id = params.contactId ? String(params.contactId) : "contact";
+    const type = params.entityType ? String(params.entityType) : "entity";
+    const entityId = params.entityId ? String(params.entityId) : "";
+    return {
+      tool,
+      action: "attach",
+      method: "POST",
+      description: `Attach contact ${id} to ${type} ${entityId}`.trim(),
+      params,
+      env,
+    };
+  }
+
   const method = generatedOperationMethod(tool, params);
   if (!method) return null;
 

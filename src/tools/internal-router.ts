@@ -194,6 +194,24 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
       return result;
     },
 
+    attach_contact: async (params) => {
+      const { creds, env } = await sessionOrError();
+      const attachParams = { ...params, action: "attach" };
+      const description = await confirmOrDescribeIfMutating("manage_contact", attachParams, env, options);
+      const result = await executeManageContact(
+        {
+          action: "attach",
+          contactId: params.contactId as string | undefined,
+          entityId: params.entityId as string | undefined,
+          entityType: params.entityType as EntityType | undefined,
+        },
+        creds,
+        env,
+      );
+      reportWriteAccepted(description, options.onWriteAccepted);
+      return result;
+    },
+
     manage_merchant_account: async (params) => {
       guardReadOnly("manage_merchant_account", params.action);
       const { creds, env } = await sessionOrError();

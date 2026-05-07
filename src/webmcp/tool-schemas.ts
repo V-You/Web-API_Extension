@@ -112,16 +112,15 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 3. manage_contact -- read-only umbrella (writes are in the generated per-action tools:
-  // create_contact, edit_contact, delete_contact, detach_contact, lock_contact, unlock_contact,
-  // set_contact_password).
+  // 3. manage_contact -- read-only umbrella (writes are in the generated per-action tools
+  // plus the handwritten attach_contact quirk tool below).
   {
     name: "manage_contact",
     title: "Manage contact (read-only)",
     description:
       "Read contacts (users) on entities. " +
       "Actions: get, list, find_by_username. For writes, use the dedicated per-action tools " +
-      "(create_contact, edit_contact, delete_contact, detach_contact, lock_contact, " +
+      "(create_contact, edit_contact, delete_contact, attach_contact, detach_contact, lock_contact, " +
       "unlock_contact, set_contact_password).",
     annotations: { readOnlyHint: true },
     inputSchema: {
@@ -151,7 +150,31 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 4. manage_merchant_account -- read-only umbrella (writes are in the generated per-action tools:
+  // 4. attach_contact -- handwritten write tool because the bundled generated manifest
+  // includes detach/list attached contacts but omits the supported POST attach endpoint.
+  {
+    name: "attach_contact",
+    title: "Attach contact",
+    description:
+      "Attach an existing contact to a PSP, division, merchant, or channel with POST /{entities}/{entityId}/attachedContacts/{contactId}. " +
+      "Use this when the user asks to attach an existing contact or user here. If the user gives a name instead of contactId, first list/search contacts to identify the contactId, then call this tool.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        entityId: { type: "string", description: "Target PSP, division, merchant, or channel entity ID." },
+        entityType: {
+          type: "string",
+          enum: ["psp", "division", "merchant", "channel"],
+          description: "Target entity type.",
+        },
+        contactId: { type: "string", description: "Existing contact ID to attach." },
+      },
+      required: ["entityId", "entityType", "contactId"],
+      additionalProperties: false,
+    },
+  },
+
+  // 5. manage_merchant_account -- read-only umbrella (writes are in the generated per-action tools:
   // create_merchant_account, edit_merchant_account, delete_merchant_account,
   // attach_merchant_account, detach_merchant_account).
   {
@@ -189,7 +212,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 5. lookup_clearing_institutes
+  // 6. lookup_clearing_institutes
   {
     name: "lookup_clearing_institutes",
     title: "Lookup clearing institutes",
@@ -214,7 +237,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 6. describe_settings
+  // 7. describe_settings
   {
     name: "describe_settings",
     title: "Describe settings",
@@ -238,7 +261,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 7. manage_settings
+  // 8. manage_settings
   {
     name: "manage_settings",
     title: "Manage settings",
@@ -286,7 +309,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 8. get_audit_log
+  // 9. get_audit_log
   {
     name: "get_audit_log",
     title: "Get audit log",
@@ -318,7 +341,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 9. execute_workflow
+  // 10. execute_workflow
   {
     name: "execute_workflow",
     title: "Execute workflow",
@@ -369,7 +392,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 10. get_job_status
+  // 11. get_job_status
   {
     name: "get_job_status",
     title: "Get job status",
@@ -391,7 +414,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // 11. describe_operation
+  // 12. describe_operation
   {
     name: "describe_operation",
     title: "Describe operation",
@@ -415,7 +438,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
 ];
 
 /**
- * Full published WebMCP inventory: 11 handwritten umbrellas + generated
+ * Full published WebMCP inventory: 12 handwritten tools + generated
  * per-action write/read tools derived from the operation manifest.
  */
 export const TOOL_SCHEMAS: ToolSchema[] = [
