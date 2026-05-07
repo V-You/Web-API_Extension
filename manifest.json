@@ -51,6 +51,10 @@
   "side_panel": {
     "default_path": "sidepanel/index.html"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';",
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval'; object-src 'self';"
+  },
   "sandbox": {
     "pages": ["sandbox/sandbox.html"]
   },
