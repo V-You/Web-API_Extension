@@ -134,6 +134,8 @@ Host permissions grant dashboard scope on `*.oppwa.com`, `*.ctpe.info`, and `*.p
 3. Choose a PIN (minimum 6 digits). Store PIN in external tool.
 4. On later visits, enter PIN to unlock. Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The decrypted credentials in `chrome.storage.session` survive idle, but are cleared on browser restart. 
 
+Connections can also store Merchant-scoped transaction bearer tokens for UAT/Prod test payments. Generate a new token in BIP at Merchant level under **Administration > Account Data > Generate Api Bearer token**, then save it under the Merchant entity UUID. These tokens are Merchant-level-and-below, not Channel-level, and are encrypted with the same PIN model as Web API credentials.
+
 > **Any LLM with browser-capability** can now connect to a supported dashboard site (`oppwa.com` or supported whitelabel domains), and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
 
 ### Example workflow using Google Gemini (browser side panel)
@@ -654,6 +656,7 @@ Handle it conservatively: keep authoritative settings metadata in `riro_consolid
 | Data | Where it lives | Exposed to LLM? |
 |------|----------------|-----------------|
 | API credentials | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never |
+| Transaction bearer tokens | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never by default; intended for extension-owned transaction tools |
 | Tool call parameters | Extension memory only (not persisted) | Tool schema visible; parameter values visible to the calling agent |
 | API responses | Returned to calling agent as tool results | Yes -- the agent sees the structured result |
 | Audit log | `chrome.storage.local` (trimmed to newest 200 entries and roughly 200 KB on write) | Only via `get_audit_log` tool (agent must explicitly request) |

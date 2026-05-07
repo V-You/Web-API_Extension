@@ -23,6 +23,8 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("The dashboard binds context, but the Web API is authoritative.");
     expect(prompt).toContain("channel accessToken");
     expect(prompt).toContain("absent from that specific endpoint response");
+    expect(prompt).toContain("Merchant-level-and-below secrets, not Channel-level tokens");
+    expect(prompt).toContain("Generate Api Bearer token");
     expect(prompt).toContain("Never attempt writes or code execution.");
   });
 

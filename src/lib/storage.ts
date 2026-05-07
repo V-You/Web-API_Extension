@@ -9,6 +9,10 @@
  *   cred:prod -- encrypted Prod credentials blob
  *   session:uat  -- decrypted UAT credentials (session only)
  *   session:prod -- decrypted Prod credentials (session only)
+ *   transactionTokens:uat  -- encrypted UAT transaction bearer token rows
+ *   transactionTokens:prod -- encrypted Prod transaction bearer token rows
+ *   session:transactionTokens:uat  -- decrypted UAT token rows (session only)
+ *   session:transactionTokens:prod -- decrypted Prod token rows (session only)
  *   activeEnv    -- "uat" | "prod" (stored in session and local)
  *   pinInitialized -- boolean flag indicating PIN has been set
  */
@@ -21,12 +25,30 @@ export type { ApiCredentials, Environment } from "./types";
 
 const STORAGE_KEY = (env: Environment) => `cred:${env}`;
 const SESSION_KEY = (env: Environment) => `session:${env}`;
+const TOKEN_STORAGE_KEY = (env: Environment) => `transactionTokens:${env}`;
+const TOKEN_SESSION_KEY = (env: Environment) => `session:transactionTokens:${env}`;
 const ACTIVE_ENV_KEY = "activeEnv";
+
+export interface TransactionTokenRecord {
+  id: string;
+  merchantId: string;
+  label?: string;
+  token: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransactionTokenInput {
+  id?: string;
+  merchantId: string;
+  label?: string;
+  token: string;
+}
 
 /** Check whether any encrypted credentials exist. */
 export async function hasStoredCredentials(): Promise<boolean> {
-  const result = await chrome.storage.local.get(["cred:uat", "cred:prod", "pinInitialized"]);
-  return result.pinInitialized === true || !!result["cred:uat"] || !!result["cred:prod"];
+  const result = await chrome.storage.local.get(["cred:uat", "cred:prod", "transactionTokens:uat", "transactionTokens:prod", "pinInitialized"]);
+  return result.pinInitialized === true || !!result["cred:uat"] || !!result["cred:prod"] || !!result["transactionTokens:uat"] || !!result["transactionTokens:prod"];
 }
 
 /** Check whether decrypted credentials are available in the current session. */
@@ -75,6 +97,20 @@ export async function unlockWithPin(pin: string): Promise<boolean> {
     }
   }
 
+  const tokenStored = await chrome.storage.local.get([TOKEN_STORAGE_KEY("uat"), TOKEN_STORAGE_KEY("prod")]);
+  for (const env of ["uat", "prod"] as Environment[]) {
+    const blob = tokenStored[TOKEN_STORAGE_KEY(env)] as EncryptedBlob | undefined;
+    if (!blob) continue;
+
+    try {
+      const plaintext = await decrypt(pin, blob);
+      await chrome.storage.session.set({ [TOKEN_SESSION_KEY(env)]: normalizeTransactionTokens(JSON.parse(plaintext)) });
+      anyDecrypted = true;
+    } catch {
+      return false;
+    }
+  }
+
   await unlockLlmProviderSettingsWithPin(pin);
 
   if (anyDecrypted) {
@@ -88,6 +124,53 @@ export async function unlockWithPin(pin: string): Promise<boolean> {
 export async function getCredentials(env: Environment): Promise<ApiCredentials | null> {
   const result = await chrome.storage.session.get(SESSION_KEY(env));
   return (result[SESSION_KEY(env)] as ApiCredentials) ?? null;
+}
+
+/** Get decrypted transaction bearer token rows for an environment from session storage. */
+export async function getTransactionTokens(env: Environment): Promise<TransactionTokenRecord[]> {
+  const result = await chrome.storage.session.get(TOKEN_SESSION_KEY(env));
+  return normalizeTransactionTokens(result[TOKEN_SESSION_KEY(env)]);
+}
+
+/** Save or replace one Merchant-scoped transaction bearer token row. */
+export async function saveTransactionToken(
+  env: Environment,
+  input: TransactionTokenInput,
+  pin: string,
+): Promise<TransactionTokenRecord> {
+  const merchantId = input.merchantId.trim();
+  const token = input.token.trim();
+  const label = input.label?.trim() || undefined;
+  if (!merchantId) throw new Error("Merchant entity UUID is required.");
+  if (!token) throw new Error("Transaction bearer token is required.");
+  if (pin.length < 6) throw new Error("PIN must be at least 6 characters.");
+
+  const existing = await loadTransactionTokensForWrite(env, pin);
+  const now = new Date().toISOString();
+  const id = input.id ?? crypto.randomUUID();
+  const previous = existing.find((row) => row.id === id);
+  const nextRow: TransactionTokenRecord = {
+    id,
+    merchantId,
+    label,
+    token,
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+  };
+  const next = previous
+    ? existing.map((row) => row.id === id ? nextRow : row)
+    : [...existing, nextRow];
+
+  await persistTransactionTokens(env, next, pin);
+  return nextRow;
+}
+
+/** Delete one Merchant-scoped transaction bearer token row. */
+export async function deleteTransactionToken(env: Environment, id: string, pin: string): Promise<void> {
+  if (!id) return;
+  if (pin.length < 6) throw new Error("PIN must be at least 6 characters.");
+  const existing = await loadTransactionTokensForWrite(env, pin);
+  await persistTransactionTokens(env, existing.filter((row) => row.id !== id), pin);
 }
 
 /** Get the active environment from session storage. */
@@ -154,7 +237,7 @@ export async function forgetCredentials(env: Environment): Promise<void> {
   await chrome.storage.local.remove(STORAGE_KEY(env));
   await chrome.storage.session.remove(SESSION_KEY(env));
 
-  const remaining = await chrome.storage.local.get(["cred:uat", "cred:prod", ACTIVE_ENV_KEY]);
+  const remaining = await chrome.storage.local.get(["cred:uat", "cred:prod", "transactionTokens:uat", "transactionTokens:prod", ACTIVE_ENV_KEY]);
 
   if ((remaining[ACTIVE_ENV_KEY] as Environment | undefined) === env) {
     const fallbackEnv = (["uat", "prod"] as Environment[]).find((candidate) => candidate !== env && !!remaining[STORAGE_KEY(candidate)]) ?? null;
@@ -173,7 +256,41 @@ export async function forgetCredentials(env: Environment): Promise<void> {
   }
 
   // If no credentials remain, clear the initialized flag
-  if (!remaining["cred:uat"] && !remaining["cred:prod"]) {
+  if (!remaining["cred:uat"] && !remaining["cred:prod"] && !remaining["transactionTokens:uat"] && !remaining["transactionTokens:prod"]) {
     await chrome.storage.local.remove("pinInitialized");
   }
+}
+
+async function loadTransactionTokensForWrite(env: Environment, pin: string): Promise<TransactionTokenRecord[]> {
+  const stored = await chrome.storage.local.get(TOKEN_STORAGE_KEY(env));
+  const blob = stored[TOKEN_STORAGE_KEY(env)] as EncryptedBlob | undefined;
+  if (!blob) return getTransactionTokens(env);
+
+  const plaintext = await decrypt(pin, blob);
+  return normalizeTransactionTokens(JSON.parse(plaintext));
+}
+
+async function persistTransactionTokens(env: Environment, rows: TransactionTokenRecord[], pin: string): Promise<void> {
+  const normalized = normalizeTransactionTokens(rows);
+  const blob = await encrypt(pin, JSON.stringify(normalized));
+  await chrome.storage.local.set({
+    [TOKEN_STORAGE_KEY(env)]: blob,
+    pinInitialized: true,
+  });
+  await chrome.storage.session.set({ [TOKEN_SESSION_KEY(env)]: normalized });
+}
+
+function normalizeTransactionTokens(raw: unknown): TransactionTokenRecord[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+    .map((row) => ({
+      id: String(row.id ?? crypto.randomUUID()),
+      merchantId: String(row.merchantId ?? "").trim(),
+      label: row.label ? String(row.label).trim() : undefined,
+      token: String(row.token ?? "").trim(),
+      createdAt: String(row.createdAt ?? new Date().toISOString()),
+      updatedAt: String(row.updatedAt ?? row.createdAt ?? new Date().toISOString()),
+    }))
+    .filter((row) => row.merchantId && row.token);
 }

@@ -12,6 +12,10 @@ import {
   getActiveEnv,
   getThrottleRate,
   setThrottleRate,
+  getTransactionTokens,
+  saveTransactionToken,
+  deleteTransactionToken,
+  type TransactionTokenRecord,
 } from "../../src/lib/storage";
 
 interface Props {
@@ -84,6 +88,8 @@ export function ConnectionsPage({ onChanged }: Props) {
           onChanged();
         }}
       />
+
+      <TransactionTokenVault env={selectedEnv} />
 
       <ThrottleRateSetting />
     </div>
@@ -435,6 +441,180 @@ function CredentialForm({
       </div>
     </div>
   );
+}
+
+function TransactionTokenVault({ env }: { env: Environment }) {
+  const [tokens, setTokens] = useState<TransactionTokenRecord[]>([]);
+  const [merchantId, setMerchantId] = useState("");
+  const [label, setLabel] = useState("");
+  const [token, setToken] = useState("");
+  const [pin, setPin] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTransactionTokens(env).then((rows) => {
+      if (!cancelled) setTokens(rows);
+    });
+    setMerchantId("");
+    setLabel("");
+    setToken("");
+    setPin("");
+    setError(null);
+    setSaved(false);
+    return () => {
+      cancelled = true;
+    };
+  }, [env]);
+
+  async function refresh() {
+    setTokens(await getTransactionTokens(env));
+  }
+
+  async function handleSave() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await saveTransactionToken(env, { merchantId, label, token }, pin);
+      await refresh();
+      setMerchantId("");
+      setLabel("");
+      setToken("");
+      setPin("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save transaction token.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteTransactionToken(env, id, pin);
+      await refresh();
+      setPin("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete transaction token.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
+      <div>
+        <h3 className="text-xs font-semibold text-slate-600">Transaction tokens</h3>
+        <p className="mt-1 text-2xs text-slate-400">
+          Merchant-level bearer tokens for transaction tests. Tokens apply to the Merchant level and below; do not store Channel-level tokens here.
+        </p>
+      </div>
+
+      {tokens.length === 0 ? (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-500">
+          No transaction tokens saved for {env.toUpperCase()}.
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {tokens.map((row) => (
+            <div key={row.id} className="rounded-md border border-slate-200 p-2 text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-700 break-all">{row.merchantId}</div>
+                  <div className="mt-0.5 text-2xs text-slate-500">
+                    {row.label || "Merchant transaction token"} - {maskToken(row.token)}
+                  </div>
+                  <div className="mt-0.5 text-2xs text-slate-400">
+                    Updated {new Date(row.updatedAt).toLocaleString()}
+                  </div>
+                </div>
+                <button
+                  onClick={() => void handleDelete(row.id)}
+                  disabled={busy || pin.length < 6}
+                  className="text-2xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                  title={pin.length < 6 ? "Enter PIN below before deleting" : "Delete token"}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Merchant entity UUID</label>
+          <input
+            type="text"
+            value={merchantId}
+            onChange={(e) => setMerchantId(e.target.value)}
+            autoComplete="off"
+            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Label</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            autoComplete="off"
+            placeholder="Optional"
+            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-slate-600 mb-1">Bearer token</label>
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          autoComplete="off"
+          className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-slate-600 mb-1">Encryption PIN</label>
+        <input
+          type="password"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          placeholder="Required to add or delete tokens"
+          className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+        />
+      </div>
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      {saved && <p className="text-xs text-emerald-600">Transaction token saved.</p>}
+
+      <button
+        onClick={() => void handleSave()}
+        disabled={busy}
+        className="w-full rounded-md bg-slate-800 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+      >
+        {busy ? "Saving..." : "Save transaction token"}
+      </button>
+
+      <p className="text-2xs text-slate-400">
+        In BIP, generate a new token at Merchant level: Administration &gt; Account Data &gt; Generate Api Bearer token. Merchant Info tokens are masked and cannot be recovered.
+      </p>
+    </div>
+  );
+}
+
+function maskToken(token: string): string {
+  if (token.length <= 8) return "masked";
+  return `${"*".repeat(8)}${token.slice(-4)}`;
 }
 
 function ConfigSummaryCard({

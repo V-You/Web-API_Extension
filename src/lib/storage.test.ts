@@ -44,6 +44,9 @@ import {
   hasStoredCredentials,
   isSessionUnlocked,
   forgetCredentials,
+  getTransactionTokens,
+  saveTransactionToken,
+  deleteTransactionToken,
   getThrottleRate,
   setThrottleRate,
   type ApiCredentials,
@@ -57,6 +60,7 @@ describe("storage", () => {
     pspId: "psp-123",
   };
   const pin = "5678";
+  const tokenPin = "567890";
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -160,5 +164,53 @@ describe("storage", () => {
     expect(await hasStoredCredentials()).toBe(true);
     expect(await getCredentials("prod")).not.toBeNull();
     expect(await getActiveEnv()).toBe("prod");
+  });
+
+  it("saves and lists merchant transaction tokens in session without plaintext local storage", async () => {
+    const row = await saveTransactionToken("uat", {
+      merchantId: "merchant-123",
+      label: "test merchant",
+      token: "bearer-token-secret",
+    }, tokenPin);
+
+    expect(row.merchantId).toBe("merchant-123");
+    expect(row.label).toBe("test merchant");
+    expect(await getTransactionTokens("uat")).toEqual([row]);
+    expect(JSON.stringify(localStore["transactionTokens:uat"])).not.toContain("bearer-token-secret");
+  });
+
+  it("unlocks merchant transaction tokens with the PIN", async () => {
+    await saveTransactionToken("uat", {
+      merchantId: "merchant-123",
+      token: "bearer-token-secret",
+    }, tokenPin);
+    delete sessionStore["session:transactionTokens:uat"];
+
+    const ok = await unlockWithPin(tokenPin);
+    expect(ok).toBe(true);
+    expect((await getTransactionTokens("uat"))[0].token).toBe("bearer-token-secret");
+  });
+
+  it("deletes merchant transaction tokens with the PIN", async () => {
+    const row = await saveTransactionToken("uat", {
+      merchantId: "merchant-123",
+      token: "bearer-token-secret",
+    }, tokenPin);
+
+    await deleteTransactionToken("uat", row.id, tokenPin);
+
+    expect(await getTransactionTokens("uat")).toEqual([]);
+    expect(JSON.stringify(localStore["transactionTokens:uat"])).not.toContain("bearer-token-secret");
+  });
+
+  it("requires the correct PIN when token rows are already unlocked in session", async () => {
+    const row = await saveTransactionToken("uat", {
+      merchantId: "merchant-123",
+      token: "bearer-token-secret",
+    }, tokenPin);
+
+    await expect(deleteTransactionToken("uat", row.id, "000000")).rejects.toThrow();
+
+    expect((await getTransactionTokens("uat"))[0].token).toBe("bearer-token-secret");
   });
 });
