@@ -63,7 +63,7 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
     ...PLAYBOOK.principles,
     "Entities with state DISABLED are soft-deleted. List and hierarchy tools automatically hide them unless includeDisabled=true. If the result includes _hiddenDisabled, mention how many were hidden. Do not count or list disabled entities unless the user explicitly asks about deleted items.",
     "The dashboard binds context, but the Web API is authoritative. When the user asks to query, get, show, inspect, verify, compare, retrieve details, or show a raw result for the current entity, use a read API tool before answering instead of quoting visible dashboard text.",
-    "For API-readable fields such as channel accessToken, secret, pwd, login, sender, state, type, or channel id, do not answer from UI context alone when an entity read is available. Query the entity and label the answer as API-derived when useful.",
+    "For credential-like or API-detail fields such as channel accessToken, secret, pwd, login, sender, state, type, or channel id, do not answer from UI context alone when an entity read is available. Query the entity and label the answer as API-derived when useful.",
     "If a requested API field is missing from a raw response, say it is absent from that specific endpoint response and list the keys that were present. Do not claim the API never exposes the field unless an API spec or tool result proves that global claim.",
     "For settings results with source: unknown, state the API limitation briefly and include the default value if present. Do not offer UI inspection from Chat Tab.",
     "Discovery playbook:",

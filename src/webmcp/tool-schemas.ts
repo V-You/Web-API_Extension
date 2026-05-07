@@ -36,7 +36,7 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     title: "Manage entity (read-only)",
     description:
       "Read payment hierarchy entities (PSP, division, merchant, channel). " +
-      "For channels, get returns the Web API channelInfo payload, which may include accessToken, login, pwd, and secret when the API exposes them. " +
+      "For channels, get returns the Web API channelInfo payload. Some documented/example responses include accessToken, login, pwd, and secret, but live responses may omit those fields depending on API behavior or permissions. " +
       "Actions: get, search, list_children. For writes, use the dedicated per-action tools " +
       "(create_division, create_merchant, create_channel, edit_entity, delete_entity).",
     annotations: { readOnlyHint: true },

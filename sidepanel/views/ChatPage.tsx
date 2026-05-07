@@ -465,6 +465,19 @@ export function ChatPage() {
             result: preflight.displayResult,
           },
         ]);
+        const directAnswer = buildPreflightDirectAnswer(preflight);
+        if (directAnswer) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              text: directAnswer,
+              consultedResources: ["Web API entity GET"],
+            },
+          ]);
+          return;
+        }
       }
 
       const result = await runGeminiTurn({
@@ -1082,6 +1095,48 @@ export function ChatPage() {
       </div>
     </div>
   );
+}
+
+function buildPreflightDirectAnswer(preflight: ApiReadPreflight): string | null {
+  if (preflight.requestedFields.length === 0) return null;
+
+  const evidence = buildFieldEvidence(preflight.result, preflight.requestedFields);
+  const found = evidence.filter((entry) => entry.found);
+  const missing = evidence.filter((entry) => !entry.found);
+  const presentKeys = evidence[0]?.presentChannelInfoKeys.length
+    ? evidence[0].presentChannelInfoKeys
+    : evidence[0]?.presentTopLevelKeys ?? [];
+
+  const lines = [
+    `I queried the Web API endpoint directly: ${preflight.method} ${preflight.path}.`,
+    "",
+  ];
+
+  if (found.length > 0) {
+    lines.push(
+      `Found requested field(s): ${found.map((entry) => `${entry.field} at ${entry.paths.join(", ")}`).join("; ")}.`,
+      "",
+    );
+  }
+
+  if (missing.length > 0) {
+    lines.push(
+      `Absent from this specific endpoint response: ${missing.map((entry) => entry.field).join(", ")}.`,
+      "This does not prove the field can never be exposed by any API permission or undocumented path; it means the current credential/session response from this endpoint did not include it.",
+      "",
+    );
+  }
+
+  lines.push(
+    `Present response keys: ${presentKeys.length > 0 ? presentKeys.join(", ") : "none detected"}.`,
+    "",
+    "Raw response:",
+    "```json",
+    JSON.stringify(preflight.result, null, 2),
+    "```",
+  );
+
+  return lines.join("\n");
 }
 
 function WorkflowReviewDialog({

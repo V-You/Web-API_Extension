@@ -89,6 +89,7 @@ describe("tool schema definitions", () => {
     const manageEntity = TOOL_SCHEMAS.find((schema) => schema.name === "manage_entity");
     expect(manageEntity?.description).toContain("channelInfo");
     expect(manageEntity?.description).toContain("accessToken");
+    expect(manageEntity?.description).toContain("live responses may omit");
   });
 
   it("exposes get_job_status as a read-only polling tool", () => {
