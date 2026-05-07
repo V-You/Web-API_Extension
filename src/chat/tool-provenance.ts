@@ -38,6 +38,7 @@ export function summarizeToolResources(toolEvents: ToolEventLike[]): string[] {
         resources.add("Settings API");
         break;
       case "manage_contact":
+      case "attach_contact":
         resources.add("Contacts API");
         break;
       case "manage_entity":
