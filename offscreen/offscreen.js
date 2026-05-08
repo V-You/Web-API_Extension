@@ -9,6 +9,19 @@ const sandboxReadyPromise = new Promise((resolve) => {
   resolveSandboxReady = resolve;
 });
 
+function markSandboxReady() {
+  sandboxReady = true;
+  resolveSandboxReady?.();
+}
+
+async function waitForSandboxReady() {
+  if (sandboxReady) return;
+  await Promise.race([
+    sandboxReadyPromise,
+    new Promise((resolve) => setTimeout(resolve, 1000)),
+  ]);
+}
+
 async function getSandboxUrl() {
   const manifestUrl = new URL("../manifest.json", location.href);
   const manifest = await fetch(manifestUrl).then((response) => response.json());
@@ -19,7 +32,10 @@ async function getSandboxUrl() {
 
 async function createSandboxFrame() {
   const existing = document.getElementById(SANDBOX_FRAME_ID);
-  if (existing instanceof HTMLIFrameElement) return existing;
+  if (existing instanceof HTMLIFrameElement) {
+    markSandboxReady();
+    return existing;
+  }
 
   const frame = document.createElement("iframe");
   frame.id = SANDBOX_FRAME_ID;
@@ -45,7 +61,7 @@ function ensureSandboxFrame() {
 
 async function postToSandbox(message) {
   const frame = await ensureSandboxFrame();
-  if (!sandboxReady) await sandboxReadyPromise;
+  await waitForSandboxReady();
   frame.contentWindow?.postMessage(message, "*");
 }
 
@@ -70,8 +86,6 @@ async function requestSandbox(message, timeoutMs = DEFAULT_JOB_TIMEOUT_MS) {
   await postToSandbox({ ...message, requestId });
   return response;
 }
-
-ensureSandboxFrame().catch(console.error);
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
@@ -118,8 +132,7 @@ window.addEventListener("message", (event) => {
   const data = event.data ?? {};
 
   if (data?.type === "sandbox_ready") {
-    sandboxReady = true;
-    resolveSandboxReady?.();
+    markSandboxReady();
     chrome.runtime.sendMessage({ type: "sandbox_ready" }).catch(() => {
       // The service worker may be asleep; readiness is best-effort for now.
     });
@@ -164,3 +177,5 @@ window.addEventListener("message", (event) => {
     });
   }
 });
+
+ensureSandboxFrame().catch(console.error);
