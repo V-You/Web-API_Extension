@@ -4,8 +4,19 @@ import type { ChatToolDeclaration } from "./llm-adapter";
 
 export interface ChatToolCatalogOptions {
   writeToolsEnabled?: boolean;
+  accessTokenControlEnabled?: boolean;
   automationModeEnabled?: boolean;
 }
+
+const API_TOKEN_TOOLS = new Set([
+  "list_api_tokens",
+  "get_api_token",
+  "create_api_token",
+  "update_api_token",
+  "suspend_api_token",
+  "activate_api_token",
+  "delete_api_token",
+]);
 
 const READ_ONLY_ACTIONS: Record<string, string[]> = {
   manage_entity: ["get", "search", "list_children"],
@@ -165,6 +176,8 @@ function filterSchemaProperties(schema: ToolSchema): ToolSchema {
 }
 
 function toChatSchema(schema: ToolSchema, options: ChatToolCatalogOptions = {}): ToolSchema | null {
+  if (API_TOKEN_TOOLS.has(schema.name) && !options.accessTokenControlEnabled) return null;
+
   if (schema.name === "execute_workflow") {
     if (!options.automationModeEnabled) return null;
     const chatSchema = buildChatSchema(cloneSchema(schema));
@@ -224,6 +237,10 @@ export async function executeChatTool(
   const schema = getChatToolSchemas(options).find((tool) => tool.name === name);
   if (!schema) {
     throw new Error(`Tool ${name} is not available in the current chat mode.`);
+  }
+
+  if (API_TOKEN_TOOLS.has(name) && !options.accessTokenControlEnabled) {
+    throw new Error(`Tool ${name} requires accessToken control.`);
   }
 
   const allowedActions = READ_ONLY_ACTIONS[name];

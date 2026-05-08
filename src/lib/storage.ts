@@ -34,8 +34,14 @@ export interface TransactionTokenRecord {
   merchantId: string;
   label?: string;
   token: string;
+  source: "manual" | "webapi";
+  apiTokenId?: string;
+  lastDigits?: string;
+  state?: "ACTIVE" | "SUSPENDED" | "DELETED" | string;
   createdAt: string;
   updatedAt: string;
+  remoteCreatedTime?: string;
+  remoteLastUsedTime?: string;
 }
 
 export interface TransactionTokenInput {
@@ -43,6 +49,12 @@ export interface TransactionTokenInput {
   merchantId: string;
   label?: string;
   token: string;
+  source?: "manual" | "webapi";
+  apiTokenId?: string;
+  lastDigits?: string;
+  state?: "ACTIVE" | "SUSPENDED" | "DELETED" | string;
+  remoteCreatedTime?: string;
+  remoteLastUsedTime?: string;
 }
 
 /** Check whether any encrypted credentials exist. */
@@ -141,21 +153,28 @@ export async function saveTransactionToken(
   const merchantId = input.merchantId.trim();
   const token = input.token.trim();
   const label = input.label?.trim() || undefined;
+  const apiTokenId = input.apiTokenId?.trim() || undefined;
   if (!merchantId) throw new Error("Merchant entity UUID is required.");
   if (!token) throw new Error("Transaction bearer token is required.");
   if (pin.length < 6) throw new Error("PIN must be at least 6 characters.");
 
   const existing = await loadTransactionTokensForWrite(env, pin);
   const now = new Date().toISOString();
-  const id = input.id ?? crypto.randomUUID();
+  const id = input.id ?? existing.find((row) => apiTokenId && row.apiTokenId === apiTokenId)?.id ?? crypto.randomUUID();
   const previous = existing.find((row) => row.id === id);
   const nextRow: TransactionTokenRecord = {
     id,
     merchantId,
     label,
     token,
+    source: input.source ?? previous?.source ?? "manual",
+    apiTokenId,
+    lastDigits: input.lastDigits?.trim() || previous?.lastDigits,
+    state: input.state ?? previous?.state,
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
+    remoteCreatedTime: input.remoteCreatedTime ?? previous?.remoteCreatedTime,
+    remoteLastUsedTime: input.remoteLastUsedTime ?? previous?.remoteLastUsedTime,
   };
   const next = previous
     ? existing.map((row) => row.id === id ? nextRow : row)
@@ -289,8 +308,14 @@ function normalizeTransactionTokens(raw: unknown): TransactionTokenRecord[] {
       merchantId: String(row.merchantId ?? "").trim(),
       label: row.label ? String(row.label).trim() : undefined,
       token: String(row.token ?? "").trim(),
+      source: (row.source === "webapi" ? "webapi" : "manual") as "manual" | "webapi",
+      apiTokenId: row.apiTokenId ? String(row.apiTokenId).trim() : undefined,
+      lastDigits: row.lastDigits ? String(row.lastDigits).trim() : undefined,
+      state: row.state ? String(row.state).trim() : undefined,
       createdAt: String(row.createdAt ?? new Date().toISOString()),
       updatedAt: String(row.updatedAt ?? row.createdAt ?? new Date().toISOString()),
+      remoteCreatedTime: row.remoteCreatedTime ? String(row.remoteCreatedTime).trim() : undefined,
+      remoteLastUsedTime: row.remoteLastUsedTime ? String(row.remoteLastUsedTime).trim() : undefined,
     }))
     .filter((row) => row.merchantId && row.token);
 }

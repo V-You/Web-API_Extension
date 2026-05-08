@@ -6,12 +6,15 @@
     "mapping": "base_data/character-value-mapping.yaml"
   },
   "tools": [
+    "activate_api_token",
     "attach_merchant_account",
+    "create_api_token",
     "create_channel",
     "create_contact",
     "create_division",
     "create_merchant",
     "create_merchant_account",
+    "delete_api_token",
     "delete_contact",
     "delete_entity",
     "delete_merchant_account",
@@ -20,9 +23,11 @@
     "edit_contact",
     "edit_entity",
     "edit_merchant_account",
+    "get_api_token",
     "get_contact",
     "get_entity",
     "get_merchant_account",
+    "list_api_tokens",
     "list_attached_contacts",
     "list_attached_merchant_accounts",
     "list_channels",
@@ -33,9 +38,31 @@
     "list_owned_merchant_accounts",
     "lock_contact",
     "set_contact_password",
-    "unlock_contact"
+    "suspend_api_token",
+    "unlock_contact",
+    "update_api_token"
   ],
   "toolIndex": {
+    "activate_api_token": [
+      {
+        "operationId": "activateApiToken",
+        "toolName": "activate_api_token",
+        "parentEntityType": null,
+        "method": "POST",
+        "pathTemplate": "/apiTokens/{apiTokenId}/activate",
+        "pathParams": [
+          {
+            "name": "apiTokenId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [],
+        "description": "Activate a suspended API token.",
+        "auditEventType": "api_token_activate",
+        "destructive": true
+      }
+    ],
     "attach_merchant_account": [
       {
         "operationId": "attachMerchantAccountPspLevel",
@@ -610,6 +637,26 @@
         "destructive": false
       }
     ],
+    "create_api_token": [
+      {
+        "operationId": "createApiTokenForMerchant",
+        "toolName": "create_api_token",
+        "parentEntityType": "merchant",
+        "method": "POST",
+        "pathTemplate": "/merchants/{merchantId}/apiTokens",
+        "pathParams": [
+          {
+            "name": "merchantId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [],
+        "description": "Create a new API token for the specified merchant.",
+        "auditEventType": "api_token_create",
+        "destructive": true
+      }
+    ],
     "create_channel": [
       {
         "operationId": "addChannel",
@@ -628,7 +675,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The name of the channel.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "Channel-{{$randomCity}}",
@@ -639,7 +686,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
             "example": "LIVE",
             "destructiveValues": [
@@ -703,7 +750,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The first and last name",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "Call Center Restricted",
@@ -837,7 +884,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The first and last name",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "Call Center Restricted",
@@ -971,7 +1018,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The first and last name",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "Call Center Restricted",
@@ -1097,7 +1144,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The name of the division.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "{{$randomWord}}",
@@ -1108,7 +1155,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
             "example": "LIVE",
             "destructiveValues": [
@@ -1162,7 +1209,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The name of the merchant.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "{{$randomCountry}}",
@@ -1173,7 +1220,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
             "example": "LIVE",
             "destructiveValues": [
@@ -1227,7 +1274,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant account name.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "MA-Acquirer-NAB",
@@ -1238,7 +1285,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
             "example": "LIVE",
             "destructiveValues": [
@@ -1271,7 +1318,7 @@
           {
             "name": "key",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": null,
             "pattern": "^[A-Za-z0-9 _-]*$",
             "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -1404,7 +1451,7 @@
             "name": "debitAdviceProcedure",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Possible values are: DA or DD",
             "provenance": [
               "spec"
             ]
@@ -1421,7 +1468,7 @@
           {
             "name": "supports3DSecure",
             "logicalType": "boolean",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "TRUE. FALSE support for 3D Secure",
             "example": "true",
             "provenance": [
@@ -1431,7 +1478,7 @@
           {
             "name": "merchant3DName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant name (3DS2)",
             "example": "ACI Worldwide Germany",
             "provenance": [
@@ -1441,7 +1488,7 @@
           {
             "name": "merchant3DUrl",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant URL (3DS2)",
             "example": "http://threeD-secure-dummy-url.de",
             "provenance": [
@@ -1451,7 +1498,7 @@
           {
             "name": "merchantIsoCountryCode",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant country code (3DS2)",
             "example": "276",
             "provenance": [
@@ -1461,7 +1508,7 @@
           {
             "name": "merchant3DId",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant ID (3DS2)",
             "example": "14275",
             "provenance": [
@@ -1471,7 +1518,7 @@
           {
             "name": "merchant3DCategory",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant category code (3DS2)",
             "example": "5111",
             "provenance": [
@@ -1481,7 +1528,7 @@
           {
             "name": "visaMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for VISA (3DS2)",
             "example": "234234",
             "provenance": [
@@ -1491,7 +1538,7 @@
           {
             "name": "visaRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for VISA (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -1501,7 +1548,7 @@
           {
             "name": "visaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for VISA (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -1511,7 +1558,7 @@
           {
             "name": "masterMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
             "example": "234234",
             "provenance": [
@@ -1521,7 +1568,7 @@
           {
             "name": "masterRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for MASTERCARD (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -1531,7 +1578,7 @@
           {
             "name": "masterRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for MASTERCARD (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -1541,7 +1588,7 @@
           {
             "name": "amexMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for AMEX (3DS2)",
             "example": "12345678901",
             "provenance": [
@@ -1551,7 +1598,7 @@
           {
             "name": "amexRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for AMEX (3DS2)",
             "example": "JCBAESK60193409387",
             "provenance": [
@@ -1561,7 +1608,7 @@
           {
             "name": "amexRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for AMEX (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -1571,8 +1618,8 @@
           {
             "name": "dinersMerchantId",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1580,8 +1627,8 @@
           {
             "name": "dinersMerchantPwd",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1589,8 +1636,8 @@
           {
             "name": "dinersMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1598,8 +1645,8 @@
           {
             "name": "dinersRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1607,8 +1654,8 @@
           {
             "name": "dinersRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1616,8 +1663,8 @@
           {
             "name": "bcmcMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1625,8 +1672,8 @@
           {
             "name": "bcmcRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1634,8 +1681,8 @@
           {
             "name": "bcmcRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1644,7 +1691,7 @@
             "name": "jcbMerchantAcquirerBin_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1653,7 +1700,7 @@
             "name": "jcbRequestorId_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1662,7 +1709,7 @@
             "name": "jcbRequestorName",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1670,8 +1717,8 @@
           {
             "name": "cashlinkMaltaMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1679,8 +1726,8 @@
           {
             "name": "cashlinkMaltaRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1688,8 +1735,8 @@
           {
             "name": "cashlinkMaltaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -1828,7 +1875,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant account name.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "MA-Acquirer-NAB",
@@ -1839,7 +1886,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
             "example": "LIVE",
             "destructiveValues": [
@@ -1872,7 +1919,7 @@
           {
             "name": "key",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": null,
             "pattern": "^[A-Za-z0-9 _-]*$",
             "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -2005,7 +2052,7 @@
             "name": "debitAdviceProcedure",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Possible values are: DA or DD",
             "provenance": [
               "spec"
             ]
@@ -2022,7 +2069,7 @@
           {
             "name": "supports3DSecure",
             "logicalType": "boolean",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "TRUE. FALSE support for 3D Secure",
             "example": "true",
             "provenance": [
@@ -2032,7 +2079,7 @@
           {
             "name": "merchant3DName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant name (3DS2)",
             "example": "ACI Worldwide Germany",
             "provenance": [
@@ -2042,7 +2089,7 @@
           {
             "name": "merchant3DUrl",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant URL (3DS2)",
             "example": "http://threeD-secure-dummy-url.de",
             "provenance": [
@@ -2052,7 +2099,7 @@
           {
             "name": "merchantIsoCountryCode",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant country code (3DS2)",
             "example": "276",
             "provenance": [
@@ -2062,7 +2109,7 @@
           {
             "name": "merchant3DId",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant ID (3DS2)",
             "example": "14275",
             "provenance": [
@@ -2072,7 +2119,7 @@
           {
             "name": "merchant3DCategory",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant category code (3DS2)",
             "example": "5111",
             "provenance": [
@@ -2082,7 +2129,7 @@
           {
             "name": "visaMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for VISA (3DS2)",
             "example": "234234",
             "provenance": [
@@ -2092,7 +2139,7 @@
           {
             "name": "visaRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for VISA (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -2102,7 +2149,7 @@
           {
             "name": "visaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for VISA (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -2112,7 +2159,7 @@
           {
             "name": "masterMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
             "example": "234234",
             "provenance": [
@@ -2122,7 +2169,7 @@
           {
             "name": "masterRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for MASTERCARD (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -2132,7 +2179,7 @@
           {
             "name": "masterRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for MASTERCARD (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -2142,7 +2189,7 @@
           {
             "name": "amexMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for AMEX (3DS2)",
             "example": "12345678901",
             "provenance": [
@@ -2152,7 +2199,7 @@
           {
             "name": "amexRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for AMEX (3DS2)",
             "example": "JCBAESK60193409387",
             "provenance": [
@@ -2162,7 +2209,7 @@
           {
             "name": "amexRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for AMEX (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -2172,8 +2219,8 @@
           {
             "name": "dinersMerchantId",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2181,8 +2228,8 @@
           {
             "name": "dinersMerchantPwd",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2190,8 +2237,8 @@
           {
             "name": "dinersMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2199,8 +2246,8 @@
           {
             "name": "dinersRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2208,8 +2255,8 @@
           {
             "name": "dinersRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2217,8 +2264,8 @@
           {
             "name": "bcmcMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2226,8 +2273,8 @@
           {
             "name": "bcmcRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2235,8 +2282,8 @@
           {
             "name": "bcmcRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2245,7 +2292,7 @@
             "name": "jcbMerchantAcquirerBin_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2254,7 +2301,7 @@
             "name": "jcbRequestorId_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2263,7 +2310,7 @@
             "name": "jcbRequestorName",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2271,8 +2318,8 @@
           {
             "name": "cashlinkMaltaMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2280,8 +2327,8 @@
           {
             "name": "cashlinkMaltaRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2289,8 +2336,8 @@
           {
             "name": "cashlinkMaltaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2429,7 +2476,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant account name.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "MA-Acquirer-NAB",
@@ -2440,7 +2487,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
             "example": "LIVE",
             "destructiveValues": [
@@ -2473,7 +2520,7 @@
           {
             "name": "key",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": null,
             "pattern": "^[A-Za-z0-9 _-]*$",
             "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -2606,7 +2653,7 @@
             "name": "debitAdviceProcedure",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Possible values are: DA or DD",
             "provenance": [
               "spec"
             ]
@@ -2623,7 +2670,7 @@
           {
             "name": "supports3DSecure",
             "logicalType": "boolean",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "TRUE. FALSE support for 3D Secure",
             "example": "true",
             "provenance": [
@@ -2633,7 +2680,7 @@
           {
             "name": "merchant3DName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant name (3DS2)",
             "example": "ACI Worldwide Germany",
             "provenance": [
@@ -2643,7 +2690,7 @@
           {
             "name": "merchant3DUrl",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant URL (3DS2)",
             "example": "http://threeD-secure-dummy-url.de",
             "provenance": [
@@ -2653,7 +2700,7 @@
           {
             "name": "merchantIsoCountryCode",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant country code (3DS2)",
             "example": "276",
             "provenance": [
@@ -2663,7 +2710,7 @@
           {
             "name": "merchant3DId",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant ID (3DS2)",
             "example": "14275",
             "provenance": [
@@ -2673,7 +2720,7 @@
           {
             "name": "merchant3DCategory",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant category code (3DS2)",
             "example": "5111",
             "provenance": [
@@ -2683,7 +2730,7 @@
           {
             "name": "visaMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for VISA (3DS2)",
             "example": "234234",
             "provenance": [
@@ -2693,7 +2740,7 @@
           {
             "name": "visaRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for VISA (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -2703,7 +2750,7 @@
           {
             "name": "visaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for VISA (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -2713,7 +2760,7 @@
           {
             "name": "masterMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
             "example": "234234",
             "provenance": [
@@ -2723,7 +2770,7 @@
           {
             "name": "masterRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for MASTERCARD (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -2733,7 +2780,7 @@
           {
             "name": "masterRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for MASTERCARD (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -2743,7 +2790,7 @@
           {
             "name": "amexMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for AMEX (3DS2)",
             "example": "12345678901",
             "provenance": [
@@ -2753,7 +2800,7 @@
           {
             "name": "amexRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for AMEX (3DS2)",
             "example": "JCBAESK60193409387",
             "provenance": [
@@ -2763,7 +2810,7 @@
           {
             "name": "amexRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for AMEX (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -2773,8 +2820,8 @@
           {
             "name": "dinersMerchantId",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2782,8 +2829,8 @@
           {
             "name": "dinersMerchantPwd",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2791,8 +2838,8 @@
           {
             "name": "dinersMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2800,8 +2847,8 @@
           {
             "name": "dinersRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2809,8 +2856,8 @@
           {
             "name": "dinersRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2818,8 +2865,8 @@
           {
             "name": "bcmcMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2827,8 +2874,8 @@
           {
             "name": "bcmcRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2836,8 +2883,8 @@
           {
             "name": "bcmcRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2846,7 +2893,7 @@
             "name": "jcbMerchantAcquirerBin_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2855,7 +2902,7 @@
             "name": "jcbRequestorId_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2864,7 +2911,7 @@
             "name": "jcbRequestorName",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2872,8 +2919,8 @@
           {
             "name": "cashlinkMaltaMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2881,8 +2928,8 @@
           {
             "name": "cashlinkMaltaRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -2890,8 +2937,8 @@
           {
             "name": "cashlinkMaltaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3030,7 +3077,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant account name.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "MA-Acquirer-NAB",
@@ -3041,7 +3088,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
             "example": "LIVE",
             "destructiveValues": [
@@ -3074,7 +3121,7 @@
           {
             "name": "key",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": null,
             "pattern": "^[A-Za-z0-9 _-]*$",
             "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -3207,7 +3254,7 @@
             "name": "debitAdviceProcedure",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Possible values are: DA or DD",
             "provenance": [
               "spec"
             ]
@@ -3224,7 +3271,7 @@
           {
             "name": "supports3DSecure",
             "logicalType": "boolean",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "TRUE. FALSE support for 3D Secure",
             "example": "true",
             "provenance": [
@@ -3234,7 +3281,7 @@
           {
             "name": "merchant3DName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant name (3DS2)",
             "example": "ACI Worldwide Germany",
             "provenance": [
@@ -3244,7 +3291,7 @@
           {
             "name": "merchant3DUrl",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant URL (3DS2)",
             "example": "http://threeD-secure-dummy-url.de",
             "provenance": [
@@ -3254,7 +3301,7 @@
           {
             "name": "merchantIsoCountryCode",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant country code (3DS2)",
             "example": "276",
             "provenance": [
@@ -3264,7 +3311,7 @@
           {
             "name": "merchant3DId",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant ID (3DS2)",
             "example": "14275",
             "provenance": [
@@ -3274,7 +3321,7 @@
           {
             "name": "merchant3DCategory",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant category code (3DS2)",
             "example": "5111",
             "provenance": [
@@ -3284,7 +3331,7 @@
           {
             "name": "visaMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for VISA (3DS2)",
             "example": "234234",
             "provenance": [
@@ -3294,7 +3341,7 @@
           {
             "name": "visaRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for VISA (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -3304,7 +3351,7 @@
           {
             "name": "visaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for VISA (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -3314,7 +3361,7 @@
           {
             "name": "masterMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
             "example": "234234",
             "provenance": [
@@ -3324,7 +3371,7 @@
           {
             "name": "masterRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for MASTERCARD (3DS2)",
             "example": 87654321,
             "provenance": [
@@ -3334,7 +3381,7 @@
           {
             "name": "masterRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for MASTERCARD (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -3344,7 +3391,7 @@
           {
             "name": "amexMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant acquirer bin for AMEX (3DS2)",
             "example": "12345678901",
             "provenance": [
@@ -3354,7 +3401,7 @@
           {
             "name": "amexRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The reqestor id for AMEX (3DS2)",
             "example": "JCBAESK60193409387",
             "provenance": [
@@ -3364,7 +3411,7 @@
           {
             "name": "amexRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The requestor name for AMEX (3DS2)",
             "example": "Test Name",
             "provenance": [
@@ -3374,8 +3421,8 @@
           {
             "name": "dinersMerchantId",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3383,8 +3430,8 @@
           {
             "name": "dinersMerchantPwd",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3392,8 +3439,8 @@
           {
             "name": "dinersMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3401,8 +3448,8 @@
           {
             "name": "dinersRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3410,8 +3457,8 @@
           {
             "name": "dinersRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3419,8 +3466,8 @@
           {
             "name": "bcmcMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3428,8 +3475,8 @@
           {
             "name": "bcmcRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3437,8 +3484,8 @@
           {
             "name": "bcmcRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3447,7 +3494,7 @@
             "name": "jcbMerchantAcquirerBin_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3456,7 +3503,7 @@
             "name": "jcbRequestorId_v2",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3465,7 +3512,7 @@
             "name": "jcbRequestorName",
             "logicalType": "string",
             "required": "example_core",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3473,8 +3520,8 @@
           {
             "name": "cashlinkMaltaMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3482,8 +3529,8 @@
           {
             "name": "cashlinkMaltaRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3491,8 +3538,8 @@
           {
             "name": "cashlinkMaltaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -3613,6 +3660,26 @@
         "description": "Add Merchant Account (Channel level)",
         "auditEventType": "ma_create",
         "destructive": false
+      }
+    ],
+    "delete_api_token": [
+      {
+        "operationId": "deleteApiToken",
+        "toolName": "delete_api_token",
+        "parentEntityType": null,
+        "method": "DELETE",
+        "pathTemplate": "/apiTokens/{apiTokenId}",
+        "pathParams": [
+          {
+            "name": "apiTokenId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [],
+        "description": "Delete a suspended API token.",
+        "auditEventType": "api_token_delete",
+        "destructive": true
       }
     ],
     "delete_contact": [
@@ -3853,7 +3920,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The first and last name",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "Call Center Restricted",
@@ -3958,7 +4025,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The current state of the contact. Could be:\n- NEW\n- ACTIVE\n- LOCKED",
             "example": "ACTIVE",
             "destructiveValues": [
@@ -3992,7 +4059,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The name of the division.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "example": "{{$randomWord}}",
@@ -4003,7 +4070,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
             "example": "LIVE",
             "destructiveValues": [
@@ -4057,7 +4124,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The name of the merchant.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "provenance": [
@@ -4067,7 +4134,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
             "destructiveValues": [
               "DELETED"
@@ -4120,7 +4187,7 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The name of the channel.",
             "pattern": "^[A-Za-z0-9_-]*$",
             "provenance": [
@@ -4130,7 +4197,7 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
             "destructiveValues": [
               "DELETED"
@@ -4185,7 +4252,7 @@
           {
             "name": "supports3DSecure",
             "logicalType": "boolean",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "Enable 3DS2 on your merchant account.",
             "example": "true",
             "provenance": [
@@ -4195,7 +4262,7 @@
           {
             "name": "merchant3DName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant name.",
             "example": "ACI Worldwide Germany",
             "provenance": [
@@ -4205,7 +4272,7 @@
           {
             "name": "merchant3DUrl",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The merchant website URL.",
             "example": "http://threeD-secure-dummy-url.de",
             "provenance": [
@@ -4215,7 +4282,7 @@
           {
             "name": "merchantIsoCountryCode",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "Merchant ISO country code. 276 is Germany.",
             "example": "276",
             "provenance": [
@@ -4225,7 +4292,7 @@
           {
             "name": "merchant3DId",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "Merchant identifier",
             "example": "14275",
             "provenance": [
@@ -4235,7 +4302,7 @@
           {
             "name": "merchant3DCategory",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The Merchant category code",
             "example": "5111",
             "provenance": [
@@ -4245,7 +4312,7 @@
           {
             "name": "visaMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The Visa acquirer BIN (3DS2).",
             "example": "234234",
             "provenance": [
@@ -4255,7 +4322,7 @@
           {
             "name": "visaRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The Visa requestor id (3DS2).",
             "example": 87654321,
             "provenance": [
@@ -4265,7 +4332,7 @@
           {
             "name": "visaRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The Visa requestor name (3DS2).",
             "example": "Test Name",
             "provenance": [
@@ -4275,7 +4342,7 @@
           {
             "name": "masterMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The MasterCard acquirer BIN (3DS2).",
             "example": "234234",
             "provenance": [
@@ -4285,7 +4352,7 @@
           {
             "name": "masterRequestorId_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The MasterCard requestor id (3DS2).",
             "example": 87654321,
             "provenance": [
@@ -4295,7 +4362,7 @@
           {
             "name": "masterRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The MasterCard requestor name (3DS2).",
             "example": "Test Name",
             "provenance": [
@@ -4305,7 +4372,7 @@
           {
             "name": "amexMerchantAcquirerBin_v2",
             "logicalType": "integer",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The AMEX acquirer BIN (3DS2).",
             "example": "12345678901",
             "provenance": [
@@ -4315,7 +4382,7 @@
           {
             "name": "amexRequestorId_v2",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The AMEX requestor id (3DS2).",
             "example": "JCBAESK60193409387",
             "provenance": [
@@ -4325,7 +4392,7 @@
           {
             "name": "amexRequestorName",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": "The AMEX requestor name (3DS2).",
             "example": "Name",
             "provenance": [
@@ -4335,8 +4402,8 @@
           {
             "name": "dinersMerchantId",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4344,8 +4411,8 @@
           {
             "name": "dinersMerchantPwd",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4353,8 +4420,8 @@
           {
             "name": "dinersMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4362,8 +4429,8 @@
           {
             "name": "dinersRequestorId_v2",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4371,8 +4438,8 @@
           {
             "name": "dinersRequestorName",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4380,8 +4447,8 @@
           {
             "name": "bcmcMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4389,8 +4456,8 @@
           {
             "name": "bcmcRequestorId_v2",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4398,8 +4465,8 @@
           {
             "name": "bcmcRequestorName",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4408,7 +4475,7 @@
             "name": "jcbMerchantAcquirerBin_v2",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4417,7 +4484,7 @@
             "name": "jcbRequestorId_v2",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4426,7 +4493,7 @@
             "name": "jcbRequestorName",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4434,8 +4501,8 @@
           {
             "name": "cashlinkMaltaMerchantAcquirerBin_v2",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4443,8 +4510,8 @@
           {
             "name": "cashlinkMaltaRequestorId_v2",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4452,8 +4519,8 @@
           {
             "name": "cashlinkMaltaRequestorName",
             "logicalType": "string",
-            "required": "optional",
-            "description": null,
+            "required": "required_spec",
+            "description": "Required for 3D Secure v2.x",
             "provenance": [
               "spec"
             ]
@@ -4461,8 +4528,8 @@
           {
             "name": "name",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "The name of the merchant account.",
             "pattern": "^[A-Za-z0-9 _-]*$",
             "example": "MA-Acquirer-NAB",
             "provenance": [
@@ -4472,8 +4539,8 @@
           {
             "name": "state",
             "logicalType": "string",
-            "required": "example_core",
-            "description": null,
+            "required": "required_spec",
+            "description": "Possible values are \"LIVE\", \"CLOSED\", \"TEST\" or \"DISABLED\"",
             "example": "LIVE",
             "destructiveValues": [
               "DELETED"
@@ -4505,7 +4572,7 @@
           {
             "name": "key",
             "logicalType": "string",
-            "required": "example_core",
+            "required": "required_spec",
             "description": null,
             "pattern": "^[A-Za-z0-9 _-]*$",
             "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -4575,7 +4642,7 @@
             "name": "merchantCategory",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Possible values are: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING, DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL",
             "provenance": [
               "spec"
             ]
@@ -4584,7 +4651,7 @@
             "name": "transactionCategory",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Possible values are: ANY, MOTO, ECOMMERCE, EWALLET",
             "provenance": [
               "spec"
             ]
@@ -4611,7 +4678,7 @@
             "name": "avsCheckActive",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "TRUE or FALSE",
             "provenance": [
               "spec"
             ]
@@ -4620,7 +4687,7 @@
             "name": "avsRejectionPolicy",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Possible values are: A, Z, N, U",
             "provenance": [
               "spec"
             ]
@@ -4629,7 +4696,7 @@
             "name": "avsReviewPolicy",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Possible values are: A, Z, N, U",
             "provenance": [
               "spec"
             ]
@@ -4638,7 +4705,7 @@
             "name": "debitAdviceProcedure",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Possible values are: DA or DD",
             "provenance": [
               "spec"
             ]
@@ -4647,7 +4714,7 @@
             "name": "recurringCode",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Possible values are: NONE, RECURRING, INSTALLMENT",
             "provenance": [
               "spec"
             ]
@@ -4656,7 +4723,7 @@
             "name": "velocityDispachingActive",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "TRUE or FALSE",
             "provenance": [
               "spec"
             ]
@@ -4665,7 +4732,7 @@
             "name": "velocityDispatchingSetting",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}For example, 12;11;2;DAY",
             "pattern": "^[A-Za-z0-9 _-]*$",
             "provenance": [
               "spec"
@@ -4675,7 +4742,7 @@
             "name": "ticketSizeDispatchingActive",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "TRUE or FALSE",
             "provenance": [
               "spec"
             ]
@@ -4684,7 +4751,7 @@
             "name": "ticketSizeDispatchingSetting",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "{Minimum ticket size};{Maximum ticket size}For example, 2;10",
             "pattern": "^[A-Za-z0-9 _-]*$",
             "provenance": [
               "spec"
@@ -4694,7 +4761,7 @@
             "name": "recurringDispatchingSetting",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time shoppers",
             "provenance": [
               "spec"
             ]
@@ -4703,7 +4770,7 @@
             "name": "shopperDispatchingSetting",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time shoppers",
             "provenance": [
               "spec"
             ]
@@ -4712,7 +4779,7 @@
             "name": "shopperDispatchingScope",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "PSP, DIVISION, MERCHANT, or CHANNEL",
             "provenance": [
               "spec"
             ]
@@ -4721,7 +4788,7 @@
             "name": "shopperDispatchingValidity",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "in days",
             "provenance": [
               "spec"
             ]
@@ -4730,7 +4797,7 @@
             "name": "pendingTimeoutInMins",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Define time in minutes when this payment request from Consumer should timeout.",
             "pattern": "^[0-9]*$",
             "provenance": [
               "spec"
@@ -4740,7 +4807,7 @@
             "name": "pendingForAcquirerTimeoutInMins",
             "logicalType": "string",
             "required": "optional",
-            "description": null,
+            "description": "Define time in minutes when the final payment status request from Acquirer should timeout.",
             "pattern": "^[0-9]*$",
             "provenance": [
               "spec"
@@ -4767,6 +4834,26 @@
         ],
         "description": "Update a merchant account. The Postman collection uses this same endpoint for both general merchant account edits and 3DS2 configuration, and the examples below capture both workflows.",
         "auditEventType": "ma_update",
+        "destructive": false
+      }
+    ],
+    "get_api_token": [
+      {
+        "operationId": "getApiToken",
+        "toolName": "get_api_token",
+        "parentEntityType": null,
+        "method": "GET",
+        "pathTemplate": "/apiTokens/{apiTokenId}",
+        "pathParams": [
+          {
+            "name": "apiTokenId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [],
+        "description": "Get information for the API token specified by ID.",
+        "auditEventType": null,
         "destructive": false
       }
     ],
@@ -4862,6 +4949,26 @@
         ],
         "request": [],
         "description": "Get Merchant Account",
+        "auditEventType": null,
+        "destructive": false
+      }
+    ],
+    "list_api_tokens": [
+      {
+        "operationId": "listApiTokensForMerchant",
+        "toolName": "list_api_tokens",
+        "parentEntityType": "merchant",
+        "method": "GET",
+        "pathTemplate": "/merchants/{merchantId}/apiTokens",
+        "pathParams": [
+          {
+            "name": "merchantId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [],
+        "description": "List all API tokens created for the specified merchant.",
         "auditEventType": null,
         "destructive": false
       }
@@ -5044,7 +5151,7 @@
         "pathParams": [
           {
             "name": "pspId",
-            "pattern": null,
+            "pattern": "^[a-f0-9]*$",
             "required": true
           }
         ],
@@ -5282,6 +5389,26 @@
         "destructive": true
       }
     ],
+    "suspend_api_token": [
+      {
+        "operationId": "suspendApiToken",
+        "toolName": "suspend_api_token",
+        "parentEntityType": null,
+        "method": "POST",
+        "pathTemplate": "/apiTokens/{apiTokenId}/suspend",
+        "pathParams": [
+          {
+            "name": "apiTokenId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [],
+        "description": "Suspend an API token.",
+        "auditEventType": "api_token_suspend",
+        "destructive": true
+      }
+    ],
     "unlock_contact": [
       {
         "operationId": "unlockContact",
@@ -5301,9 +5428,58 @@
         "auditEventType": "contact_unlock",
         "destructive": false
       }
+    ],
+    "update_api_token": [
+      {
+        "operationId": "updateApiToken",
+        "toolName": "update_api_token",
+        "parentEntityType": null,
+        "method": "POST",
+        "pathTemplate": "/apiTokens/{apiTokenId}",
+        "pathParams": [
+          {
+            "name": "apiTokenId",
+            "pattern": "^[a-f0-9]{32}$",
+            "required": true
+          }
+        ],
+        "request": [
+          {
+            "name": "alias",
+            "logicalType": "string",
+            "required": "required_spec",
+            "description": "The alias or display name of the API token.",
+            "pattern": "^[A-Za-z0-9_-]*$",
+            "provenance": [
+              "spec"
+            ]
+          }
+        ],
+        "description": "Update the alias of an API token.",
+        "auditEventType": "api_token_update",
+        "destructive": true
+      }
     ]
   },
   "operations": [
+    {
+      "operationId": "activateApiToken",
+      "toolName": "activate_api_token",
+      "parentEntityType": null,
+      "method": "POST",
+      "pathTemplate": "/apiTokens/{apiTokenId}/activate",
+      "pathParams": [
+        {
+          "name": "apiTokenId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [],
+      "description": "Activate a suspended API token.",
+      "auditEventType": "api_token_activate",
+      "destructive": true
+    },
     {
       "operationId": "addChannel",
       "toolName": "create_channel",
@@ -5321,7 +5497,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the channel.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "Channel-{{$randomCity}}",
@@ -5332,7 +5508,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "example": "LIVE",
           "destructiveValues": [
@@ -5394,7 +5570,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The first and last name",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "Call Center Restricted",
@@ -5528,7 +5704,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The first and last name",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "Call Center Restricted",
@@ -5662,7 +5838,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The first and last name",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "Call Center Restricted",
@@ -5786,7 +5962,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the division.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "{{$randomWord}}",
@@ -5797,7 +5973,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "example": "LIVE",
           "destructiveValues": [
@@ -5845,52 +6021,7 @@
           "required": true
         }
       ],
-      "request": [
-        {
-          "name": "name",
-          "logicalType": "string",
-          "required": "example_core",
-          "description": "The name of the division.",
-          "pattern": "^[A-Za-z0-9_-]*$",
-          "example": "{{$randomWord}}",
-          "provenance": [
-            "spec"
-          ]
-        },
-        {
-          "name": "state",
-          "logicalType": "string",
-          "required": "example_core",
-          "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
-          "example": "LIVE",
-          "destructiveValues": [
-            "DELETED"
-          ],
-          "provenance": [
-            "spec"
-          ]
-        },
-        {
-          "name": "customerId",
-          "logicalType": "string",
-          "required": "example_core",
-          "description": "The customer identifier.",
-          "pattern": "^[A-Za-z0-9 _-]*$",
-          "provenance": [
-            "spec"
-          ]
-        },
-        {
-          "name": "description",
-          "logicalType": "string",
-          "required": "example_core",
-          "description": "The description of the division entity.",
-          "pattern": "^[A-Za-z0-9 _-]*$",
-          "provenance": [
-            "spec"
-          ]
-        }
-      ],
+      "request": [],
       "description": "Add Division using PSP entity path",
       "auditEventType": null,
       "destructive": false
@@ -5912,7 +6043,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the merchant.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "{{$randomCountry}}",
@@ -5923,7 +6054,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "example": "LIVE",
           "destructiveValues": [
@@ -5975,7 +6106,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant account name.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "MA-Acquirer-NAB",
@@ -5986,7 +6117,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
           "example": "LIVE",
           "destructiveValues": [
@@ -6019,7 +6150,7 @@
         {
           "name": "key",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": null,
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -6152,7 +6283,7 @@
           "name": "debitAdviceProcedure",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Possible values are: DA or DD",
           "provenance": [
             "spec"
           ]
@@ -6169,7 +6300,7 @@
         {
           "name": "supports3DSecure",
           "logicalType": "boolean",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "TRUE. FALSE support for 3D Secure",
           "example": "true",
           "provenance": [
@@ -6179,7 +6310,7 @@
         {
           "name": "merchant3DName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant name (3DS2)",
           "example": "ACI Worldwide Germany",
           "provenance": [
@@ -6189,7 +6320,7 @@
         {
           "name": "merchant3DUrl",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant URL (3DS2)",
           "example": "http://threeD-secure-dummy-url.de",
           "provenance": [
@@ -6199,7 +6330,7 @@
         {
           "name": "merchantIsoCountryCode",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant country code (3DS2)",
           "example": "276",
           "provenance": [
@@ -6209,7 +6340,7 @@
         {
           "name": "merchant3DId",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant ID (3DS2)",
           "example": "14275",
           "provenance": [
@@ -6219,7 +6350,7 @@
         {
           "name": "merchant3DCategory",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant category code (3DS2)",
           "example": "5111",
           "provenance": [
@@ -6229,7 +6360,7 @@
         {
           "name": "visaMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for VISA (3DS2)",
           "example": "234234",
           "provenance": [
@@ -6239,7 +6370,7 @@
         {
           "name": "visaRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for VISA (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -6249,7 +6380,7 @@
         {
           "name": "visaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for VISA (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -6259,7 +6390,7 @@
         {
           "name": "masterMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
           "example": "234234",
           "provenance": [
@@ -6269,7 +6400,7 @@
         {
           "name": "masterRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for MASTERCARD (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -6279,7 +6410,7 @@
         {
           "name": "masterRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for MASTERCARD (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -6289,7 +6420,7 @@
         {
           "name": "amexMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for AMEX (3DS2)",
           "example": "12345678901",
           "provenance": [
@@ -6299,7 +6430,7 @@
         {
           "name": "amexRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for AMEX (3DS2)",
           "example": "JCBAESK60193409387",
           "provenance": [
@@ -6309,7 +6440,7 @@
         {
           "name": "amexRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for AMEX (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -6319,8 +6450,8 @@
         {
           "name": "dinersMerchantId",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6328,8 +6459,8 @@
         {
           "name": "dinersMerchantPwd",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6337,8 +6468,8 @@
         {
           "name": "dinersMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6346,8 +6477,8 @@
         {
           "name": "dinersRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6355,8 +6486,8 @@
         {
           "name": "dinersRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6364,8 +6495,8 @@
         {
           "name": "bcmcMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6373,8 +6504,8 @@
         {
           "name": "bcmcRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6382,8 +6513,8 @@
         {
           "name": "bcmcRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6392,7 +6523,7 @@
           "name": "jcbMerchantAcquirerBin_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6401,7 +6532,7 @@
           "name": "jcbRequestorId_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6410,7 +6541,7 @@
           "name": "jcbRequestorName",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6418,8 +6549,8 @@
         {
           "name": "cashlinkMaltaMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6427,8 +6558,8 @@
         {
           "name": "cashlinkMaltaRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6436,8 +6567,8 @@
         {
           "name": "cashlinkMaltaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6576,7 +6707,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant account name.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "MA-Acquirer-NAB",
@@ -6587,7 +6718,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
           "example": "LIVE",
           "destructiveValues": [
@@ -6620,7 +6751,7 @@
         {
           "name": "key",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": null,
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -6753,7 +6884,7 @@
           "name": "debitAdviceProcedure",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Possible values are: DA or DD",
           "provenance": [
             "spec"
           ]
@@ -6770,7 +6901,7 @@
         {
           "name": "supports3DSecure",
           "logicalType": "boolean",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "TRUE. FALSE support for 3D Secure",
           "example": "true",
           "provenance": [
@@ -6780,7 +6911,7 @@
         {
           "name": "merchant3DName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant name (3DS2)",
           "example": "ACI Worldwide Germany",
           "provenance": [
@@ -6790,7 +6921,7 @@
         {
           "name": "merchant3DUrl",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant URL (3DS2)",
           "example": "http://threeD-secure-dummy-url.de",
           "provenance": [
@@ -6800,7 +6931,7 @@
         {
           "name": "merchantIsoCountryCode",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant country code (3DS2)",
           "example": "276",
           "provenance": [
@@ -6810,7 +6941,7 @@
         {
           "name": "merchant3DId",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant ID (3DS2)",
           "example": "14275",
           "provenance": [
@@ -6820,7 +6951,7 @@
         {
           "name": "merchant3DCategory",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant category code (3DS2)",
           "example": "5111",
           "provenance": [
@@ -6830,7 +6961,7 @@
         {
           "name": "visaMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for VISA (3DS2)",
           "example": "234234",
           "provenance": [
@@ -6840,7 +6971,7 @@
         {
           "name": "visaRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for VISA (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -6850,7 +6981,7 @@
         {
           "name": "visaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for VISA (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -6860,7 +6991,7 @@
         {
           "name": "masterMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
           "example": "234234",
           "provenance": [
@@ -6870,7 +7001,7 @@
         {
           "name": "masterRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for MASTERCARD (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -6880,7 +7011,7 @@
         {
           "name": "masterRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for MASTERCARD (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -6890,7 +7021,7 @@
         {
           "name": "amexMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for AMEX (3DS2)",
           "example": "12345678901",
           "provenance": [
@@ -6900,7 +7031,7 @@
         {
           "name": "amexRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for AMEX (3DS2)",
           "example": "JCBAESK60193409387",
           "provenance": [
@@ -6910,7 +7041,7 @@
         {
           "name": "amexRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for AMEX (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -6920,8 +7051,8 @@
         {
           "name": "dinersMerchantId",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6929,8 +7060,8 @@
         {
           "name": "dinersMerchantPwd",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6938,8 +7069,8 @@
         {
           "name": "dinersMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6947,8 +7078,8 @@
         {
           "name": "dinersRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6956,8 +7087,8 @@
         {
           "name": "dinersRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6965,8 +7096,8 @@
         {
           "name": "bcmcMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6974,8 +7105,8 @@
         {
           "name": "bcmcRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6983,8 +7114,8 @@
         {
           "name": "bcmcRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -6993,7 +7124,7 @@
           "name": "jcbMerchantAcquirerBin_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7002,7 +7133,7 @@
           "name": "jcbRequestorId_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7011,7 +7142,7 @@
           "name": "jcbRequestorName",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7019,8 +7150,8 @@
         {
           "name": "cashlinkMaltaMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7028,8 +7159,8 @@
         {
           "name": "cashlinkMaltaRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7037,8 +7168,8 @@
         {
           "name": "cashlinkMaltaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7177,7 +7308,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant account name.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "MA-Acquirer-NAB",
@@ -7188,7 +7319,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
           "example": "LIVE",
           "destructiveValues": [
@@ -7221,7 +7352,7 @@
         {
           "name": "key",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": null,
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -7354,7 +7485,7 @@
           "name": "debitAdviceProcedure",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Possible values are: DA or DD",
           "provenance": [
             "spec"
           ]
@@ -7371,7 +7502,7 @@
         {
           "name": "supports3DSecure",
           "logicalType": "boolean",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "TRUE. FALSE support for 3D Secure",
           "example": "true",
           "provenance": [
@@ -7381,7 +7512,7 @@
         {
           "name": "merchant3DName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant name (3DS2)",
           "example": "ACI Worldwide Germany",
           "provenance": [
@@ -7391,7 +7522,7 @@
         {
           "name": "merchant3DUrl",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant URL (3DS2)",
           "example": "http://threeD-secure-dummy-url.de",
           "provenance": [
@@ -7401,7 +7532,7 @@
         {
           "name": "merchantIsoCountryCode",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant country code (3DS2)",
           "example": "276",
           "provenance": [
@@ -7411,7 +7542,7 @@
         {
           "name": "merchant3DId",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant ID (3DS2)",
           "example": "14275",
           "provenance": [
@@ -7421,7 +7552,7 @@
         {
           "name": "merchant3DCategory",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant category code (3DS2)",
           "example": "5111",
           "provenance": [
@@ -7431,7 +7562,7 @@
         {
           "name": "visaMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for VISA (3DS2)",
           "example": "234234",
           "provenance": [
@@ -7441,7 +7572,7 @@
         {
           "name": "visaRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for VISA (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -7451,7 +7582,7 @@
         {
           "name": "visaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for VISA (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -7461,7 +7592,7 @@
         {
           "name": "masterMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
           "example": "234234",
           "provenance": [
@@ -7471,7 +7602,7 @@
         {
           "name": "masterRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for MASTERCARD (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -7481,7 +7612,7 @@
         {
           "name": "masterRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for MASTERCARD (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -7491,7 +7622,7 @@
         {
           "name": "amexMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for AMEX (3DS2)",
           "example": "12345678901",
           "provenance": [
@@ -7501,7 +7632,7 @@
         {
           "name": "amexRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for AMEX (3DS2)",
           "example": "JCBAESK60193409387",
           "provenance": [
@@ -7511,7 +7642,7 @@
         {
           "name": "amexRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for AMEX (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -7521,8 +7652,8 @@
         {
           "name": "dinersMerchantId",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7530,8 +7661,8 @@
         {
           "name": "dinersMerchantPwd",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7539,8 +7670,8 @@
         {
           "name": "dinersMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7548,8 +7679,8 @@
         {
           "name": "dinersRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7557,8 +7688,8 @@
         {
           "name": "dinersRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7566,8 +7697,8 @@
         {
           "name": "bcmcMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7575,8 +7706,8 @@
         {
           "name": "bcmcRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7584,8 +7715,8 @@
         {
           "name": "bcmcRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7594,7 +7725,7 @@
           "name": "jcbMerchantAcquirerBin_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7603,7 +7734,7 @@
           "name": "jcbRequestorId_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7612,7 +7743,7 @@
           "name": "jcbRequestorName",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7620,8 +7751,8 @@
         {
           "name": "cashlinkMaltaMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7629,8 +7760,8 @@
         {
           "name": "cashlinkMaltaRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7638,8 +7769,8 @@
         {
           "name": "cashlinkMaltaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -7778,7 +7909,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant account name.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "MA-Acquirer-NAB",
@@ -7789,7 +7920,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant Account state. LIVE, CLOSED, TEST or DISABLED.",
           "example": "LIVE",
           "destructiveValues": [
@@ -7822,7 +7953,7 @@
         {
           "name": "key",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": null,
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -7955,7 +8086,7 @@
           "name": "debitAdviceProcedure",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Possible values are: DA or DD",
           "provenance": [
             "spec"
           ]
@@ -7972,7 +8103,7 @@
         {
           "name": "supports3DSecure",
           "logicalType": "boolean",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "TRUE. FALSE support for 3D Secure",
           "example": "true",
           "provenance": [
@@ -7982,7 +8113,7 @@
         {
           "name": "merchant3DName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant name (3DS2)",
           "example": "ACI Worldwide Germany",
           "provenance": [
@@ -7992,7 +8123,7 @@
         {
           "name": "merchant3DUrl",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant URL (3DS2)",
           "example": "http://threeD-secure-dummy-url.de",
           "provenance": [
@@ -8002,7 +8133,7 @@
         {
           "name": "merchantIsoCountryCode",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant country code (3DS2)",
           "example": "276",
           "provenance": [
@@ -8012,7 +8143,7 @@
         {
           "name": "merchant3DId",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant ID (3DS2)",
           "example": "14275",
           "provenance": [
@@ -8022,7 +8153,7 @@
         {
           "name": "merchant3DCategory",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant category code (3DS2)",
           "example": "5111",
           "provenance": [
@@ -8032,7 +8163,7 @@
         {
           "name": "visaMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for VISA (3DS2)",
           "example": "234234",
           "provenance": [
@@ -8042,7 +8173,7 @@
         {
           "name": "visaRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for VISA (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -8052,7 +8183,7 @@
         {
           "name": "visaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for VISA (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -8062,7 +8193,7 @@
         {
           "name": "masterMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for MASTERCARD (3DS2)",
           "example": "234234",
           "provenance": [
@@ -8072,7 +8203,7 @@
         {
           "name": "masterRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for MASTERCARD (3DS2)",
           "example": 87654321,
           "provenance": [
@@ -8082,7 +8213,7 @@
         {
           "name": "masterRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for MASTERCARD (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -8092,7 +8223,7 @@
         {
           "name": "amexMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant acquirer bin for AMEX (3DS2)",
           "example": "12345678901",
           "provenance": [
@@ -8102,7 +8233,7 @@
         {
           "name": "amexRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The reqestor id for AMEX (3DS2)",
           "example": "JCBAESK60193409387",
           "provenance": [
@@ -8112,7 +8243,7 @@
         {
           "name": "amexRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The requestor name for AMEX (3DS2)",
           "example": "Test Name",
           "provenance": [
@@ -8122,8 +8253,8 @@
         {
           "name": "dinersMerchantId",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8131,8 +8262,8 @@
         {
           "name": "dinersMerchantPwd",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8140,8 +8271,8 @@
         {
           "name": "dinersMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8149,8 +8280,8 @@
         {
           "name": "dinersRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8158,8 +8289,8 @@
         {
           "name": "dinersRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8167,8 +8298,8 @@
         {
           "name": "bcmcMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8176,8 +8307,8 @@
         {
           "name": "bcmcRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8185,8 +8316,8 @@
         {
           "name": "bcmcRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8195,7 +8326,7 @@
           "name": "jcbMerchantAcquirerBin_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8204,7 +8335,7 @@
           "name": "jcbRequestorId_v2",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8213,7 +8344,7 @@
           "name": "jcbRequestorName",
           "logicalType": "string",
           "required": "example_core",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8221,8 +8352,8 @@
         {
           "name": "cashlinkMaltaMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8230,8 +8361,8 @@
         {
           "name": "cashlinkMaltaRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8239,8 +8370,8 @@
         {
           "name": "cashlinkMaltaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -8384,7 +8515,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the merchant.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "{{$randomCountry}}",
@@ -8395,7 +8526,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "example": "LIVE",
           "destructiveValues": [
@@ -9019,7 +9150,7 @@
         {
           "name": "cardNumber",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "Your card number to check for 3DS2 eligibility.",
           "pattern": "^[0-9]*$",
           "example": "{{PAN}}",
@@ -9031,6 +9162,24 @@
       "description": "Check 3DS Enrollment",
       "auditEventType": null,
       "destructive": false
+    },
+    {
+      "operationId": "createApiTokenForMerchant",
+      "toolName": "create_api_token",
+      "parentEntityType": "merchant",
+      "method": "POST",
+      "pathTemplate": "/merchants/{merchantId}/apiTokens",
+      "pathParams": [
+        {
+          "name": "merchantId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [],
+      "description": "Create a new API token for the specified merchant.",
+      "auditEventType": "api_token_create",
+      "destructive": true
     },
     {
       "operationId": "deleteAllMerchantAccountChannelLevel",
@@ -9103,6 +9252,24 @@
       "description": "Delete All Merchant Account (PSP level)",
       "auditEventType": null,
       "destructive": false
+    },
+    {
+      "operationId": "deleteApiToken",
+      "toolName": "delete_api_token",
+      "parentEntityType": null,
+      "method": "DELETE",
+      "pathTemplate": "/apiTokens/{apiTokenId}",
+      "pathParams": [
+        {
+          "name": "apiTokenId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [],
+      "description": "Delete a suspended API token.",
+      "auditEventType": "api_token_delete",
+      "destructive": true
     },
     {
       "operationId": "deleteChannel",
@@ -9393,7 +9560,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the channel.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "provenance": [
@@ -9403,7 +9570,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "destructiveValues": [
             "DELETED"
@@ -9466,7 +9633,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The first and last name",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "Call Center Restricted",
@@ -9571,7 +9738,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The current state of the contact. Could be:\n- NEW\n- ACTIVE\n- LOCKED",
           "example": "ACTIVE",
           "destructiveValues": [
@@ -9603,7 +9770,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the division.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "example": "{{$randomWord}}",
@@ -9614,7 +9781,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "example": "LIVE",
           "destructiveValues": [
@@ -9668,7 +9835,7 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The name of the merchant.",
           "pattern": "^[A-Za-z0-9_-]*$",
           "provenance": [
@@ -9678,7 +9845,7 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED",
           "destructiveValues": [
             "DELETED"
@@ -9712,6 +9879,24 @@
       ],
       "description": "Edit Merchant",
       "auditEventType": "entity_edit",
+      "destructive": false
+    },
+    {
+      "operationId": "getApiToken",
+      "toolName": "get_api_token",
+      "parentEntityType": null,
+      "method": "GET",
+      "pathTemplate": "/apiTokens/{apiTokenId}",
+      "pathParams": [
+        {
+          "name": "apiTokenId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [],
+      "description": "Get information for the API token specified by ID.",
+      "auditEventType": null,
       "destructive": false
     },
     {
@@ -9837,6 +10022,24 @@
       ],
       "request": [],
       "description": "Get RIRO (Merchant level)",
+      "auditEventType": null,
+      "destructive": false
+    },
+    {
+      "operationId": "listApiTokensForMerchant",
+      "toolName": "list_api_tokens",
+      "parentEntityType": "merchant",
+      "method": "GET",
+      "pathTemplate": "/merchants/{merchantId}/apiTokens",
+      "pathParams": [
+        {
+          "name": "merchantId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [],
+      "description": "List all API tokens created for the specified merchant.",
       "auditEventType": null,
       "destructive": false
     },
@@ -10011,7 +10214,7 @@
       "pathParams": [
         {
           "name": "pspId",
-          "pattern": null,
+          "pattern": "^[a-f0-9]*$",
           "required": true
         }
       ],
@@ -10237,6 +10440,24 @@
       "destructive": true
     },
     {
+      "operationId": "suspendApiToken",
+      "toolName": "suspend_api_token",
+      "parentEntityType": null,
+      "method": "POST",
+      "pathTemplate": "/apiTokens/{apiTokenId}/suspend",
+      "pathParams": [
+        {
+          "name": "apiTokenId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [],
+      "description": "Suspend an API token.",
+      "auditEventType": "api_token_suspend",
+      "destructive": true
+    },
+    {
       "operationId": "unlockContact",
       "toolName": "unlock_contact",
       "parentEntityType": null,
@@ -10255,6 +10476,35 @@
       "destructive": false
     },
     {
+      "operationId": "updateApiToken",
+      "toolName": "update_api_token",
+      "parentEntityType": null,
+      "method": "POST",
+      "pathTemplate": "/apiTokens/{apiTokenId}",
+      "pathParams": [
+        {
+          "name": "apiTokenId",
+          "pattern": "^[a-f0-9]{32}$",
+          "required": true
+        }
+      ],
+      "request": [
+        {
+          "name": "alias",
+          "logicalType": "string",
+          "required": "required_spec",
+          "description": "The alias or display name of the API token.",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "provenance": [
+            "spec"
+          ]
+        }
+      ],
+      "description": "Update the alias of an API token.",
+      "auditEventType": "api_token_update",
+      "destructive": true
+    },
+    {
       "operationId": "updateMerchantAccount",
       "toolName": "edit_merchant_account",
       "parentEntityType": null,
@@ -10271,7 +10521,7 @@
         {
           "name": "supports3DSecure",
           "logicalType": "boolean",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "Enable 3DS2 on your merchant account.",
           "example": "true",
           "provenance": [
@@ -10281,7 +10531,7 @@
         {
           "name": "merchant3DName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant name.",
           "example": "ACI Worldwide Germany",
           "provenance": [
@@ -10291,7 +10541,7 @@
         {
           "name": "merchant3DUrl",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The merchant website URL.",
           "example": "http://threeD-secure-dummy-url.de",
           "provenance": [
@@ -10301,7 +10551,7 @@
         {
           "name": "merchantIsoCountryCode",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "Merchant ISO country code. 276 is Germany.",
           "example": "276",
           "provenance": [
@@ -10311,7 +10561,7 @@
         {
           "name": "merchant3DId",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "Merchant identifier",
           "example": "14275",
           "provenance": [
@@ -10321,7 +10571,7 @@
         {
           "name": "merchant3DCategory",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The Merchant category code",
           "example": "5111",
           "provenance": [
@@ -10331,7 +10581,7 @@
         {
           "name": "visaMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The Visa acquirer BIN (3DS2).",
           "example": "234234",
           "provenance": [
@@ -10341,7 +10591,7 @@
         {
           "name": "visaRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The Visa requestor id (3DS2).",
           "example": 87654321,
           "provenance": [
@@ -10351,7 +10601,7 @@
         {
           "name": "visaRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The Visa requestor name (3DS2).",
           "example": "Test Name",
           "provenance": [
@@ -10361,7 +10611,7 @@
         {
           "name": "masterMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The MasterCard acquirer BIN (3DS2).",
           "example": "234234",
           "provenance": [
@@ -10371,7 +10621,7 @@
         {
           "name": "masterRequestorId_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The MasterCard requestor id (3DS2).",
           "example": 87654321,
           "provenance": [
@@ -10381,7 +10631,7 @@
         {
           "name": "masterRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The MasterCard requestor name (3DS2).",
           "example": "Test Name",
           "provenance": [
@@ -10391,7 +10641,7 @@
         {
           "name": "amexMerchantAcquirerBin_v2",
           "logicalType": "integer",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The AMEX acquirer BIN (3DS2).",
           "example": "12345678901",
           "provenance": [
@@ -10401,7 +10651,7 @@
         {
           "name": "amexRequestorId_v2",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The AMEX requestor id (3DS2).",
           "example": "JCBAESK60193409387",
           "provenance": [
@@ -10411,7 +10661,7 @@
         {
           "name": "amexRequestorName",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The AMEX requestor name (3DS2).",
           "example": "Name",
           "provenance": [
@@ -10421,8 +10671,8 @@
         {
           "name": "dinersMerchantId",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10430,8 +10680,8 @@
         {
           "name": "dinersMerchantPwd",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10439,8 +10689,8 @@
         {
           "name": "dinersMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10448,8 +10698,8 @@
         {
           "name": "dinersRequestorId_v2",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10457,8 +10707,8 @@
         {
           "name": "dinersRequestorName",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10466,8 +10716,8 @@
         {
           "name": "bcmcMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10475,8 +10725,8 @@
         {
           "name": "bcmcRequestorId_v2",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10484,8 +10734,8 @@
         {
           "name": "bcmcRequestorName",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10494,7 +10744,7 @@
           "name": "jcbMerchantAcquirerBin_v2",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10503,7 +10753,7 @@
           "name": "jcbRequestorId_v2",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10512,7 +10762,7 @@
           "name": "jcbRequestorName",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10520,8 +10770,8 @@
         {
           "name": "cashlinkMaltaMerchantAcquirerBin_v2",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10529,8 +10779,8 @@
         {
           "name": "cashlinkMaltaRequestorId_v2",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10538,8 +10788,8 @@
         {
           "name": "cashlinkMaltaRequestorName",
           "logicalType": "string",
-          "required": "optional",
-          "description": null,
+          "required": "required_spec",
+          "description": "Required for 3D Secure v2.x",
           "provenance": [
             "spec"
           ]
@@ -10547,8 +10797,8 @@
         {
           "name": "name",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "The name of the merchant account.",
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "MA-Acquirer-NAB",
           "provenance": [
@@ -10558,8 +10808,8 @@
         {
           "name": "state",
           "logicalType": "string",
-          "required": "example_core",
-          "description": null,
+          "required": "required_spec",
+          "description": "Possible values are \"LIVE\", \"CLOSED\", \"TEST\" or \"DISABLED\"",
           "example": "LIVE",
           "destructiveValues": [
             "DELETED"
@@ -10591,7 +10841,7 @@
         {
           "name": "key",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": null,
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "m8iq+dYXxNEfcoaAM+rx6G4bAwv8yNkGv687aZW3c20=",
@@ -10661,7 +10911,7 @@
           "name": "merchantCategory",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Possible values are: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING, DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL",
           "provenance": [
             "spec"
           ]
@@ -10670,7 +10920,7 @@
           "name": "transactionCategory",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Possible values are: ANY, MOTO, ECOMMERCE, EWALLET",
           "provenance": [
             "spec"
           ]
@@ -10697,7 +10947,7 @@
           "name": "avsCheckActive",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "TRUE or FALSE",
           "provenance": [
             "spec"
           ]
@@ -10706,7 +10956,7 @@
           "name": "avsRejectionPolicy",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Possible values are: A, Z, N, U",
           "provenance": [
             "spec"
           ]
@@ -10715,7 +10965,7 @@
           "name": "avsReviewPolicy",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Possible values are: A, Z, N, U",
           "provenance": [
             "spec"
           ]
@@ -10724,7 +10974,7 @@
           "name": "debitAdviceProcedure",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Possible values are: DA or DD",
           "provenance": [
             "spec"
           ]
@@ -10733,7 +10983,7 @@
           "name": "recurringCode",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Possible values are: NONE, RECURRING, INSTALLMENT",
           "provenance": [
             "spec"
           ]
@@ -10742,7 +10992,7 @@
           "name": "velocityDispachingActive",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "TRUE or FALSE",
           "provenance": [
             "spec"
           ]
@@ -10751,7 +11001,7 @@
           "name": "velocityDispatchingSetting",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}For example, 12;11;2;DAY",
           "pattern": "^[A-Za-z0-9 _-]*$",
           "provenance": [
             "spec"
@@ -10761,7 +11011,7 @@
           "name": "ticketSizeDispatchingActive",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "TRUE or FALSE",
           "provenance": [
             "spec"
           ]
@@ -10770,7 +11020,7 @@
           "name": "ticketSizeDispatchingSetting",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "{Minimum ticket size};{Maximum ticket size}For example, 2;10",
           "pattern": "^[A-Za-z0-9 _-]*$",
           "provenance": [
             "spec"
@@ -10780,7 +11030,7 @@
           "name": "recurringDispatchingSetting",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time shoppers",
           "provenance": [
             "spec"
           ]
@@ -10789,7 +11039,7 @@
           "name": "shopperDispatchingSetting",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time shoppers",
           "provenance": [
             "spec"
           ]
@@ -10798,7 +11048,7 @@
           "name": "shopperDispatchingScope",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "PSP, DIVISION, MERCHANT, or CHANNEL",
           "provenance": [
             "spec"
           ]
@@ -10807,7 +11057,7 @@
           "name": "shopperDispatchingValidity",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "in days",
           "provenance": [
             "spec"
           ]
@@ -10816,7 +11066,7 @@
           "name": "pendingTimeoutInMins",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Define time in minutes when this payment request from Consumer should timeout.",
           "pattern": "^[0-9]*$",
           "provenance": [
             "spec"
@@ -10826,7 +11076,7 @@
           "name": "pendingForAcquirerTimeoutInMins",
           "logicalType": "string",
           "required": "optional",
-          "description": null,
+          "description": "Define time in minutes when the final payment status request from Acquirer should timeout.",
           "pattern": "^[0-9]*$",
           "provenance": [
             "spec"
@@ -10881,7 +11131,7 @@
         {
           "name": "key",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The configuration key in the UI to activate / deactivate 3DS2.",
           "pattern": "^[A-Za-z0-9 _-]*$",
           "example": "*/type:user/module:bip/processing:BIP/user:configuration/configuration:useOppLabels",
@@ -10892,7 +11142,7 @@
         {
           "name": "value",
           "logicalType": "string",
-          "required": "example_core",
+          "required": "required_spec",
           "description": "The possible values: None, No 3DSecure, 3DSecure, 3DSecurePassThrough",
           "example": "3DSecure",
           "provenance": [

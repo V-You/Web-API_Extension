@@ -3,13 +3,16 @@ import type { EntityType } from "../../src/lib/entity-types";
 import type { Environment } from "../../src/lib/types";
 import {
   CHAT_AUTOMATION_MODE_KEY,
+  CHAT_ACCESS_TOKEN_CONTROL_KEY,
   CHAT_RENDER_MARKDOWN_KEY,
   CHAT_SHOW_TOOL_TRACES_KEY,
   CHAT_WRITE_TOOLS_KEY,
+  isChatAccessTokenControlEnabled,
   isChatAutomationModeEnabled,
   isChatRenderMarkdownEnabled,
   isChatShowToolTracesEnabled,
   isChatWriteToolsEnabled,
+  setChatAccessTokenControlEnabled,
   setChatAutomationModeEnabled,
   setChatRenderMarkdownEnabled,
   setChatShowToolTracesEnabled,
@@ -173,6 +176,7 @@ export function ChatPage() {
   const [manualEntityType, setManualEntityType] = useState<EntityType>("merchant");
   const [manualEntityId, setManualEntityId] = useState("");
   const [writeToolsEnabled, setWriteToolsEnabledState] = useState(false);
+  const [accessTokenControlEnabled, setAccessTokenControlEnabledState] = useState(false);
   const [automationModeEnabled, setAutomationModeEnabledState] = useState(false);
   const [modeBusy, setModeBusy] = useState(false);
   const [automationBusy, setAutomationBusy] = useState(false);
@@ -222,6 +226,7 @@ export function ChatPage() {
       );
     });
     isChatWriteToolsEnabled().then(setWriteToolsEnabledState);
+    isChatAccessTokenControlEnabled().then(setAccessTokenControlEnabledState);
     isChatAutomationModeEnabled().then(setAutomationModeEnabledState);
     isChatRenderMarkdownEnabled().then(setRenderMarkdownState);
     isChatShowToolTracesEnabled().then(setShowToolTracesState);
@@ -233,6 +238,9 @@ export function ChatPage() {
       if (area === "session") {
         if (changes[CHAT_WRITE_TOOLS_KEY]) {
           setWriteToolsEnabledState(changes[CHAT_WRITE_TOOLS_KEY].newValue === true);
+        }
+        if (changes[CHAT_ACCESS_TOKEN_CONTROL_KEY]) {
+          setAccessTokenControlEnabledState(changes[CHAT_ACCESS_TOKEN_CONTROL_KEY].newValue === true);
         }
         if (changes[CHAT_AUTOMATION_MODE_KEY]) {
           setAutomationModeEnabledState(changes[CHAT_AUTOMATION_MODE_KEY].newValue === true);
@@ -354,7 +362,10 @@ export function ChatPage() {
     try {
       await setChatWriteToolsEnabled(next);
       setWriteToolsEnabledState(next);
-      if (!next) setAutomationModeEnabledState(false);
+      if (!next) {
+        setAccessTokenControlEnabledState(false);
+        setAutomationModeEnabledState(false);
+      }
       setHistory([]);
       setMessages((current) => [
         ...current,
@@ -368,6 +379,32 @@ export function ChatPage() {
       ]);
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "Failed to update chat mode.");
+    } finally {
+      setModeBusy(false);
+    }
+  }
+
+  async function handleToggleAccessTokenControl() {
+    const next = !accessTokenControlEnabled;
+
+    setModeBusy(true);
+    setError(null);
+    try {
+      await setChatAccessTokenControlEnabled(next);
+      setAccessTokenControlEnabledState(next);
+      setHistory([]);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: next
+            ? "accessToken control is enabled. Token tools stay redacted and every token lifecycle change requires confirmation."
+            : "accessToken control is disabled. Token lifecycle tools are hidden for new prompts.",
+        },
+      ]);
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "Failed to update accessToken control.");
     } finally {
       setModeBusy(false);
     }
@@ -493,11 +530,12 @@ export function ChatPage() {
         ].filter(Boolean).join("\n\n"),
         systemPrompt: buildChatSystemPrompt({
           writeToolsEnabled,
+          accessTokenControlEnabled,
           automationModeEnabled,
           modelName: savedSettings.model,
         }),
-        tools: getChatToolDeclarations({ writeToolsEnabled, automationModeEnabled }),
-        executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled, automationModeEnabled }),
+        tools: getChatToolDeclarations({ writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled }),
+        executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled }),
       });
 
       setHistory(result.history);
@@ -544,7 +582,7 @@ export function ChatPage() {
       entityType: context.entityType,
       entityId: context.entityId,
     };
-    const result = await executeChatTool("manage_entity", args, { writeToolsEnabled, automationModeEnabled });
+    const result = await executeChatTool("manage_entity", args, { writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled });
     const requestedFields = requestedApiFields(request);
     return {
       id: crypto.randomUUID(),
@@ -762,11 +800,13 @@ export function ChatPage() {
         <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
           automationModeEnabled
             ? "bg-red-50 text-red-700"
+            : accessTokenControlEnabled
+            ? "bg-orange-50 text-orange-700"
             : writeToolsEnabled
             ? "bg-amber-50 text-amber-700"
             : "bg-emerald-50 text-emerald-700"
         }`}>
-          {automationModeEnabled ? "Automation mode" : writeToolsEnabled ? "Write tools enabled" : "Safe mode"}
+          {automationModeEnabled ? "Automation mode" : accessTokenControlEnabled ? "accessToken control" : writeToolsEnabled ? "Write tools enabled" : "Safe mode"}
         </span>
         <button
           onClick={() => setSettingsOpen((open) => !open)}
@@ -819,6 +859,24 @@ export function ChatPage() {
                 {modeBusy
                   ? "..."
                   : writeToolsEnabled
+                    ? "Disable"
+                    : "Enable"}
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+              <p className="text-slate-500">
+                {accessTokenControlEnabled
+                  ? "accessToken control enabled. API token lifecycle tools are visible for new prompts."
+                  : "accessToken control exposes token lifecycle tools and extension-owned transaction token use."}
+              </p>
+              <button
+                onClick={() => void handleToggleAccessTokenControl()}
+                disabled={modeBusy || busy || !writeToolsEnabled}
+                className="shrink-0 rounded-md bg-white px-3 py-1.5 font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+              >
+                {modeBusy
+                  ? "..."
+                  : accessTokenControlEnabled
                     ? "Disable"
                     : "Enable"}
               </button>

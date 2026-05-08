@@ -16,8 +16,23 @@ function requestSdk(jobId, path, args) {
   post({ type: "sandbox_sdk_call", jobId, requestId, path, args });
 
   return new Promise((resolve, reject) => {
-    pendingSdkCalls.set(requestId, { resolve, reject });
+    pendingSdkCalls.set(requestId, { resolve, reject, path });
   });
+}
+
+function normalizeSdkResult(path, result) {
+  if (path.join(".") !== "contacts.list") return result;
+  const items = Array.isArray(result)
+    ? result
+    : result && typeof result === "object" && Array.isArray(result.items)
+      ? result.items
+      : [];
+  Object.defineProperty(items, "items", {
+    value: items,
+    enumerable: false,
+    configurable: true,
+  });
+  return items;
 }
 
 function createSdkProxy(jobId, path = []) {
@@ -148,6 +163,6 @@ window.addEventListener("message", (event) => {
     if (!entry) return;
     pendingSdkCalls.delete(requestId);
     if (data.type === "sandbox_sdk_error") entry.reject(new Error(String(data.error ?? "SDK call failed.")));
-    else entry.resolve(data.result);
+    else entry.resolve(normalizeSdkResult(entry.path, data.result));
   }
 });

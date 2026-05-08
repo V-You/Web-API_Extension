@@ -22,13 +22,16 @@ vi.stubGlobal("chrome", {
 
 import {
   CHAT_AUTOMATION_MODE_KEY,
+  CHAT_ACCESS_TOKEN_CONTROL_KEY,
   CHAT_RENDER_MARKDOWN_KEY,
   CHAT_SHOW_TOOL_TRACES_KEY,
   CHAT_WRITE_TOOLS_KEY,
+  isChatAccessTokenControlEnabled,
   isChatAutomationModeEnabled,
   isChatRenderMarkdownEnabled,
   isChatShowToolTracesEnabled,
   isChatWriteToolsEnabled,
+  setChatAccessTokenControlEnabled,
   setChatAutomationModeEnabled,
   setChatRenderMarkdownEnabled,
   setChatShowToolTracesEnabled,
@@ -56,6 +59,19 @@ describe("chat mode", () => {
     expect(await isChatAutomationModeEnabled()).toBe(false);
   });
 
+  it("requires write mode before enabling accessToken control", async () => {
+    await expect(setChatAccessTokenControlEnabled(true)).rejects.toThrow("Enable write tools");
+    expect(sessionStore[CHAT_ACCESS_TOKEN_CONTROL_KEY]).toBeUndefined();
+  });
+
+  it("stores accessToken control once write mode is enabled", async () => {
+    await setChatWriteToolsEnabled(true);
+    await setChatAccessTokenControlEnabled(true);
+
+    expect(sessionStore[CHAT_ACCESS_TOKEN_CONTROL_KEY]).toBe(true);
+    expect(await isChatAccessTokenControlEnabled()).toBe(true);
+  });
+
   it("requires write mode before enabling automation mode", async () => {
     await expect(setChatAutomationModeEnabled(true)).rejects.toThrow("Enable write tools");
     expect(sessionStore[CHAT_AUTOMATION_MODE_KEY]).toBeUndefined();
@@ -76,7 +92,9 @@ describe("chat mode", () => {
 
     expect(sessionStore[CHAT_WRITE_TOOLS_KEY]).toBe(false);
     expect(sessionStore[CHAT_AUTOMATION_MODE_KEY]).toBe(false);
+    expect(sessionStore[CHAT_ACCESS_TOKEN_CONTROL_KEY]).toBe(false);
     expect(await isChatAutomationModeEnabled()).toBe(false);
+    expect(await isChatAccessTokenControlEnabled()).toBe(false);
   });
 
   it("hides tool traces by default", async () => {

@@ -17,12 +17,43 @@ import {
   deleteTransactionToken,
   type TransactionTokenRecord,
 } from "../../src/lib/storage";
+import { apiRequest } from "../../src/lib/api-client";
+import { maskSecret, redactSecrets } from "../../src/lib/redact";
+import { sendExampleTransaction } from "../../src/lib/transaction-client";
 
 interface Props {
   onChanged: () => void;
 }
 
 const TEST_COOLDOWN_MS = 2000;
+const DEFAULT_TRANSACTION_BODY = [
+  "entityId=8ac7a4c79394bdc801939736f17e063d",
+  "amount=92.00",
+  "currency=EUR",
+  "paymentBrand=VISA",
+  "paymentType=PA",
+  "card.number=4200000000000000",
+  "card.holder=Jane Jones",
+  "card.expiryMonth=05",
+  "card.expiryYear=2034",
+  "card.cvv=123",
+].join("\n");
+
+interface ApiTokenMetadata {
+  id: string;
+  alias: string;
+  createdTime: string;
+  lastDigits: string;
+  lastUsedTime: string;
+  state: string;
+  apiBearerToken?: string;
+}
+
+interface ApiTokenResponse {
+  apiToken?: ApiTokenMetadata;
+  apiTokens?: ApiTokenMetadata[];
+  error?: { message?: string };
+}
 
 export function ConnectionsPage({ onChanged }: Props) {
   const [selectedEnv, setSelectedEnv] = useState<Environment>("uat");
@@ -449,6 +480,10 @@ function TransactionTokenVault({ env }: { env: Environment }) {
   const [label, setLabel] = useState("");
   const [token, setToken] = useState("");
   const [pin, setPin] = useState("");
+  const [apiTokens, setApiTokens] = useState<ApiTokenMetadata[]>([]);
+  const [selectedTokenId, setSelectedTokenId] = useState("");
+  const [transactionBody, setTransactionBody] = useState(DEFAULT_TRANSACTION_BODY);
+  const [transactionResult, setTransactionResult] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -462,6 +497,10 @@ function TransactionTokenVault({ env }: { env: Environment }) {
     setLabel("");
     setToken("");
     setPin("");
+    setApiTokens([]);
+    setSelectedTokenId("");
+    setTransactionBody(DEFAULT_TRANSACTION_BODY);
+    setTransactionResult(null);
     setError(null);
     setSaved(false);
     return () => {
@@ -470,7 +509,11 @@ function TransactionTokenVault({ env }: { env: Environment }) {
   }, [env]);
 
   async function refresh() {
-    setTokens(await getTransactionTokens(env));
+    const rows = await getTransactionTokens(env);
+    setTokens(rows);
+    if (selectedTokenId && !rows.some((row) => row.id === selectedTokenId)) {
+      setSelectedTokenId("");
+    }
   }
 
   async function handleSave() {
@@ -507,6 +550,203 @@ function TransactionTokenVault({ env }: { env: Environment }) {
     }
   }
 
+  async function requireCreds(): Promise<ApiCredentials> {
+    const creds = await getCredentials(env);
+    if (!creds) throw new Error("Unlock Web API credentials before using API token controls.");
+    return creds;
+  }
+
+  async function listApiTokens(targetMerchantId = merchantId.trim()) {
+    if (!targetMerchantId) throw new Error("Merchant entity UUID is required.");
+    const creds = await requireCreds();
+    const res = await apiRequest<ApiTokenResponse>(creds, env, {
+      path: `/merchants/${encodeURIComponent(targetMerchantId)}/apiTokens`,
+    });
+    if (!res.ok || res.data.error) throw new Error(res.data.error?.message ?? "Failed to list API tokens.");
+    setApiTokens(res.data.apiTokens ?? []);
+  }
+
+  async function updateApiTokenAlias(creds: ApiCredentials, apiTokenId: string, alias: string) {
+    return apiRequest<ApiTokenResponse>(creds, env, {
+      method: "POST",
+      path: `/apiTokens/${encodeURIComponent(apiTokenId)}`,
+      params: { alias },
+    }, {
+      eventType: "api_token_update",
+      entityId: apiTokenId,
+      entityType: "apiToken",
+    });
+  }
+
+  async function suspendApiToken(creds: ApiCredentials, apiTokenId: string) {
+    return apiRequest<ApiTokenResponse>(creds, env, {
+      method: "POST",
+      path: `/apiTokens/${encodeURIComponent(apiTokenId)}/suspend`,
+    }, {
+      eventType: "api_token_suspend",
+      entityId: apiTokenId,
+      entityType: "apiToken",
+    });
+  }
+
+  async function deleteApiToken(creds: ApiCredentials, apiTokenId: string) {
+    return apiRequest<ApiTokenResponse>(creds, env, {
+      method: "DELETE",
+      path: `/apiTokens/${encodeURIComponent(apiTokenId)}`,
+    }, {
+      eventType: "api_token_delete",
+      entityId: apiTokenId,
+      entityType: "apiToken",
+    });
+  }
+
+  async function createApiToken(creds: ApiCredentials, targetMerchantId: string, alias: string): Promise<ApiTokenMetadata> {
+    const created = await apiRequest<ApiTokenResponse>(creds, env, {
+      method: "POST",
+      path: `/merchants/${encodeURIComponent(targetMerchantId)}/apiTokens`,
+    }, {
+      eventType: "api_token_create",
+      entityId: targetMerchantId,
+      entityType: "merchant",
+    });
+    if (!created.ok || created.data.error || !created.data.apiToken?.apiBearerToken) {
+      throw new Error(created.data.error?.message ?? "API token was not created or did not return a bearer token.");
+    }
+
+    const apiToken = created.data.apiToken;
+    if (apiToken.id && alias) {
+      const renamed = await updateApiTokenAlias(creds, apiToken.id, alias);
+      if (renamed.ok && renamed.data.apiToken) return { ...renamed.data.apiToken, apiBearerToken: apiToken.apiBearerToken };
+    }
+    return apiToken;
+  }
+
+  async function handleListApiTokens() {
+    setBusy(true);
+    setError(null);
+    try {
+      await listApiTokens();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to list API tokens.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateAndStoreApiToken() {
+    const targetMerchantId = merchantId.trim();
+    if (!targetMerchantId) {
+      setError("Merchant entity UUID is required.");
+      return;
+    }
+    if (pin.length < 6) {
+      setError("PIN is required to encrypt the created token.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const creds = await requireCreds();
+      const alias = `wax_${Date.now()}`;
+      const created = await createApiToken(creds, targetMerchantId, alias);
+      await saveTransactionToken(env, {
+        merchantId: targetMerchantId,
+        label: label || created.alias || alias,
+        token: created.apiBearerToken ?? "",
+        source: "webapi",
+        apiTokenId: created.id,
+        lastDigits: created.lastDigits,
+        state: created.state,
+        remoteCreatedTime: created.createdTime,
+        remoteLastUsedTime: created.lastUsedTime,
+      }, pin);
+      await refresh();
+      await listApiTokens(targetMerchantId).catch(() => undefined);
+      setToken("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create and store API token.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemoteTokenAction(apiTokenId: string, action: "suspend" | "activate" | "delete" | "revoke-delete") {
+    setBusy(true);
+    setError(null);
+    try {
+      const creds = await requireCreds();
+      if (action === "suspend") {
+        await suspendApiToken(creds, apiTokenId);
+      } else if (action === "activate") {
+        await apiRequest<ApiTokenResponse>(creds, env, {
+          method: "POST",
+          path: `/apiTokens/${encodeURIComponent(apiTokenId)}/activate`,
+        }, {
+          eventType: "api_token_activate",
+          entityId: apiTokenId,
+          entityType: "apiToken",
+        });
+      } else if (action === "delete") {
+        await deleteApiToken(creds, apiTokenId);
+      } else {
+        await suspendApiToken(creds, apiTokenId);
+        await deleteApiToken(creds, apiTokenId);
+      }
+      if (merchantId.trim()) await listApiTokens(merchantId.trim()).catch(() => undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Failed to ${action} API token.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRunExampleTransaction(useTemporaryToken: boolean) {
+    setBusy(true);
+    setError(null);
+    setTransactionResult(null);
+    let cleanupCreds: ApiCredentials | null = null;
+    let temporaryTokenId: string | undefined;
+    try {
+      const creds = await requireCreds();
+      cleanupCreds = creds;
+      const targetMerchantId = merchantId.trim();
+      let runToken = tokens.find((row) => row.id === selectedTokenId);
+
+      if (useTemporaryToken) {
+        if (!targetMerchantId) throw new Error("Merchant entity UUID is required for temporary token creation.");
+        const created = await createApiToken(creds, targetMerchantId, `wax_tmp_${Date.now()}`);
+        temporaryTokenId = created.id;
+        runToken = {
+          id: `temporary-${created.id}`,
+          merchantId: targetMerchantId,
+          token: created.apiBearerToken ?? "",
+          source: "webapi",
+          apiTokenId: created.id,
+          label: created.alias,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      if (!runToken?.token) throw new Error("Select a saved token or run with a temporary API token.");
+      const result = await sendExampleTransaction(env, runToken.token, transactionBody);
+
+      setTransactionResult(redactSecrets({ ...result, temporaryTokenDeleted: !!temporaryTokenId }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to run example transaction.");
+    } finally {
+      if (temporaryTokenId && cleanupCreds) {
+        await suspendApiToken(cleanupCreds, temporaryTokenId).catch(() => undefined);
+        await deleteApiToken(cleanupCreds, temporaryTokenId).catch(() => undefined);
+      }
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
       <div>
@@ -529,9 +769,13 @@ function TransactionTokenVault({ env }: { env: Environment }) {
                   <div className="font-medium text-slate-700 break-all">{row.merchantId}</div>
                   <div className="mt-0.5 text-2xs text-slate-500">
                     {row.label || "Merchant transaction token"} - {maskToken(row.token)}
+                    {row.source === "webapi" ? " - Web API" : " - manual"}
                   </div>
                   <div className="mt-0.5 text-2xs text-slate-400">
                     Updated {new Date(row.updatedAt).toLocaleString()}
+                    {row.apiTokenId ? ` - ${row.apiTokenId}` : ""}
+                    {row.lastDigits ? ` - ${row.lastDigits}` : ""}
+                    {row.state ? ` - ${row.state}` : ""}
                   </div>
                 </div>
                 <button
@@ -606,8 +850,96 @@ function TransactionTokenVault({ env }: { env: Environment }) {
       </button>
 
       <p className="text-2xs text-slate-400">
-        In BIP, generate a new token at Merchant level: Administration &gt; Account Data &gt; Generate Api Bearer token. Merchant Info tokens are masked and cannot be recovered.
+        Tokens can be created through Web API token controls or pasted manually from BIP. Raw bearer values stay local and are never shown after saving.
       </p>
+
+      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-slate-600">API token controls</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => void handleListApiTokens()}
+              disabled={busy || !merchantId.trim()}
+              className="rounded-md bg-white px-2 py-1 text-2xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            >
+              List
+            </button>
+            <button
+              onClick={() => void handleCreateAndStoreApiToken()}
+              disabled={busy || !merchantId.trim() || pin.length < 6}
+              className="rounded-md bg-white px-2 py-1 text-2xs font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+            >
+              Create and store
+            </button>
+          </div>
+        </div>
+        <p className="text-2xs text-slate-500">Extension-created aliases use the wax_ prefix when the API accepts alias updates.</p>
+        {apiTokens.length > 0 && (
+          <div className="space-y-1">
+            {apiTokens.map((apiToken) => (
+              <div key={apiToken.id} className="rounded-md border border-slate-200 bg-white p-2 text-2xs text-slate-600">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="break-all font-medium text-slate-700">{apiToken.alias || apiToken.id}</div>
+                    <div>{apiToken.state} - {apiToken.lastDigits} - last used {apiToken.lastUsedTime}</div>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <button onClick={() => void handleRemoteTokenAction(apiToken.id, "suspend")} disabled={busy} className="text-orange-700 disabled:opacity-50">Suspend</button>
+                    <button onClick={() => void handleRemoteTokenAction(apiToken.id, "activate")} disabled={busy} className="text-emerald-700 disabled:opacity-50">Activate</button>
+                    <button onClick={() => void handleRemoteTokenAction(apiToken.id, "revoke-delete")} disabled={busy} className="text-red-700 disabled:opacity-50">Revoke</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+        <div>
+          <h4 className="text-xs font-semibold text-slate-600">Example transaction</h4>
+          <p className="mt-1 text-2xs text-slate-500">UAT server-to-server pre-authorization sample. The endpoint and bearer token are supplied internally.</p>
+        </div>
+        <select
+          value={selectedTokenId}
+          onChange={(event) => setSelectedTokenId(event.target.value)}
+          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs"
+        >
+          <option value="">Select saved token</option>
+          {tokens.map((row) => (
+            <option key={row.id} value={row.id}>{row.label || row.merchantId} - {maskSecret(row.token)}</option>
+          ))}
+        </select>
+        <textarea
+          value={transactionBody}
+          onChange={(event) => setTransactionBody(event.target.value)}
+          rows={10}
+          className="w-full rounded-md border border-slate-200 px-2 py-1.5 font-mono text-2xs"
+        />
+        <p className="text-2xs text-amber-700">Direct card collection requires PCI-DSS compliance. The sample card body is intended for UAT testing.</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => void handleRunExampleTransaction(false)}
+            disabled={busy || !selectedTokenId}
+            className="flex-1 rounded-md bg-slate-800 py-1.5 text-xs font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+          >
+            Run with saved token
+          </button>
+          <button
+            onClick={() => void handleRunExampleTransaction(true)}
+            disabled={busy || env !== "uat" || !merchantId.trim()}
+            className="flex-1 rounded-md bg-orange-600 py-1.5 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+          >
+            Create, run, clean up
+          </button>
+        </div>
+        {env === "prod" && <p className="text-2xs text-red-600">Temporary example transaction creation is disabled for Prod in this slice.</p>}
+        {transactionResult !== null && (
+          <pre className="max-h-48 overflow-auto rounded-md bg-white p-2 text-2xs text-slate-600">
+            {JSON.stringify(transactionResult, null, 2)}
+          </pre>
+        )}
+      </div>
     </div>
   );
 }

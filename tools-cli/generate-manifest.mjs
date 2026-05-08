@@ -108,6 +108,15 @@ const OPERATION_MAP = {
   // clearing institutes ------------------------------------------------
   listClearingInstitutes: { tool: "list_clearing_institutes", parent: "psp" },
 
+  // api tokens ---------------------------------------------------------
+  listApiTokensForMerchant: { tool: "list_api_tokens", parent: "merchant" },
+  createApiTokenForMerchant: { tool: "create_api_token", parent: "merchant" },
+  getApiToken: { tool: "get_api_token", parent: null },
+  updateApiToken: { tool: "update_api_token", parent: null },
+  suspendApiToken: { tool: "suspend_api_token", parent: null },
+  activateApiToken: { tool: "activate_api_token", parent: null },
+  deleteApiToken: { tool: "delete_api_token", parent: null },
+
   // password (audit-log exempt; separate logical tool)
   setPassword: { tool: "set_contact_password", parent: null },
 };
@@ -119,6 +128,11 @@ const DESTRUCTIVE_ACTIONS = new Set([
   "delete_merchant_account",
   "detach_contact",
   "detach_merchant_account",
+  "create_api_token",
+  "update_api_token",
+  "suspend_api_token",
+  "activate_api_token",
+  "delete_api_token",
   "set_contact_password",
 ]);
 
@@ -147,6 +161,11 @@ const AUDIT_EVENT_TYPE = {
   delete_merchant_account: "ma_delete",
   attach_merchant_account: "ma_attach",
   detach_merchant_account: "ma_detach",
+  create_api_token: "api_token_create",
+  update_api_token: "api_token_update",
+  suspend_api_token: "api_token_suspend",
+  activate_api_token: "api_token_activate",
+  delete_api_token: "api_token_delete",
 };
 
 // ---------------------------------------------------------------------
@@ -161,6 +180,38 @@ function normalizeFormatHint(raw) {
   const s = String(raw).trim();
   if (!s) return null;
   return s;
+}
+
+function resolveLocalRef(spec, ref) {
+  if (!ref || typeof ref !== "string" || !ref.startsWith("#/")) return null;
+  return ref
+    .slice(2)
+    .split("/")
+    .reduce((node, part) => node?.[part], spec) ?? null;
+}
+
+function resolveNode(spec, node) {
+  if (!node || typeof node !== "object") return node;
+  if (node.$ref) {
+    return resolveNode(spec, resolveLocalRef(spec, node.$ref));
+  }
+  return node;
+}
+
+function mergeAllOfSchemas(spec, schema) {
+  const resolved = resolveNode(spec, schema);
+  if (!resolved?.allOf) return resolved;
+
+  const merged = { ...resolved, allOf: undefined, properties: {}, required: [] };
+  for (const part of resolved.allOf) {
+    const child = mergeAllOfSchemas(spec, part);
+    if (!child) continue;
+    Object.assign(merged, child);
+    merged.properties = { ...(merged.properties ?? {}), ...(child.properties ?? {}) };
+    merged.required = Array.from(new Set([...(merged.required ?? []), ...(child.required ?? [])]));
+  }
+  delete merged.allOf;
+  return merged;
 }
 
 function applyCharacterMapping(field, mapping) {
@@ -215,10 +266,10 @@ function extractExampleFields(examples) {
   return names;
 }
 
-function buildRequestFields(op, mapping) {
+function buildRequestFields(spec, op, mapping) {
   const body = op.requestBody?.content?.["application/x-www-form-urlencoded"];
   if (!body) return [];
-  const schema = body.schema;
+  const schema = mergeAllOfSchemas(spec, body.schema);
   if (!schema?.properties) return [];
 
   const exampleFields = extractExampleFields(body.examples);
@@ -226,30 +277,31 @@ function buildRequestFields(op, mapping) {
 
   const out = [];
   for (const [name, prop] of Object.entries(schema.properties)) {
-    const mappingHit = applyCharacterMapping(prop, mapping);
-    const conditional = detectConditionalTrigger(name, prop.description);
+    const resolvedProp = mergeAllOfSchemas(spec, prop);
+    const mappingHit = applyCharacterMapping(resolvedProp, mapping);
+    const conditional = detectConditionalTrigger(name, resolvedProp.description);
 
     let required = "optional";
     if (specRequired.has(name)) required = "required_spec";
     else if (conditional) required = "conditional";
     else if (exampleFields.has(name)) required = "example_core";
 
-    const logicalType = deriveLogicalType(prop, mappingHit);
+    const logicalType = deriveLogicalType(resolvedProp, mappingHit);
     const field = {
       name,
       logicalType,
       required,
-      description: prop.description ?? null,
+      description: resolvedProp.description ?? null,
     };
 
-    const pattern = mappingHit?.rule?.pattern ?? prop.pattern ?? null;
+    const pattern = mappingHit?.rule?.pattern ?? resolvedProp.pattern ?? null;
     if (pattern) field.pattern = pattern;
 
-    const enumVals = mappingHit?.rule?.enum ?? prop.enum ?? null;
+    const enumVals = mappingHit?.rule?.enum ?? resolvedProp.enum ?? null;
     if (enumVals) field.enum = enumVals;
 
     if (mappingHit?.rule?.suggested_format) field.format = mappingHit.rule.suggested_format;
-    if (prop.example !== undefined) field.example = prop.example;
+    if (resolvedProp.example !== undefined) field.example = resolvedProp.example;
     if (conditional) field.conditionalTrigger = conditional;
 
     if (name === "state" && DESTRUCTIVE_VALUES.state) {
@@ -265,18 +317,19 @@ function buildRequestFields(op, mapping) {
   return out;
 }
 
-function buildPathParams(op) {
+function buildPathParams(spec, op) {
   const params = op.parameters ?? [];
   return params
-    .filter((p) => p.in === "path")
+    .map((p) => resolveNode(spec, p))
+    .filter((p) => p?.in === "path")
     .map((p) => ({
       name: p.name,
-      pattern: p.schema?.pattern ?? null,
+      pattern: resolveNode(spec, p.schema)?.pattern ?? null,
       required: true,
     }));
 }
 
-function buildOperationEntry(pathTemplate, method, op, mapping) {
+function buildOperationEntry(spec, pathTemplate, method, op, mapping) {
   const opId = op.operationId;
   const mapped = OPERATION_MAP[opId];
   const entry = {
@@ -285,8 +338,8 @@ function buildOperationEntry(pathTemplate, method, op, mapping) {
     parentEntityType: mapped?.parent ?? null,
     method: method.toUpperCase(),
     pathTemplate,
-    pathParams: buildPathParams(op),
-    request: buildRequestFields(op, mapping),
+    pathParams: buildPathParams(spec, op),
+    request: buildRequestFields(spec, op, mapping),
     description: op.description ?? op.summary ?? null,
     auditEventType: mapped ? AUDIT_EVENT_TYPE[mapped.tool] ?? null : null,
     destructive: mapped ? DESTRUCTIVE_ACTIONS.has(mapped.tool) : false,
@@ -302,7 +355,7 @@ function buildManifest(spec, mapping) {
   for (const [pathTemplate, methods] of Object.entries(spec.paths ?? {})) {
     for (const [method, op] of Object.entries(methods)) {
       if (!["get", "post", "put", "delete", "patch"].includes(method)) continue;
-      const entry = buildOperationEntry(pathTemplate, method, op, mapping);
+      const entry = buildOperationEntry(spec, pathTemplate, method, op, mapping);
       operations.push(entry);
       if (!entry.toolName) {
         if (entry.operationId) unmapped.push(entry.operationId);

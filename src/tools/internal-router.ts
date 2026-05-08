@@ -3,6 +3,7 @@ import { confirmIfMutating, describeMutatingCall } from "../bridge/write-confirm
 import { getJobFresh, type JobRecord } from "../jobs/job-store";
 import type { EntityType } from "../lib/entity-types";
 import { getActiveEnv, getCredentials } from "../lib/storage";
+import { isChatAccessTokenControlEnabled } from "../chat/chat-mode";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
 import { executeTypedTool, isReadOnlyTool } from "./adapter";
 import { executeDescribeSettings } from "./describe-settings";
@@ -16,6 +17,16 @@ import { executeManageSettings } from "./manage-settings";
 import { executeWorkflow } from "./execute-workflow";
 import { describeOperation } from "./describe-operation";
 import { MANIFEST } from "./manifest-helpers";
+
+const API_TOKEN_TOOLS = new Set([
+  "list_api_tokens",
+  "get_api_token",
+  "create_api_token",
+  "update_api_token",
+  "suspend_api_token",
+  "activate_api_token",
+  "delete_api_token",
+]);
 
 export interface ToolSession {
   creds: ApiCredentials;
@@ -409,6 +420,9 @@ export function registerGeneratedToolExecutors(
     if (ignoredByWebMcp.has(toolName)) continue;
 
     map[toolName] = async (params) => {
+      if (API_TOKEN_TOOLS.has(toolName) && !await isChatAccessTokenControlEnabled()) {
+        throw new Error("Enable accessToken control in Chat settings before using API token tools.");
+      }
       const { creds, env } = await sessionOrError();
       return executeTypedTool(toolName, params, {
         creds,

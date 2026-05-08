@@ -134,7 +134,7 @@ Host permissions grant dashboard scope on `*.oppwa.com`, `*.ctpe.info`, and `*.p
 3. Choose a PIN (minimum 6 digits). Store PIN in external tool.
 4. On later visits, enter PIN to unlock. Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The decrypted credentials in `chrome.storage.session` survive idle, but are cleared on browser restart. 
 
-Connections can also store Merchant-scoped transaction bearer tokens for UAT/Prod test payments. Generate a new token in BIP at Merchant level under **Administration > Account Data > Generate Api Bearer token**, then save it under the Merchant entity UUID. These tokens are Merchant-level-and-below, not Channel-level, and are encrypted with the same PIN model as Web API credentials.
+Connections can also create, store, and manage Merchant-scoped transaction bearer tokens for UAT/Prod test payments. The Web API token endpoints can create a new Merchant token directly; manual paste from BIP remains available as a fallback. These tokens are Merchant-level-and-below, not Channel-level, and are encrypted with the same PIN model as Web API credentials. Raw bearer tokens are not shown to the LLM, audit log, tool traces, console logs, or normal UI text.
 
 > **Any LLM with browser-capability** can now connect to a supported dashboard site (`oppwa.com` or supported whitelabel domains), and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
 
@@ -203,7 +203,7 @@ google-chrome-unstable \
 
 ### The agent gap (why Chat Tab)
 
-The extension exposes 37 tools via WebMCP (10 handwritten umbrellas + 27 published per-action tools generated from the ACI Web API manifest; `list_clearing_institutes` stays folded into the handwritten `lookup_clearing_institutes` tool), but consuming those tools requires an AI agent that supports WebMCP tool calling. 
+The extension exposes 46 tools via WebMCP (12 handwritten tools + 34 published per-action tools generated from the ACI Web API manifest; `list_clearing_institutes` stays folded into the handwritten `lookup_clearing_institutes` tool), but consuming those tools requires an AI agent that supports WebMCP tool calling. 
 
  Chat Tab is needed to demo the too. It's not using WebMCP, but re-publishing a curated subset of the WebMCP tool inventory through an adapter layer. As of 2026-04, no readily available browser-side agent fills the demo role:
 
@@ -248,12 +248,12 @@ Short version:
 
 **What would shrink the tool count:**
 
-- **WebMCP-only world:** the 10 per-action read tools become redundant (the umbrellas already cover them). That's 37 -> 27.
-- **If WebMCP agents handle complex schemas well:** the 18 per-action write tools could fold back into the 3 write umbrellas (manage_entity, manage_contact, manage_merchant_account). That's 27 -> 12. But accuracy data says otherwise -- splitting was deliberate.
+- **WebMCP-only world:** some per-action read tools become redundant where umbrellas already cover the same read domain.
+- **If WebMCP agents handle complex schemas well:** several per-action write tools could fold back into the broad umbrellas. Accuracy data still says otherwise -- splitting remains deliberate.
 
 **Pitch line:**
 
-> "37 tools, but 10 of those are read-only duplicates that only exist for the BYOK chat adapter's schema constraints. In a WebMCP-only deployment, the extension exposes 27 tools. 8 are multi-action read umbrellas, 1 is a self-describing meta-tool, and 18 are one-tool-per-write-operation -- split deliberately because accuracy testing showed that bundled write schemas caused field confusion in models."
+> "46 tools, with read umbrellas for broad exploration and per-action tools for writes where accuracy matters. API token lifecycle tools are included, but Chat hides them until accessToken control is enabled. The split is deliberate because accuracy testing showed that bundled write schemas caused field confusion in models."
 
 --- 
 
@@ -466,7 +466,7 @@ Write operations always require confirmation. If the Web API Extension side pane
 
 ### Tools
 
-Once the extension is loaded and unlocked, **37 tools** are published to any WebMCP-compatible agent (e.g. Chrome's built-in AI sidebar): 10 handwritten umbrellas + 27 published per-action tools generated from the ACI Web API manifest.
+Once the extension is loaded and unlocked, **46 tools** are published to any WebMCP-compatible agent (e.g. Chrome's built-in AI sidebar): 12 handwritten tools + 34 published per-action tools generated from the ACI Web API manifest.
 
 Handwritten umbrellas (broad scope, read-only on the chat path for umbrellas with mutating siblings -- writes always go through the per-action tools):
 
@@ -483,7 +483,7 @@ Handwritten umbrellas (broad scope, read-only on the chat path for umbrellas wit
 | `execute_workflow` | Code mode | Execute a script in a local sandbox against the virtual SDK |
 | `get_audit_log` | Audit | Retrieve local audit entries with filters |
 
-Per-action tools (28) are generated from `src_data/webapi-operation-manifest.json` into `src/webmcp/generated-tool-schemas.ts` and cover `create_*`, `edit_*`, `delete_*`, `attach_*`, `detach_*`, `lock_contact`, `unlock_contact`, `set_contact_password`, plus the granular `get_*` / `list_*` reads. See [Generated artifacts](#generated-artifacts) below.
+Per-action tools (34 published tools, plus `list_clearing_institutes` folded into the handwritten lookup tool) are generated from `src_data/webapi-operation-manifest.json` into `src/webmcp/generated-tool-schemas.ts` and cover `create_*`, `edit_*`, `delete_*`, `attach_*`, `detach_*`, `lock_contact`, `unlock_contact`, `set_contact_password`, API token lifecycle tools, plus the granular `get_*` / `list_*` reads. See [Generated artifacts](#generated-artifacts) below.
 
 All write operations go through a **preview-then-confirm** flow: the extension shows the exact API calls and the user approves or cancels.
 
@@ -547,7 +547,7 @@ The active environment (UAT or Prod) is shown as a badge in the side panel. Swit
 
 | Layer | Module(s) | Role |
 |---|---|---|
-| **WebMCP registration** | `src/webmcp/register-tools.ts` | Registers 37 tools via `navigator.modelContext.registerTool()` (10 handwritten + 27 generated). Intercepts direct writes with a confirmation prompt. |
+| **WebMCP registration** | `src/webmcp/register-tools.ts` | Registers 46 tools via `navigator.modelContext.registerTool()` (12 handwritten + 34 generated). Intercepts direct writes with a confirmation prompt. |
 | **Tool handlers** | `src/tools/*.ts` + generated adapter | Handwritten umbrellas + a typed adapter (`src/tools/adapter.ts`) that runs every generated per-action tool via the manifest. Each validates input (Zod for umbrellas; manifest-derived field validation for per-action tools), calls the API client, and returns structured results. |
 | **Sandbox** | `src/sandbox/sandbox.ts`, `sdk-facade.ts` | Code-mode validation and SDK facade. Runtime execution is being moved to a manifest sandbox hosted by an offscreen document; SDK calls route back to privileged handlers. |
 | **Virtual SDK** | `src/sdk/riro-tree.ts`, `proxy.ts`, `sdk.ts` | Type-on-demand settings layer. Parses `riro_consolidated_lookup.json` into a nested tree with Zod schemas, flattens typed objects back to flat RiRo keys at write time. |
@@ -656,7 +656,7 @@ Handle it conservatively: keep authoritative settings metadata in `riro_consolid
 | Data | Where it lives | Exposed to LLM? |
 |------|----------------|-----------------|
 | API credentials | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never |
-| Transaction bearer tokens | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never by default; intended for extension-owned transaction tools |
+| Transaction bearer tokens | Encrypted in `chrome.storage.local`; decrypted in `chrome.storage.session` | Never; extension-owned token and transaction tools use them internally with redacted outputs |
 | Tool call parameters | Extension memory only (not persisted) | Tool schema visible; parameter values visible to the calling agent |
 | API responses | Returned to calling agent as tool results | Yes -- the agent sees the structured result |
 | Audit log | `chrome.storage.local` (trimmed to newest 200 entries and roughly 200 KB on write) | Only via `get_audit_log` tool (agent must explicitly request) |

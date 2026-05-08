@@ -3,6 +3,12 @@
 // Typed parameter shapes for each Virtual SDK method derived from the
 // committed operation manifest.
 
+export interface Params_activate_api_token {
+  "apiTokenId": string;
+  /** Set true to bypass the confirm bridge for destructive calls. */
+  confirm?: boolean;
+}
+
 export interface Params_attach_merchant_account {
   parentType: "psp" | "division" | "merchant" | "channel";
   parentId: string;
@@ -32,12 +38,18 @@ export interface Params_attach_merchant_account {
   "selectionDescriptor3"?: string;
 }
 
+export interface Params_create_api_token {
+  "merchantId": string;
+  /** Set true to bypass the confirm bridge for destructive calls. */
+  confirm?: boolean;
+}
+
 export interface Params_create_channel {
   "merchantId": string;
   /** The name of the channel. */
-  "name"?: string;
+  "name": string;
   /** LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED */
-  "state"?: string;
+  "state": string;
   /** The customer identifier. */
   "customerId"?: string;
   /** The description of the channel entity. */
@@ -50,7 +62,7 @@ export interface Params_create_contact {
   /** The user corporate email address */
   "email"?: string;
   /** The first and last name */
-  "name"?: string;
+  "name": string;
   /** The role of the account. Could be: */
   "role"?: string;
   /** The kind of the created contact. Could be: */
@@ -74,9 +86,9 @@ export interface Params_create_contact {
 export interface Params_create_division {
   "pspId": string;
   /** The name of the division. */
-  "name"?: string;
+  "name": string;
   /** LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED */
-  "state"?: string;
+  "state": string;
   /** The customer identifier. */
   "customerId"?: string;
   /** The description of the division entity. */
@@ -86,9 +98,9 @@ export interface Params_create_division {
 export interface Params_create_merchant {
   "divisionId": string;
   /** The name of the merchant. */
-  "name"?: string;
+  "name": string;
   /** LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED */
-  "state"?: string;
+  "state": string;
   /** The customer identifier. */
   "customerId"?: string;
   /** The description of the merchant entity. */
@@ -99,14 +111,14 @@ export interface Params_create_merchant_account {
   parentType: "psp" | "division" | "merchant" | "channel";
   parentId: string;
   /** The merchant account name. */
-  "name"?: string;
+  "name": string;
   /** The merchant Account state. LIVE, CLOSED, TEST or DISABLED. */
-  "state"?: string;
+  "state": string;
   /** The acquirer or alternative payment method name. */
   "clearingInstituteName"?: string;
   /** The MID (Merchant Identifier). */
   "merchantId"?: string;
-  "key"?: string;
+  "key": string;
   /** The acquirer or alternative payment method specific parameter. */
   "connectorSpecificParameter.MerchantKeyId"?: string;
   /** The merchant IBAN for funds to be transferred (SEPA). */
@@ -133,53 +145,68 @@ export interface Params_create_merchant_account {
   "avsRejectionPolicy"?: string;
   /** Mark transaction for review depending on the rejection policy (see above) */
   "avsReviewPolicy"?: string;
+  /** Possible values are: DA or DD */
   "debitAdviceProcedure"?: string;
   /** NONE, RECURRING, INSTALLMENT */
   "recurringCode"?: string;
   /** TRUE. FALSE support for 3D Secure */
-  "supports3DSecure"?: boolean;
+  "supports3DSecure": boolean;
   /** The merchant name (3DS2) */
-  "merchant3DName"?: string;
+  "merchant3DName": string;
   /** The merchant URL (3DS2) */
-  "merchant3DUrl"?: string;
+  "merchant3DUrl": string;
   /** The merchant country code (3DS2) */
-  "merchantIsoCountryCode"?: number;
+  "merchantIsoCountryCode": number;
   /** The merchant ID (3DS2) */
-  "merchant3DId"?: number;
+  "merchant3DId": number;
   /** The merchant category code (3DS2) */
-  "merchant3DCategory"?: number;
+  "merchant3DCategory": number;
   /** The merchant acquirer bin for VISA (3DS2) */
-  "visaMerchantAcquirerBin_v2"?: number;
+  "visaMerchantAcquirerBin_v2": number;
   /** The reqestor id for VISA (3DS2) */
-  "visaRequestorId_v2"?: number;
+  "visaRequestorId_v2": number;
   /** The requestor name for VISA (3DS2) */
-  "visaRequestorName"?: string;
+  "visaRequestorName": string;
   /** The merchant acquirer bin for MASTERCARD (3DS2) */
-  "masterMerchantAcquirerBin_v2"?: number;
+  "masterMerchantAcquirerBin_v2": number;
   /** The reqestor id for MASTERCARD (3DS2) */
-  "masterRequestorId_v2"?: number;
+  "masterRequestorId_v2": number;
   /** The requestor name for MASTERCARD (3DS2) */
-  "masterRequestorName"?: string;
+  "masterRequestorName": string;
   /** The merchant acquirer bin for AMEX (3DS2) */
-  "amexMerchantAcquirerBin_v2"?: number;
+  "amexMerchantAcquirerBin_v2": number;
   /** The reqestor id for AMEX (3DS2) */
-  "amexRequestorId_v2"?: string;
+  "amexRequestorId_v2": string;
   /** The requestor name for AMEX (3DS2) */
-  "amexRequestorName"?: string;
-  "dinersMerchantId"?: string;
-  "dinersMerchantPwd"?: string;
-  "dinersMerchantAcquirerBin_v2"?: string;
-  "dinersRequestorId_v2"?: string;
-  "dinersRequestorName"?: string;
-  "bcmcMerchantAcquirerBin_v2"?: string;
-  "bcmcRequestorId_v2"?: string;
-  "bcmcRequestorName"?: string;
+  "amexRequestorName": string;
+  /** Required for 3D Secure v2.x */
+  "dinersMerchantId": string;
+  /** Required for 3D Secure v2.x */
+  "dinersMerchantPwd": string;
+  /** Required for 3D Secure v2.x */
+  "dinersMerchantAcquirerBin_v2": string;
+  /** Required for 3D Secure v2.x */
+  "dinersRequestorId_v2": string;
+  /** Required for 3D Secure v2.x */
+  "dinersRequestorName": string;
+  /** Required for 3D Secure v2.x */
+  "bcmcMerchantAcquirerBin_v2": string;
+  /** Required for 3D Secure v2.x */
+  "bcmcRequestorId_v2": string;
+  /** Required for 3D Secure v2.x */
+  "bcmcRequestorName": string;
+  /** Required for 3D Secure v2.x */
   "jcbMerchantAcquirerBin_v2"?: string;
+  /** Required for 3D Secure v2.x */
   "jcbRequestorId_v2"?: string;
+  /** Required for 3D Secure v2.x */
   "jcbRequestorName"?: string;
-  "cashlinkMaltaMerchantAcquirerBin_v2"?: string;
-  "cashlinkMaltaRequestorId_v2"?: string;
-  "cashlinkMaltaRequestorName"?: string;
+  /** Required for 3D Secure v2.x */
+  "cashlinkMaltaMerchantAcquirerBin_v2": string;
+  /** Required for 3D Secure v2.x */
+  "cashlinkMaltaRequestorId_v2": string;
+  /** Required for 3D Secure v2.x */
+  "cashlinkMaltaRequestorName": string;
   /** TRUE or FALSE */
   "velocityDispachingActive"?: string;
   /** {Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR} */
@@ -204,6 +231,12 @@ export interface Params_create_merchant_account {
   "uploadUser"?: string;
   /** The credentials use to upload files to the provider. */
   "uploadPassword"?: string;
+}
+
+export interface Params_delete_api_token {
+  "apiTokenId": string;
+  /** Set true to bypass the confirm bridge for destructive calls. */
+  confirm?: boolean;
 }
 
 export interface Params_delete_contact {
@@ -244,7 +277,7 @@ export interface Params_edit_contact {
   /** The user corporate email address */
   "email"?: string;
   /** The first and last name */
-  "name"?: string;
+  "name": string;
   /** The role of the account. Could be: */
   "role"?: string;
   /** The kind of the created contact. Could be: */
@@ -264,16 +297,16 @@ export interface Params_edit_contact {
   /** Send authenticator email upon contact creation. */
   "sendAuthenticatorMail"?: boolean;
   /** The current state of the contact. Could be: */
-  "state"?: string;
+  "state": string;
 }
 
 export interface Params_edit_entity {
   parentType: "division" | "merchant" | "channel";
   parentId: string;
   /** The name of the division. */
-  "name"?: string;
+  "name": string;
   /** LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED */
-  "state"?: string;
+  "state": string;
   /** The customer identifier. */
   "customerId"?: string;
   /** The description of the division entity. */
@@ -283,81 +316,118 @@ export interface Params_edit_entity {
 export interface Params_edit_merchant_account {
   "merchantAccountId": string;
   /** Enable 3DS2 on your merchant account. */
-  "supports3DSecure"?: boolean;
+  "supports3DSecure": boolean;
   /** The merchant name. */
-  "merchant3DName"?: string;
+  "merchant3DName": string;
   /** The merchant website URL. */
-  "merchant3DUrl"?: string;
+  "merchant3DUrl": string;
   /** Merchant ISO country code. 276 is Germany. */
-  "merchantIsoCountryCode"?: number;
+  "merchantIsoCountryCode": number;
   /** Merchant identifier */
-  "merchant3DId"?: number;
+  "merchant3DId": number;
   /** The Merchant category code */
-  "merchant3DCategory"?: number;
+  "merchant3DCategory": number;
   /** The Visa acquirer BIN (3DS2). */
-  "visaMerchantAcquirerBin_v2"?: number;
+  "visaMerchantAcquirerBin_v2": number;
   /** The Visa requestor id (3DS2). */
-  "visaRequestorId_v2"?: number;
+  "visaRequestorId_v2": number;
   /** The Visa requestor name (3DS2). */
-  "visaRequestorName"?: string;
+  "visaRequestorName": string;
   /** The MasterCard acquirer BIN (3DS2). */
-  "masterMerchantAcquirerBin_v2"?: number;
+  "masterMerchantAcquirerBin_v2": number;
   /** The MasterCard requestor id (3DS2). */
-  "masterRequestorId_v2"?: number;
+  "masterRequestorId_v2": number;
   /** The MasterCard requestor name (3DS2). */
-  "masterRequestorName"?: string;
+  "masterRequestorName": string;
   /** The AMEX acquirer BIN (3DS2). */
-  "amexMerchantAcquirerBin_v2"?: number;
+  "amexMerchantAcquirerBin_v2": number;
   /** The AMEX requestor id (3DS2). */
-  "amexRequestorId_v2"?: string;
+  "amexRequestorId_v2": string;
   /** The AMEX requestor name (3DS2). */
-  "amexRequestorName"?: string;
-  "dinersMerchantId"?: string;
-  "dinersMerchantPwd"?: string;
-  "dinersMerchantAcquirerBin_v2"?: string;
-  "dinersRequestorId_v2"?: string;
-  "dinersRequestorName"?: string;
-  "bcmcMerchantAcquirerBin_v2"?: string;
-  "bcmcRequestorId_v2"?: string;
-  "bcmcRequestorName"?: string;
+  "amexRequestorName": string;
+  /** Required for 3D Secure v2.x */
+  "dinersMerchantId": string;
+  /** Required for 3D Secure v2.x */
+  "dinersMerchantPwd": string;
+  /** Required for 3D Secure v2.x */
+  "dinersMerchantAcquirerBin_v2": string;
+  /** Required for 3D Secure v2.x */
+  "dinersRequestorId_v2": string;
+  /** Required for 3D Secure v2.x */
+  "dinersRequestorName": string;
+  /** Required for 3D Secure v2.x */
+  "bcmcMerchantAcquirerBin_v2": string;
+  /** Required for 3D Secure v2.x */
+  "bcmcRequestorId_v2": string;
+  /** Required for 3D Secure v2.x */
+  "bcmcRequestorName": string;
+  /** Required for 3D Secure v2.x */
   "jcbMerchantAcquirerBin_v2"?: string;
+  /** Required for 3D Secure v2.x */
   "jcbRequestorId_v2"?: string;
+  /** Required for 3D Secure v2.x */
   "jcbRequestorName"?: string;
-  "cashlinkMaltaMerchantAcquirerBin_v2"?: string;
-  "cashlinkMaltaRequestorId_v2"?: string;
-  "cashlinkMaltaRequestorName"?: string;
-  "name"?: string;
-  "state"?: string;
+  /** Required for 3D Secure v2.x */
+  "cashlinkMaltaMerchantAcquirerBin_v2": string;
+  /** Required for 3D Secure v2.x */
+  "cashlinkMaltaRequestorId_v2": string;
+  /** Required for 3D Secure v2.x */
+  "cashlinkMaltaRequestorName": string;
+  /** The name of the merchant account. */
+  "name": string;
+  /** Possible values are "LIVE", "CLOSED", "TEST" or "DISABLED" */
+  "state": string;
   "clearingInstituteName"?: string;
   "merchantId"?: string;
-  "key"?: string;
+  "key": string;
   "connectorSpecificParameter.MerchantKeyId"?: string;
   "iban"?: string;
   "cleaingInstituteId"?: string;
   "terminalId"?: string;
   "password"?: string;
   "username"?: string;
+  /** Possible values are: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING, DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES, E_TICKETING or ONLINE_FINANCIAL */
   "merchantCategory"?: string;
+  /** Possible values are: ANY, MOTO, ECOMMERCE, EWALLET */
   "transactionCategory"?: string;
   "cvvInstruction"?: string;
   "cvvRejectionPolicy"?: string;
+  /** TRUE or FALSE */
   "avsCheckActive"?: string;
+  /** Possible values are: A, Z, N, U */
   "avsRejectionPolicy"?: string;
+  /** Possible values are: A, Z, N, U */
   "avsReviewPolicy"?: string;
+  /** Possible values are: DA or DD */
   "debitAdviceProcedure"?: string;
+  /** Possible values are: NONE, RECURRING, INSTALLMENT */
   "recurringCode"?: string;
+  /** TRUE or FALSE */
   "velocityDispachingActive"?: string;
+  /** {Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}For example, 12;11;2;DAY */
   "velocityDispatchingSetting"?: string;
+  /** TRUE or FALSE */
   "ticketSizeDispatchingActive"?: string;
+  /** {Minimum ticket size};{Maximum ticket size}For example, 2;10 */
   "ticketSizeDispatchingSetting"?: string;
+  /** ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time shoppers */
   "recurringDispatchingSetting"?: string;
+  /** ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time shoppers */
   "shopperDispatchingSetting"?: string;
+  /** PSP, DIVISION, MERCHANT, or CHANNEL */
   "shopperDispatchingScope"?: string;
+  /** in days */
   "shopperDispatchingValidity"?: string;
+  /** Define time in minutes when this payment request from Consumer should timeout. */
   "pendingTimeoutInMins"?: string;
+  /** Define time in minutes when the final payment status request from Acquirer should timeout. */
   "pendingForAcquirerTimeoutInMins"?: string;
   "uploadUser"?: string;
   "uploadPassword"?: string;
+}
+
+export interface Params_get_api_token {
+  "apiTokenId": string;
 }
 
 export interface Params_get_contact {
@@ -371,6 +441,10 @@ export interface Params_get_entity {
 
 export interface Params_get_merchant_account {
   "merchantAccountId": string;
+}
+
+export interface Params_list_api_tokens {
+  "merchantId": string;
 }
 
 export interface Params_list_attached_contacts {
@@ -419,17 +493,34 @@ export interface Params_set_contact_password {
   confirm?: boolean;
 }
 
+export interface Params_suspend_api_token {
+  "apiTokenId": string;
+  /** Set true to bypass the confirm bridge for destructive calls. */
+  confirm?: boolean;
+}
+
 export interface Params_unlock_contact {
   "contactId": string;
 }
 
+export interface Params_update_api_token {
+  "apiTokenId": string;
+  /** The alias or display name of the API token. */
+  "alias": string;
+  /** Set true to bypass the confirm bridge for destructive calls. */
+  confirm?: boolean;
+}
+
 export interface WebApiSdk {
+  "activate_api_token"(params: Params_activate_api_token): Promise<{ ok: boolean; status: number; data: unknown }>;
   "attach_merchant_account"(params: Params_attach_merchant_account): Promise<{ ok: boolean; status: number; data: unknown }>;
+  "create_api_token"(params: Params_create_api_token): Promise<{ ok: boolean; status: number; data: unknown }>;
   "create_channel"(params: Params_create_channel): Promise<{ ok: boolean; status: number; data: unknown }>;
   "create_contact"(params: Params_create_contact): Promise<{ ok: boolean; status: number; data: unknown }>;
   "create_division"(params: Params_create_division): Promise<{ ok: boolean; status: number; data: unknown }>;
   "create_merchant"(params: Params_create_merchant): Promise<{ ok: boolean; status: number; data: unknown }>;
   "create_merchant_account"(params: Params_create_merchant_account): Promise<{ ok: boolean; status: number; data: unknown }>;
+  "delete_api_token"(params: Params_delete_api_token): Promise<{ ok: boolean; status: number; data: unknown }>;
   "delete_contact"(params: Params_delete_contact): Promise<{ ok: boolean; status: number; data: unknown }>;
   "delete_entity"(params: Params_delete_entity): Promise<{ ok: boolean; status: number; data: unknown }>;
   "delete_merchant_account"(params: Params_delete_merchant_account): Promise<{ ok: boolean; status: number; data: unknown }>;
@@ -438,9 +529,11 @@ export interface WebApiSdk {
   "edit_contact"(params: Params_edit_contact): Promise<{ ok: boolean; status: number; data: unknown }>;
   "edit_entity"(params: Params_edit_entity): Promise<{ ok: boolean; status: number; data: unknown }>;
   "edit_merchant_account"(params: Params_edit_merchant_account): Promise<{ ok: boolean; status: number; data: unknown }>;
+  "get_api_token"(params: Params_get_api_token): Promise<{ ok: boolean; status: number; data: unknown }>;
   "get_contact"(params: Params_get_contact): Promise<{ ok: boolean; status: number; data: unknown }>;
   "get_entity"(params: Params_get_entity): Promise<{ ok: boolean; status: number; data: unknown }>;
   "get_merchant_account"(params: Params_get_merchant_account): Promise<{ ok: boolean; status: number; data: unknown }>;
+  "list_api_tokens"(params: Params_list_api_tokens): Promise<{ ok: boolean; status: number; data: unknown }>;
   "list_attached_contacts"(params: Params_list_attached_contacts): Promise<{ ok: boolean; status: number; data: unknown }>;
   "list_attached_merchant_accounts"(params: Params_list_attached_merchant_accounts): Promise<{ ok: boolean; status: number; data: unknown }>;
   "list_channels"(params: Params_list_channels): Promise<{ ok: boolean; status: number; data: unknown }>;
@@ -451,7 +544,9 @@ export interface WebApiSdk {
   "list_owned_merchant_accounts"(params: Params_list_owned_merchant_accounts): Promise<{ ok: boolean; status: number; data: unknown }>;
   "lock_contact"(params: Params_lock_contact): Promise<{ ok: boolean; status: number; data: unknown }>;
   "set_contact_password"(params: Params_set_contact_password): Promise<{ ok: boolean; status: number; data: unknown }>;
+  "suspend_api_token"(params: Params_suspend_api_token): Promise<{ ok: boolean; status: number; data: unknown }>;
   "unlock_contact"(params: Params_unlock_contact): Promise<{ ok: boolean; status: number; data: unknown }>;
+  "update_api_token"(params: Params_update_api_token): Promise<{ ok: boolean; status: number; data: unknown }>;
 }
 
 declare const sdk: WebApiSdk;

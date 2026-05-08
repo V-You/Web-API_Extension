@@ -175,7 +175,27 @@ describe("storage", () => {
 
     expect(row.merchantId).toBe("merchant-123");
     expect(row.label).toBe("test merchant");
+    expect(row.source).toBe("manual");
     expect(await getTransactionTokens("uat")).toEqual([row]);
+    expect(JSON.stringify(localStore["transactionTokens:uat"])).not.toContain("bearer-token-secret");
+  });
+
+  it("saves Web API-created token metadata", async () => {
+    const row = await saveTransactionToken("uat", {
+      merchantId: "merchant-123",
+      label: "wax_123",
+      token: "bearer-token-secret",
+      source: "webapi",
+      apiTokenId: "ffffffffffffffffffffffffffffffff",
+      lastDigits: "JMTUs=",
+      state: "ACTIVE",
+      remoteCreatedTime: "2026-05-07 17:45:49",
+      remoteLastUsedTime: "1970-01-01 00:00:00",
+    }, tokenPin);
+
+    expect(row.source).toBe("webapi");
+    expect(row.apiTokenId).toBe("ffffffffffffffffffffffffffffffff");
+    expect(row.lastDigits).toBe("JMTUs=");
     expect(JSON.stringify(localStore["transactionTokens:uat"])).not.toContain("bearer-token-secret");
   });
 

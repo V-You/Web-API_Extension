@@ -20,6 +20,7 @@ import type {
 } from "../../src_data/webapi-operation-manifest";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { apiRequest, type ApiResponse } from "../lib/api-client";
+import { redactSecrets } from "../lib/redact";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
 import {
   coerceFieldValue,
@@ -169,6 +170,37 @@ function filterDisabledFromList(data: Record<string, unknown>): number {
   return hidden;
 }
 
+function extractApiTokenId(data: unknown): string | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const apiToken = (data as Record<string, unknown>).apiToken;
+  if (!apiToken || typeof apiToken !== "object" || Array.isArray(apiToken)) return null;
+  const id = (apiToken as Record<string, unknown>).id;
+  return typeof id === "string" && id.trim() ? id : null;
+}
+
+async function cleanupStandaloneApiTokenCreate(
+  tokenId: string,
+  options: AdapterOptions,
+): Promise<boolean> {
+  await apiRequest(options.creds, options.env, {
+    method: "POST",
+    path: `/apiTokens/${encodeURIComponent(tokenId)}/suspend`,
+  }, {
+    eventType: "api_token_suspend" as AuditEventType,
+    entityId: tokenId,
+    entityType: "apiToken",
+  });
+  await apiRequest(options.creds, options.env, {
+    method: "DELETE",
+    path: `/apiTokens/${encodeURIComponent(tokenId)}`,
+  }, {
+    eventType: "api_token_delete" as AuditEventType,
+    entityId: tokenId,
+    entityType: "apiToken",
+  });
+  return true;
+}
+
 export async function executeTypedTool<T = unknown>(
   toolName: ToolName,
   rawParams: Record<string, unknown>,
@@ -293,11 +325,24 @@ export async function executeTypedTool<T = unknown>(
     }
   }
 
+  if (res.ok && toolName === "create_api_token") {
+    const tokenId = extractApiTokenId(res.data);
+    if (tokenId) {
+      try {
+        await cleanupStandaloneApiTokenCreate(tokenId, options);
+        (res.data as Record<string, unknown>)._temporaryTokenDeleted = true;
+      } catch (cleanupError) {
+        (res.data as Record<string, unknown>)._temporaryTokenDeleted = false;
+        (res.data as Record<string, unknown>)._cleanupError = cleanupError instanceof Error ? cleanupError.message : "Token cleanup failed.";
+      }
+    }
+  }
+
   if (!isReadOnlyTool(toolName)) {
     options.onWriteAccepted?.(buildDescription(toolName, params));
   }
 
-  return res;
+  return { ...res, data: redactSecrets(res.data) };
 }
 
 export function manifestSource(): string {

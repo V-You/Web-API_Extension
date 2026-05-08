@@ -144,6 +144,34 @@ describe("api-client", () => {
     expect(audit[0].parameters).toEqual({ _method: "POST", _path: "/merchants", name: "X" });
   });
 
+  it("redacts token-like audit parameters", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await apiRequest(creds, "uat", {
+      method: "POST",
+      path: "/token-test",
+      params: { apiBearerToken: "secret-token", alias: "wax_test" },
+    }, {
+      eventType: "api_token_create",
+      entityId: "m1",
+      entityType: "merchant",
+    });
+
+    const audit = storageStore.audit as Array<Record<string, unknown>>;
+    expect(audit[0].parameters).toEqual({
+      _method: "POST",
+      _path: "/token-test",
+      apiBearerToken: "[redacted]",
+      alias: "wax_test",
+    });
+  });
+
   it("trims audit entries by count", async () => {
     storageStore.audit = Array.from({ length: 200 }, (_, index) => ({
       id: `old-${index}`,

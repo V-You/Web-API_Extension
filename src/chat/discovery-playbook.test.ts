@@ -24,6 +24,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("channel accessToken");
     expect(prompt).toContain("absent from that specific endpoint response");
     expect(prompt).toContain("Merchant-level-and-below secrets, not Channel-level tokens");
+    expect(prompt).toContain("Raw bearer tokens must never appear in LLM context");
     expect(prompt).toContain("Generate Api Bearer token");
     expect(prompt).toContain("Never attempt writes or code execution.");
   });
@@ -36,6 +37,14 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Every mutating tool call still goes through the existing preview-confirm flow before execution.");
     expect(prompt).toContain("Prefer read tools first when you need to inspect current state before writing.");
     expect(prompt).not.toContain("This chat runs in safe mode.");
+  });
+
+  it("builds an accessToken-control prompt variant", () => {
+    const prompt = buildChatSystemPrompt({ writeToolsEnabled: true, accessTokenControlEnabled: true });
+
+    expect(prompt).toContain("accessToken control is enabled for this browser session.");
+    expect(prompt).toContain("API token lifecycle tools are available.");
+    expect(prompt).toContain("Never reveal raw bearer tokens");
   });
 
   it("builds an automation-enabled prompt variant", () => {
@@ -67,6 +76,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("The BIP glossary maps users to contacts.");
     expect(prompt).toContain("Create contacts with sdk.contacts.create(entityType, entityId, fields).");
     expect(prompt).toContain("sdk.contacts.list(entityType, entityId, \"owned\")");
+    expect(prompt).toContain("These calls return arrays");
     expect(prompt).toContain("sdk.contacts.attach(entityType, entityId, contactId)");
     expect(prompt).toContain("Do not climb to the parent entity unless the user explicitly asks");
     expect(prompt).toContain("totalCalls must include the two list calls");

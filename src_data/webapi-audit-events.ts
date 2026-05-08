@@ -5,6 +5,11 @@
 // Pure data; safe to import from main-world code.
 
 export const AUDIT_EVENT_TYPES = [
+  "api_token_activate",
+  "api_token_create",
+  "api_token_delete",
+  "api_token_suspend",
+  "api_token_update",
   "contact_create",
   "contact_delete",
   "contact_detach",

@@ -120,6 +120,17 @@ describe("chat tool bridge", () => {
     expect(getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
   });
 
+  it("hides API-token tools until accessToken control is enabled", () => {
+    const writeNames = getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name);
+    expect(writeNames).not.toContain("create_api_token");
+    expect(writeNames).not.toContain("list_api_tokens");
+
+    const tokenNames = getChatToolSchemas({ writeToolsEnabled: true, accessTokenControlEnabled: true }).map((schema) => schema.name);
+    expect(tokenNames).toContain("create_api_token");
+    expect(tokenNames).toContain("list_api_tokens");
+    expect(tokenNames).toContain("delete_api_token");
+  });
+
   it("exposes execute_workflow only when automation mode is enabled", () => {
     expect(getChatToolSchemas({ writeToolsEnabled: true }).map((schema) => schema.name)).not.toContain("execute_workflow");
 

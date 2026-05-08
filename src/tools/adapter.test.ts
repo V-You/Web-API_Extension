@@ -153,7 +153,7 @@ describe("typed-write adapter", () => {
   it("gates state=DELETED edits through the confirm bridge", async () => {
     await executeTypedTool(
       "edit_entity",
-      { parentType: "division", parentId: "d1", state: "DELETED" },
+      { parentType: "division", parentId: "d1", name: "Division", state: "DELETED" },
       { creds, env },
     );
     expect(requestConfirmMock).toHaveBeenCalledTimes(1);
@@ -225,5 +225,34 @@ describe("typed-write adapter", () => {
     expect(res.ok).toBe(true);
     const data = res.data as { channelInfo: { state: string } };
     expect(data.channelInfo.state).toBe("DISABLED");
+  });
+
+  it("redacts API bearer tokens from generated tool responses", async () => {
+    apiRequestMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      data: {
+        apiToken: {
+          id: "ffffffffffffffffffffffffffffffff",
+          alias: "wax_test",
+          apiBearerToken: "raw-secret-token",
+          state: "ACTIVE",
+        },
+      },
+    });
+
+    const res = await executeTypedTool(
+      "create_api_token",
+      { merchantId: "merchant-1" },
+      { creds, env },
+    );
+
+    expect(res.ok).toBe(true);
+    expect(JSON.stringify(res.data)).not.toContain("raw-secret-token");
+    expect(JSON.stringify(res.data)).toContain("[redacted]");
+    expect(apiRequestMock).toHaveBeenCalledTimes(3);
+    expect(apiRequestMock.mock.calls[1][2].path).toBe("/apiTokens/ffffffffffffffffffffffffffffffff/suspend");
+    expect(apiRequestMock.mock.calls[2][2].path).toBe("/apiTokens/ffffffffffffffffffffffffffffffff");
+    expect((res.data as Record<string, unknown>)._temporaryTokenDeleted).toBe(true);
   });
 });

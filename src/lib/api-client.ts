@@ -12,6 +12,7 @@
  */
 
 import { RateLimiter } from "./rate-limiter";
+import { redactSecrets } from "./redact";
 import type { ApiCredentials, AuditEntry, AuditEventType, Environment } from "./types";
 
 const DEFAULT_RATE_LIMIT = 9;
@@ -145,11 +146,11 @@ export async function apiRequest<T = unknown>(
       eventType: auditMeta.eventType,
       entityId: auditMeta.entityId,
       entityType: auditMeta.entityType,
-      parameters: {
+      parameters: redactSecrets({
         _method: method,
         _path: opts.path,
         ...(opts.params ?? {}),
-      },
+      }),
       responseStatus: res.status,
       environment: env,
     });
