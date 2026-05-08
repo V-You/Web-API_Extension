@@ -11,7 +11,7 @@
  *   - Elapsed time
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActiveJob, useJobs } from "../../src/jobs/use-jobs";
 import { pauseJob, resumeJob, cancelJob, cancelJobById } from "../../src/jobs/job-runner";
 import { estimateRemaining, type JobRecord } from "../../src/jobs/job-store";
@@ -89,6 +89,14 @@ export function JobMonitor() {
 function ActiveJobCard({ job }: { job: JobRecord }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (job.state !== "running") return;
+    const interval = setInterval(() => setTick((value) => value + 1), 1000);
+    return () => clearInterval(interval);
+  }, [job.state]);
+
   const pct = job.totalCalls > 0
     ? Math.min(100, Math.round((job.completedCalls / job.totalCalls) * 100))
     : 0;
@@ -140,6 +148,12 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
       {job.state === "running" && (
         <div className="text-xs text-slate-500">
           Remaining: {remaining}
+        </div>
+      )}
+
+      {typeof job.checkpoint === "string" && job.checkpoint && (
+        <div className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-600">
+          {job.checkpoint}
         </div>
       )}
 

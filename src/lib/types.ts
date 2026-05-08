@@ -50,8 +50,9 @@ export type JobState =
  * Extension-only events -- `setting_change` (local RiRo writes),
  * `env_switch` (UI environment toggles), `contact_attach` (no per-action
  * tool in the bundled spec), `get_entity` (audited handwritten entity reads),
- * and `chat_automation_job_started` (reviewed Chat
- * job provenance) -- are declared here as literals. An alignment
+ * API token lifecycle events (Connections-owned controls may exist even when
+ * CI fixtures omit the token operations), and `chat_automation_job_started`
+ * (reviewed Chat job provenance) -- are declared here as literals. An alignment
  * test asserts both sides stay in sync.
  */
 import type { ApiAuditEventType } from "../../src_data/webapi-audit-events";
@@ -62,6 +63,11 @@ export type AuditEventType =
   | "env_switch"
   | "contact_attach"
   | "get_entity"
+  | "api_token_activate"
+  | "api_token_create"
+  | "api_token_delete"
+  | "api_token_suspend"
+  | "api_token_update"
   | "chat_automation_job_started";
 
 export interface AuditEntry {

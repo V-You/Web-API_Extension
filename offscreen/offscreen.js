@@ -3,6 +3,11 @@ const DEFAULT_JOB_TIMEOUT_MS = 120_000;
 
 const pendingSandboxRequests = new Map();
 let sandboxFramePromise = null;
+let sandboxReady = false;
+let resolveSandboxReady = null;
+const sandboxReadyPromise = new Promise((resolve) => {
+  resolveSandboxReady = resolve;
+});
 
 async function getSandboxUrl() {
   const manifestUrl = new URL("../manifest.json", location.href);
@@ -40,6 +45,7 @@ function ensureSandboxFrame() {
 
 async function postToSandbox(message) {
   const frame = await ensureSandboxFrame();
+  if (!sandboxReady) await sandboxReadyPromise;
   frame.contentWindow?.postMessage(message, "*");
 }
 
@@ -112,6 +118,8 @@ window.addEventListener("message", (event) => {
   const data = event.data ?? {};
 
   if (data?.type === "sandbox_ready") {
+    sandboxReady = true;
+    resolveSandboxReady?.();
     chrome.runtime.sendMessage({ type: "sandbox_ready" }).catch(() => {
       // The service worker may be asleep; readiness is best-effort for now.
     });

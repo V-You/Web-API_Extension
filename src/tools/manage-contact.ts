@@ -22,6 +22,11 @@ import { apiRequest } from "../lib/api-client";
 import { type EntityType, ENTITY_PLURAL } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 
+interface ManageContactOptions {
+  signal?: AbortSignal;
+  throttleRate?: number;
+}
+
 const CONTACT_CREATE_SPEC_EXAMPLE_FIELDS = [
   "email",
   "name",
@@ -67,29 +72,30 @@ export interface ManageContactInput {
 export async function executeManageContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions = {},
 ) {
   switch (input.action) {
     case "get":
-      return getContact(input, creds, env);
+      return getContact(input, creds, env, options);
     case "list":
-      return listContacts(input, creds, env);
+      return listContacts(input, creds, env, options);
     case "create":
-      return createContact(input, creds, env);
+      return createContact(input, creds, env, options);
     case "edit":
-      return editContact(input, creds, env);
+      return editContact(input, creds, env, options);
     case "delete":
-      return deleteContact(input, creds, env);
+      return deleteContact(input, creds, env, options);
     case "attach":
-      return attachContact(input, creds, env);
+      return attachContact(input, creds, env, options);
     case "detach":
-      return detachContact(input, creds, env);
+      return detachContact(input, creds, env, options);
     case "lock":
-      return lockUnlock(input, creds, env, "lock");
+      return lockUnlock(input, creds, env, "lock", options);
     case "unlock":
-      return lockUnlock(input, creds, env, "unlock");
+      return lockUnlock(input, creds, env, "unlock", options);
     case "reset_password":
-      return resetPassword(input, creds, env);
+      return resetPassword(input, creds, env, options);
     case "find_by_username":
       return findByUsername(input, creds, env);
     default:
@@ -105,28 +111,31 @@ function entityPrefix(input: ManageContactInput): string | null {
 async function getContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   if (!input.contactId) return { error: "contactId is required for get." };
-  return apiRequest(creds, env, { path: `/contacts/${input.contactId}` });
+  return apiRequest(creds, env, { path: `/contacts/${input.contactId}`, signal: options.signal, throttleRate: options.throttleRate });
 }
 
 async function listContacts(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   const prefix = entityPrefix(input);
   if (!prefix) return { error: "entityId and entityType are required for list." };
 
   const scope = input.scope === "attached" ? "attachedContacts" : "ownedContacts";
-  return apiRequest(creds, env, { path: `${prefix}/${scope}` });
+  return apiRequest(creds, env, { path: `${prefix}/${scope}`, signal: options.signal, throttleRate: options.throttleRate });
 }
 
 async function createContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   const prefix = entityPrefix(input);
   if (!prefix) return { error: "entityId and entityType are required for create." };
@@ -138,6 +147,8 @@ async function createContact(
     method: "POST",
     path: `${prefix}/ownedContacts`,
     params: normalizedFields,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   }, {
     eventType: "contact_create",
     entityId: input.entityId!,
@@ -150,7 +161,8 @@ async function createContact(
 async function editContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   if (!input.contactId) return { error: "contactId is required for edit." };
   if (!input.fields) return { error: "fields are required for edit." };
@@ -159,19 +171,24 @@ async function editContact(
     method: "POST",
     path: `/contacts/${input.contactId}`,
     params: input.fields,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   });
 }
 
 async function deleteContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   if (!input.contactId) return { error: "contactId is required for delete." };
 
   return apiRequest(creds, env, {
     method: "DELETE",
     path: `/contacts/${input.contactId}`,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   }, {
     eventType: "contact_delete",
     entityId: input.contactId,
@@ -182,7 +199,8 @@ async function deleteContact(
 async function attachContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   const prefix = entityPrefix(input);
   if (!prefix) return { error: "entityId and entityType are required for attach." };
@@ -191,6 +209,8 @@ async function attachContact(
   return apiRequest(creds, env, {
     method: "POST",
     path: `${prefix}/attachedContacts/${input.contactId}`,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   }, {
     eventType: "contact_attach",
     entityId: input.contactId,
@@ -201,7 +221,8 @@ async function attachContact(
 async function detachContact(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   const prefix = entityPrefix(input);
   if (!prefix) return { error: "entityId and entityType are required for detach." };
@@ -210,6 +231,8 @@ async function detachContact(
   return apiRequest(creds, env, {
     method: "DELETE",
     path: `${prefix}/attachedContacts/${input.contactId}`,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   }, {
     eventType: "contact_detach",
     entityId: input.contactId,
@@ -221,7 +244,8 @@ async function lockUnlock(
   input: ManageContactInput,
   creds: ApiCredentials,
   env: Environment,
-  action: "lock" | "unlock"
+  action: "lock" | "unlock",
+  options: ManageContactOptions,
 ) {
   if (!input.contactId) return { error: `contactId is required for ${action}.` };
 
@@ -229,6 +253,8 @@ async function lockUnlock(
   return apiRequest(creds, env, {
     method: "POST",
     path: `/contacts/${input.contactId}/${pathSuffix}`,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   }, {
     eventType: action === "lock" ? "contact_lock" : "contact_unlock",
     entityId: input.contactId,
@@ -239,7 +265,8 @@ async function lockUnlock(
 async function resetPassword(
   input: ManageContactInput,
   creds: ApiCredentials,
-  env: Environment
+  env: Environment,
+  options: ManageContactOptions,
 ) {
   if (!input.contactId) return { error: "contactId is required for reset_password." };
 
@@ -250,6 +277,8 @@ async function resetPassword(
     method: "POST",
     path: `/contacts/${input.contactId}/setPassword`,
     params: Object.keys(params).length > 0 ? params : undefined,
+    signal: options.signal,
+    throttleRate: options.throttleRate,
   }, {
     eventType: "contact_password_reset",
     entityId: input.contactId,

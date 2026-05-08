@@ -53,7 +53,7 @@ describe("workflow draft parsing", () => {
     const draft = parseWorkflowDraft(`{
       "label": "Attach all owned contacts",
       "totalCalls": 7,
-      "script": "const entityType = context.entityType;\\nconst entityId = context.entityId;\\nconsole.log(\\\"Listing contacts...\\\");\\nconsole.log(\`Attaching contact: ${"${contact.name}"}...\`);"
+      "script": "const entityType = context.entityType;\\nconst entityId = context.entityId;\\nconsole.log('Listing contacts...');\\nconsole.log(\`Attaching contact: ${"${contact.name}"}...\`);"
     }`);
 
     expect(draft.script).toContain("\nconst entityId");

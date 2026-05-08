@@ -131,42 +131,42 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
     },
     contacts: {
       async get(contactId: string) {
-        return unwrapApiData(await executeManageContact({ action: "get", contactId }, creds, env));
+        return unwrapApiData(await executeManageContact({ action: "get", contactId }, creds, env, { signal, throttleRate }));
       },
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return unwrapApiList(await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env));
+        return unwrapApiList(await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env, { signal, throttleRate }));
       },
       async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
         recordWrite("manage_contact", "create", entityId, entityType, { fields });
-        return executeManageContact({ action: "create", entityType, entityId, fields }, creds, env);
+        return executeManageContact({ action: "create", entityType, entityId, fields }, creds, env, { signal, throttleRate });
       },
       async edit(contactId: string, fields: Record<string, string>) {
         recordWrite("manage_contact", "edit", contactId, "contact", { fields });
-        return executeManageContact({ action: "edit", contactId, fields }, creds, env);
+        return executeManageContact({ action: "edit", contactId, fields }, creds, env, { signal, throttleRate });
       },
       async delete(contactId: string) {
         recordWrite("manage_contact", "delete", contactId, "contact", {});
-        return executeManageContact({ action: "delete", contactId }, creds, env);
+        return executeManageContact({ action: "delete", contactId }, creds, env, { signal, throttleRate });
       },
       async attach(entityType: EntityType, entityId: string, contactId: string) {
         recordWrite("manage_contact", "attach", entityId, entityType, { contactId });
-        return executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env);
+        return executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env, { signal, throttleRate });
       },
       async detach(entityType: EntityType, entityId: string, contactId: string) {
         recordWrite("manage_contact", "detach", entityId, entityType, { contactId });
-        return executeManageContact({ action: "detach", entityType, entityId, contactId }, creds, env);
+        return executeManageContact({ action: "detach", entityType, entityId, contactId }, creds, env, { signal, throttleRate });
       },
       async lock(contactId: string) {
         recordWrite("manage_contact", "lock", contactId, "contact", {});
-        return executeManageContact({ action: "lock", contactId }, creds, env);
+        return executeManageContact({ action: "lock", contactId }, creds, env, { signal, throttleRate });
       },
       async unlock(contactId: string) {
         recordWrite("manage_contact", "unlock", contactId, "contact", {});
-        return executeManageContact({ action: "unlock", contactId }, creds, env);
+        return executeManageContact({ action: "unlock", contactId }, creds, env, { signal, throttleRate });
       },
       async resetPassword(contactId: string, newPassword: string) {
         recordWrite("manage_contact", "reset_password", contactId, "contact", {});
-        return executeManageContact({ action: "reset_password", contactId, newPassword }, creds, env);
+        return executeManageContact({ action: "reset_password", contactId, newPassword }, creds, env, { signal, throttleRate });
       },
     },
     merchantAccounts: {
