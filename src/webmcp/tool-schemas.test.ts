@@ -17,6 +17,13 @@ describe("tool schema definitions", () => {
       "execute_workflow",
       "get_job_status",
       "describe_operation",
+      "list_api_tokens",
+      "get_api_token",
+      "create_api_token",
+      "update_api_token",
+      "suspend_api_token",
+      "activate_api_token",
+      "delete_api_token",
     ]);
   });
 
@@ -44,9 +51,11 @@ describe("tool schema definitions", () => {
     expect(readOnlyTools).toEqual([
       "describe_operation",
       "describe_settings",
+      "get_api_token",
       "get_audit_log",
       "get_hierarchy",
       "get_job_status",
+      "list_api_tokens",
       "lookup_clearing_institutes",
       "manage_contact",
       "manage_entity",

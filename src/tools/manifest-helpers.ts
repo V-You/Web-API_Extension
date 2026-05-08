@@ -36,9 +36,69 @@ export function toolHasParentVariants(toolName: ToolName): boolean {
   return parents.size > 1;
 }
 
+// Handwritten pseudo-operations for api_token tools. These endpoints are not
+// in the OpenAPI spec but are implemented as an extension-specific feature.
+const API_TOKEN_PSEUDO_OPS: Record<string, WebApiOperation[]> = {
+  list_api_tokens: [{
+    operationId: null, toolName: null, parentEntityType: "merchant",
+    method: "GET", pathTemplate: "/merchants/{merchantId}/apiTokens",
+    pathParams: [{ name: "merchantId", pattern: "^[a-f0-9]*$", required: true }],
+    request: [], description: "List API tokens for a merchant.",
+    auditEventType: null, destructive: false,
+  }],
+  get_api_token: [{
+    operationId: null, toolName: null, parentEntityType: null,
+    method: "GET", pathTemplate: "/apiTokens/{apiTokenId}",
+    pathParams: [{ name: "apiTokenId", pattern: null, required: true }],
+    request: [], description: "Get an API token by ID.",
+    auditEventType: null, destructive: false,
+  }],
+  create_api_token: [{
+    operationId: null, toolName: null, parentEntityType: "merchant",
+    method: "POST", pathTemplate: "/merchants/{merchantId}/apiTokens",
+    pathParams: [{ name: "merchantId", pattern: "^[a-f0-9]*$", required: true }],
+    request: [{ name: "alias", logicalType: "string", required: "optional",
+      description: "Human-readable alias for the token.", provenance: [] }],
+    description: "Create an API token. The raw bearer token is automatically redacted from the response.",
+    auditEventType: "api_token_create", destructive: false,
+  }],
+  update_api_token: [{
+    operationId: null, toolName: null, parentEntityType: null,
+    method: "POST", pathTemplate: "/apiTokens/{apiTokenId}",
+    pathParams: [{ name: "apiTokenId", pattern: null, required: true }],
+    request: [{ name: "alias", logicalType: "string", required: "optional",
+      description: "Updated alias for the token.", provenance: [] }],
+    description: "Update an API token's alias.",
+    auditEventType: "api_token_update", destructive: false,
+  }],
+  suspend_api_token: [{
+    operationId: null, toolName: null, parentEntityType: null,
+    method: "POST", pathTemplate: "/apiTokens/{apiTokenId}/suspend",
+    pathParams: [{ name: "apiTokenId", pattern: null, required: true }],
+    request: [], description: "Suspend an API token.",
+    auditEventType: "api_token_suspend", destructive: true,
+  }],
+  activate_api_token: [{
+    operationId: null, toolName: null, parentEntityType: null,
+    method: "POST", pathTemplate: "/apiTokens/{apiTokenId}/activate",
+    pathParams: [{ name: "apiTokenId", pattern: null, required: true }],
+    request: [], description: "Activate a suspended API token.",
+    auditEventType: "api_token_activate", destructive: false,
+  }],
+  delete_api_token: [{
+    operationId: null, toolName: null, parentEntityType: null,
+    method: "DELETE", pathTemplate: "/apiTokens/{apiTokenId}",
+    pathParams: [{ name: "apiTokenId", pattern: null, required: true }],
+    request: [], description: "Permanently delete an API token.",
+    auditEventType: "api_token_delete", destructive: true,
+  }],
+} as Record<string, WebApiOperation[]>;
+
 /** Return variants (operations) registered for a tool name. */
 export function variantsFor(toolName: ToolName): WebApiOperation[] {
-  return (MANIFEST.toolIndex as Record<string, WebApiOperation[]>)[toolName] ?? [];
+  return (MANIFEST.toolIndex as Record<string, WebApiOperation[]>)[toolName]
+    ?? API_TOKEN_PSEUDO_OPS[toolName]
+    ?? [];
 }
 
 /** List of parent entity types declared for a multi-variant tool. */

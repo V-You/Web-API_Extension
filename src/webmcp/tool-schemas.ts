@@ -435,6 +435,120 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
       additionalProperties: false,
     },
   },
+
+  // api_token tools -- handwritten (not in OpenAPI spec) ---------------------------
+
+  // list_api_tokens
+  {
+    name: "list_api_tokens",
+    title: "List API tokens",
+    description: "List all API tokens for a merchant.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: "object",
+      properties: {
+        merchantId: { type: "string", description: "Merchant entity ID." },
+      },
+      required: ["merchantId"],
+      additionalProperties: false,
+    },
+  },
+
+  // get_api_token
+  {
+    name: "get_api_token",
+    title: "Get API token",
+    description: "Retrieve details of a single API token by ID. The bearer token field is not returned.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: "object",
+      properties: {
+        apiTokenId: { type: "string", description: "API token ID." },
+      },
+      required: ["apiTokenId"],
+      additionalProperties: false,
+    },
+  },
+
+  // create_api_token
+  {
+    name: "create_api_token",
+    title: "Create API token",
+    description:
+      "Create a new API token for a merchant. " +
+      "The raw bearer token is automatically redacted - it is never exposed. " +
+      "After creation, the temporary token is suspended and deleted for security.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        merchantId: { type: "string", description: "Merchant entity ID." },
+        alias: { type: "string", description: "Optional human-readable label for the token." },
+      },
+      required: ["merchantId"],
+      additionalProperties: false,
+    },
+  },
+
+  // update_api_token
+  {
+    name: "update_api_token",
+    title: "Update API token",
+    description: "Update the alias of an existing API token.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        apiTokenId: { type: "string", description: "API token ID." },
+        alias: { type: "string", description: "New alias for the token." },
+      },
+      required: ["apiTokenId"],
+      additionalProperties: false,
+    },
+  },
+
+  // suspend_api_token
+  {
+    name: "suspend_api_token",
+    title: "Suspend API token",
+    description: "Suspend an active API token, disabling its use for authentication.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        apiTokenId: { type: "string", description: "API token ID to suspend." },
+      },
+      required: ["apiTokenId"],
+      additionalProperties: false,
+    },
+  },
+
+  // activate_api_token
+  {
+    name: "activate_api_token",
+    title: "Activate API token",
+    description: "Activate a previously suspended API token.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        apiTokenId: { type: "string", description: "API token ID to activate." },
+      },
+      required: ["apiTokenId"],
+      additionalProperties: false,
+    },
+  },
+
+  // delete_api_token
+  {
+    name: "delete_api_token",
+    title: "Delete API token",
+    description: "Permanently delete an API token. This action is irreversible.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        apiTokenId: { type: "string", description: "API token ID to delete." },
+      },
+      required: ["apiTokenId"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 /**
