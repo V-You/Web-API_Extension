@@ -80,7 +80,18 @@ function readLooseScript(source: string): string {
   const valueEnd = findLooseStringEnd(source, valueStart, delimiter);
   if (valueEnd <= valueStart) return "";
 
-  return source.slice(valueStart + 1, valueEnd).trim();
+  return decodeLooseScript(source.slice(valueStart + 1, valueEnd)).trim();
+}
+
+function decodeLooseScript(script: string): string {
+  return script
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\`/g, "`")
+    .replace(/\\"/g, "\"")
+    .replace(/\\'/g, "'");
 }
 
 function skipWhitespace(source: string, index: number): number {

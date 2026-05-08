@@ -49,6 +49,18 @@ describe("workflow draft parsing", () => {
     expect(draft.script).toContain("sdk.contacts.attach");
   });
 
+  it("decodes escaped newlines and escaped backticks in repaired script strings", () => {
+    const draft = parseWorkflowDraft(`{
+      "label": "Attach all owned contacts",
+      "totalCalls": 7,
+      "script": "const entityType = context.entityType;\\nconst entityId = context.entityId;\\nconsole.log(\\\"Listing contacts...\\\");\\nconsole.log(\`Attaching contact: ${"${contact.name}"}...\`);"
+    }`);
+
+    expect(draft.script).toContain("\nconst entityId");
+    expect(draft.script).not.toContain("\\n");
+    expect(draft.script).toContain("console.log(`Attaching contact:");
+  });
+
   it("rejects missing or invalid fields", () => {
     expect(() => parseWorkflowDraft("{}")).toThrow(/label/);
     expect(() => parseWorkflowDraft("{\"label\":\"x\",\"totalCalls\":0,\"script\":\"x\"}")).toThrow(/positive integer/);
