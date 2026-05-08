@@ -2,17 +2,28 @@
 PRD*.md
 NOTES.md
 bak/
-.tmp
+*.old
 md/*
 *.code-workspace
 tmp/
 node_modules/
 dist/
-base_data/*
-!base_data/character-value-mapping.yaml
 .venv
 CLAUDE.md
 .remember/
+audit-fixture.json
+settings_recipes.json
+refined_API_specs/
+
+# user environment overrides (if you add .env later)
+.env.local
+.env.*.local
+
+# vscode temporary files
+.vscode-test/
+
+# claude artifacts (if using Claude in terminal)
+.tmp-claude/
 
 # vendors
 .claude/
