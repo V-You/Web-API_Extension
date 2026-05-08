@@ -11,9 +11,10 @@ dist/
 .venv
 CLAUDE.md
 .remember/
-audit-fixture.json
-settings_recipes.json
-refined_API_specs/
+base_data/ACI_Web-API_OpenAPI_tmp.old
+base_data/audit-fixture.json
+base_data/settings_recipes.json
+base_data/refined_API_specs/
 
 # user environment overrides (if you add .env later)
 .env.local
