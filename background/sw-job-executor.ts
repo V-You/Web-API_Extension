@@ -369,6 +369,15 @@ export async function handleSandboxSdkCall(message: {
 }): Promise<unknown> {
   const jobId = String(message.jobId ?? "");
   if (!activeSandboxRuntime || activeSandboxRuntime.jobId !== jobId) {
+    const job = await getJob(jobId);
+    if (job && job.state === "running") {
+      await updateJob(jobId, {
+        state: "failed",
+        completedAt: new Date().toISOString(),
+        error: "No active sandbox runtime for this job. The service worker lost the in-memory SDK bridge while the offscreen sandbox was running.",
+      });
+    }
+    cleanup();
     throw new Error("No active sandbox runtime for this job.");
   }
 

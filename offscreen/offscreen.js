@@ -5,9 +5,38 @@ const pendingSandboxRequests = new Map();
 let sandboxFramePromise = null;
 let sandboxReady = false;
 let resolveSandboxReady = null;
+let jobKeepAlivePort = null;
+let jobKeepAliveTimer = null;
 const sandboxReadyPromise = new Promise((resolve) => {
   resolveSandboxReady = resolve;
 });
+
+function stopJobKeepAlive() {
+  if (jobKeepAliveTimer) {
+    clearInterval(jobKeepAliveTimer);
+    jobKeepAliveTimer = null;
+  }
+  try { jobKeepAlivePort?.disconnect(); } catch { /* already disconnected */ }
+  jobKeepAlivePort = null;
+}
+
+function startJobKeepAlive(jobId) {
+  stopJobKeepAlive();
+  try {
+    jobKeepAlivePort = chrome.runtime.connect({ name: "job_keepalive" });
+    jobKeepAlivePort.onDisconnect.addListener(() => {
+      if (jobKeepAliveTimer) clearInterval(jobKeepAliveTimer);
+      jobKeepAliveTimer = null;
+      jobKeepAlivePort = null;
+    });
+    jobKeepAlivePort.postMessage({ type: "offscreen_job_keepalive", jobId });
+    jobKeepAliveTimer = setInterval(() => {
+      jobKeepAlivePort?.postMessage({ type: "offscreen_job_keepalive", jobId });
+    }, 15_000);
+  } catch {
+    stopJobKeepAlive();
+  }
+}
 
 function markSandboxReady() {
   sandboxReady = true;
@@ -76,12 +105,25 @@ function rejectPendingJobRequests(jobId, error) {
 
 async function requestSandbox(message, timeoutMs = DEFAULT_JOB_TIMEOUT_MS) {
   const requestId = crypto.randomUUID();
+  startJobKeepAlive(message.jobId);
   const response = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingSandboxRequests.delete(requestId);
+      stopJobKeepAlive();
       reject(new Error(`Sandbox execution timed out after ${Math.round(timeoutMs / 1000)} seconds.`));
     }, timeoutMs);
-    pendingSandboxRequests.set(requestId, { resolve, reject, timer, jobId: message.jobId });
+    pendingSandboxRequests.set(requestId, {
+      resolve: (value) => {
+        stopJobKeepAlive();
+        resolve(value);
+      },
+      reject: (reason) => {
+        stopJobKeepAlive();
+        reject(reason);
+      },
+      timer,
+      jobId: message.jobId,
+    });
   });
   await postToSandbox({ ...message, requestId });
   return response;
@@ -117,6 +159,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (type === "offscreen_job_abort") {
     rejectPendingJobRequests(message.jobId, new Error("Sandbox execution was aborted."));
+    stopJobKeepAlive();
     postToSandbox({ type: "sandbox_abort", jobId: message.jobId })
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
