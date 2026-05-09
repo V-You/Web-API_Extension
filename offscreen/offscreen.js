@@ -52,16 +52,7 @@ async function waitForSandboxReady() {
 }
 
 async function getSandboxUrl() {
-  const manifest = chrome.runtime.getManifest();
-  const pages = Array.isArray(manifest.sandbox?.pages) ? manifest.sandbox.pages : [];
-  const page = pages.includes("sandbox/sandbox.html") ? "sandbox/sandbox.html" : pages[0];
-  const sandboxCsp = String(manifest.content_security_policy?.sandbox ?? "");
-  if (page !== "sandbox/sandbox.html") {
-    throw new Error(
-      `Invalid sandbox manifest. Expected sandbox/sandbox.html. Observed pages=${JSON.stringify(pages)} csp=${JSON.stringify(sandboxCsp)} extensionId=${chrome.runtime.id}`,
-    );
-  }
-  return new URL(`../${page}`, location.href).href;
+  return new URL("../sandbox/sandbox.html", location.href).href;
 }
 
 async function createSandboxFrame() {
