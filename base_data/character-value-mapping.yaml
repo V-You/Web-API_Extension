@@ -19,6 +19,9 @@ character_value_mapping:
     "true or false": boolean_like
     "YYYY-MM-DD HH:mm:ss": timestamp_seconds
     "ACTIVE/SUSPENDED/DELETED": active_suspended_deleted
+    "ACTIVE": active_state
+    "SUSPENDED": suspended_state
+    "[A-Z a-z 0-9 =]": base64_token
     "the URL": url_like
     "[A-Z a-z 0-9]*5,=": needs_review
   canonical:
@@ -81,6 +84,27 @@ character_value_mapping:
       apply_when:
         field_name_in:
           - state
+    active_state:
+      action: apply_enum
+      confidence: medium
+      enum:
+        - ACTIVE
+      apply_when:
+        field_name_in:
+          - state
+    suspended_state:
+      action: apply_enum
+      confidence: medium
+      enum:
+        - SUSPENDED
+      apply_when:
+        field_name_in:
+          - state
+    base64_token:
+      action: apply_pattern
+      confidence: medium
+      pattern: "^[A-Za-z0-9+/]+={0,2}$"
+      note: "Vendor docs omit + and /, but live token samples decode as base64."
     url_like:
       action: suggest_format
       confidence: medium

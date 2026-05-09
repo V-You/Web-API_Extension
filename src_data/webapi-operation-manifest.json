@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generatedAt": "GENERATED",
   "source": {
-    "spec": "base_data/ACI_Web-API_OpenAPI_tmp.yaml",
+    "spec": "base_data/ACI_Web-API_OpenAPI.yaml",
     "mapping": "base_data/character-value-mapping.yaml"
   },
   "tools": [

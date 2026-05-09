@@ -143,9 +143,10 @@ function findFieldPaths(value: unknown, field: string, path = "$", matches: stri
   return matches;
 }
 
-function formatJobStateNotice(label: string, jobId: string, state: string, error?: string): string {
+function formatJobStateNotice(job: { label: string; id: string; state: string; error?: string; completedCalls: number; totalCalls: number; results: unknown[]; writes: unknown[] }): string {
+  const { label, id: jobId, state, error } = job;
   if (state === "completed") {
-    return `Job ${label} (${jobId}) completed. Open the Jobs tab to preview or download the result.`;
+    return `Job ${label} (${jobId}) completed with ${job.completedCalls}/${job.totalCalls} calls, ${job.results.length} result(s), and ${job.writes.length} recorded write(s). Open the Jobs tab to preview details.`;
   }
   if (state === "paused") {
     return `Job ${label} (${jobId}) paused. Open the Jobs tab to preview details or resume it.`;
@@ -211,7 +212,7 @@ export function ChatPage() {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          text: formatJobStateNotice(job.label, job.id, job.state, job.error),
+          text: formatJobStateNotice(job),
         },
       ]);
     }

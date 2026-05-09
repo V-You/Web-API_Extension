@@ -1,45 +1,264 @@
 {
-  "schema_version": 0,
+  "schema_version": "1.0",
   "entries": [
     {
-      "term": "Merchant Account",
-      "aliases": ["MA", "MID", "Merchant Accounts"],
-      "definition": "Configuration entity representing a processing contract with an acquirer.",
+      "term": "Data Lake",
+      "aliases": [
+        "local DB"
+      ],
+      "definition": "Local representation of a PSP structure and set up.",
+      "context": "Web API MCP Server"
+    },
+    {
+      "term": "Open Payment Platform",
+      "aliases": [
+        "OPP",
+        "PAY.ON"
+      ],
+      "definition": "The transaction API platform of ACI Worldwide.",
+      "context": "General"
+    },
+    {
+      "term": "COPYandPAY",
+      "aliases": [
+        "OPPUI"
+      ],
+      "definition": "The payment widget / frontend integration method of OPP.",
+      "context": "Integration"
+    },
+    {
+      "term": "RiRo",
+      "aliases": [
+        "Settings",
+        "Risk Settings",
+        "Processing Settings"
+      ],
+      "definition": "Internal name for the settings engine (Risk & Routing).",
       "context": "Configuration"
+    },
+    {
+      "term": "Web API",
+      "aliases": [
+        "MoAPI",
+        "Merchant Onboarding API",
+        "WebAPI"
+      ],
+      "definition": "The API for configuring merchants, users, and settings (distinct from the Transaction API).",
+      "context": "General"
+    },
+    {
+      "term": "BIP",
+      "aliases": [
+        "Merchant Dashboard",
+        "Backoffice"
+      ],
+      "definition": "Business Intelligence Platform - the merchant and admin frontend UI.",
+      "context": "General"
+    },
+    {
+      "term": "PSP",
+      "aliases": [
+        "Payment Service Provider",
+        "customer root"
+      ],
+      "definition": "Root customer entity in the payment hierarchy.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Merchant",
+      "aliases": [
+        "MID owner",
+        "Merchant entity"
+      ],
+      "definition": "Hierarchy entity below a Division and above a Channel.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Channel",
+      "aliases": [
+        "Processing Channel"
+      ],
+      "definition": "Lowest hierarchy entity used for processing configuration and attachments.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Entity",
+      "aliases": [
+        "node",
+        "hierarchy entity"
+      ],
+      "definition": "Generic hierarchy object such as PSP, Division, Merchant, or Channel.",
+      "context": "Configuration"
+    },
+    {
+      "term": "ACI Worldwide",
+      "aliases": [
+        "ACI"
+      ],
+      "definition": "The company providing the payment platform.",
+      "context": "General"
+    },
+    {
+      "term": "Source Type",
+      "aliases": [
+        "File Type"
+      ],
+      "definition": "An integration method identifier (e.g., OPP, OPPUI, MSDK, PAYBYLINK).",
+      "context": "Integration"
+    },
+    {
+      "term": "Merchant Account",
+      "aliases": [
+        "MA",
+        "MID"
+      ],
+      "definition": "Configuration entity representing a processing contract with an acquirer.",
+      "context": "Configuration",
+      "pattern": "^[a-f0-9]{32}$"
     },
     {
       "term": "Available MA",
       "aliases": [
-        "Created MA",
-        "Created Merchant Account",
-        "Created Merchant Accounts",
-        "Owned MA",
-        "Owned Merchant Account",
-        "Owned Merchant Accounts"
+        "Created MA"
       ],
       "definition": "An MA that exists at an Entity but is not yet attached to a Channel.",
       "context": "Configuration"
     },
     {
       "term": "Attached MA",
-      "aliases": [
-        "Attached Merchant Account",
-        "Attached Merchant Accounts",
-        "Attached MAs"
-      ],
+      "aliases": [],
       "definition": "An MA that is linked to a Channel for processing transactions.",
       "context": "Configuration"
     },
     {
-      "term": "Subtype",
+      "term": "Clearing Institute",
       "aliases": [
-        "subType",
-        "sub type",
-        "processing subtype",
-        "card brand",
-        "payment brand"
+        "CI",
+        "Acquirer",
+        "Connector"
       ],
-      "definition": "Merchant Account processing subtype or card brand, such as VISA or MASTERCARD.",
+      "definition": "Financial institution that processes payments (e.g., Chase, Adyen).",
+      "context": "Configuration"
+    },
+    {
+      "term": "Channel Dispatching",
+      "aliases": [],
+      "definition": "Feature where transactions are sent to the Merchant level and routed to Channels automatically.",
+      "context": "Configuration"
+    },
+    {
+      "term": "Contact",
+      "aliases": [
+        "user",
+        "login",
+        "account user"
+      ],
+      "definition": "User account that can be created, attached, and managed on hierarchy entities.",
+      "context": "Identity"
+    },
+    {
+      "term": "Owned Contact",
+      "aliases": [
+        "created Contact"
+      ],
+      "definition": "A contact that belongs to the entity that created it.",
+      "context": "Identity"
+    },
+    {
+      "term": "Created Contact",
+      "aliases": [
+        "Owned Contact"
+      ],
+      "definition": "A user account that was created by and belongs to a specific Entity.",
+      "context": "Identity"
+    },
+    {
+      "term": "Attached Contact",
+      "aliases": [],
+      "definition": "A user account linked to an Entity, granting access to that Entity in BIP.",
+      "context": "Identity"
+    },
+    {
+      "term": "Integration",
+      "aliases": [],
+      "definition": "A shop, merchant, platform, or business entity that sends transactions.",
+      "context": "General"
+    },
+    {
+      "term": "Customer",
+      "aliases": [],
+      "definition": "A business client of ACI (e.g., a PSP or large merchant).",
+      "context": "General"
+    },
+    {
+      "term": "Shopper",
+      "aliases": [
+        "Cardholder"
+      ],
+      "definition": "The end-consumer making a payment.",
+      "context": "General"
+    },
+    {
+      "term": "Merchant Transaction ID",
+      "aliases": [
+        "Transaction ID",
+        "merchantTransactionId"
+      ],
+      "definition": "The unique identifier assigned to a transaction by the merchant.",
+      "context": "Transactions",
+      "pattern": "^[a-zA-Z0-9_-]{1,255}$"
+    },
+    {
+      "term": "Terminal ID",
+      "aliases": [
+        "TID"
+      ],
+      "definition": "Identifier for a physical or virtual terminal. distinct from Transaction ID.",
+      "context": "Point of Sale",
+      "pattern": "^[0-9]{8}$"
+    },
+    {
+      "term": "User ID",
+      "aliases": [
+        "UID"
+      ],
+      "definition": "Identifier for a system user (not a shopper). Distinct from Unique ID.",
+      "context": "Identity"
+    },
+    {
+      "term": "Checkout ID",
+      "aliases": [
+        "Checkout"
+      ],
+      "definition": "A temporary identifier (NDC format) used for COPYandPAY integrations.",
+      "context": "Integration",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    {
+      "term": "Session ID",
+      "aliases": [
+        "Session"
+      ],
+      "definition": "Identifier (NDC format) for a server-to-server transaction session.",
+      "context": "Integration",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    {
+      "term": "Unique ID",
+      "aliases": [
+        "UUID",
+        "id"
+      ],
+      "definition": "The internal unique identifier of a transaction in the OPP system (UUID v4 format).",
+      "context": "Transactions",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    {
+      "term": "Division",
+      "aliases": [
+        "Div"
+      ],
+      "definition": "An organizational entity below a PSP and above a Merchant.",
       "context": "Configuration"
     }
   ]

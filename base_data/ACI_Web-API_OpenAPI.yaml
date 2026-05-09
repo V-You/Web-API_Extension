@@ -30,6 +30,151 @@ components:
       type: apiKey
       name: credentials
       in: header
+  schemas:
+    ApiTokenId:
+      type: string
+      minLength: 32
+      maxLength: 32
+      pattern: ^[a-f0-9]{32}$
+      description: The ID of the API token.
+    ApiTokenAlias:
+      type: string
+      maxLength: 40
+      pattern: ^[A-Za-z0-9_-]*$
+      description: The alias or display name of the API token.
+    ApiTokenState:
+      type: string
+      enum:
+      - ACTIVE
+      - SUSPENDED
+      - DELETED
+      description: Current state of the API token.
+    ApiTokenTimestamp:
+      type: string
+      pattern: ^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$
+      description: Timestamp in the legacy Web API format `YYYY-MM-DD HH:mm:ss`.
+    ApiTokenLastDigits:
+      type: string
+      minLength: 6
+      maxLength: 6
+      pattern: ^[A-Za-z0-9+/]{5}=$
+      description: Last six visible characters of the API token, including the trailing
+        base64 padding character.
+    ApiBearerToken:
+      type: string
+      format: byte
+      pattern: ^[A-Za-z0-9+/]+={0,2}$
+      description: Base64-encoded API bearer token returned when a token is created.
+    ApiToken:
+      type: object
+      required:
+      - id
+      - alias
+      - createdTime
+      - lastDigits
+      - lastUsedTime
+      - state
+      properties:
+        id:
+          $ref: '#/components/schemas/ApiTokenId'
+        alias:
+          $ref: '#/components/schemas/ApiTokenAlias'
+        createdTime:
+          $ref: '#/components/schemas/ApiTokenTimestamp'
+        lastDigits:
+          $ref: '#/components/schemas/ApiTokenLastDigits'
+        lastUsedTime:
+          $ref: '#/components/schemas/ApiTokenTimestamp'
+        state:
+          $ref: '#/components/schemas/ApiTokenState'
+    ApiTokenWithBearer:
+      allOf:
+      - $ref: '#/components/schemas/ApiToken'
+      - type: object
+        required:
+        - apiBearerToken
+        properties:
+          apiBearerToken:
+            $ref: '#/components/schemas/ApiBearerToken'
+    ApiTokenListResponse:
+      type: object
+      required:
+      - apiTokens
+      properties:
+        apiTokens:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiToken'
+    ApiTokenResponse:
+      type: object
+      required:
+      - apiToken
+      properties:
+        apiToken:
+          $ref: '#/components/schemas/ApiToken'
+    ApiTokenCreatedResponse:
+      type: object
+      required:
+      - apiToken
+      properties:
+        apiToken:
+          $ref: '#/components/schemas/ApiTokenWithBearer'
+      x-live-validation:
+        status: 201
+        apiBearerTokenReturned: true
+    ApiTokenDeleteResponse:
+      type: object
+      maxProperties: 0
+      description: Empty JSON object returned after successful deletion.
+      example: {}
+      x-live-validation:
+        status: 200
+    ApiTokenError:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          required:
+          - message
+          properties:
+            code:
+              type: string
+              description: Optional legacy application error code.
+            message:
+              type: string
+              description: Error message returned by the Web API.
+      example:
+        error:
+          message: Unauthorized - Invalid credentials
+    UpdateApiTokenRequest:
+      type: object
+      required:
+      - alias
+      properties:
+        alias:
+          $ref: '#/components/schemas/ApiTokenAlias'
+  parameters:
+    MerchantIdPath:
+      name: merchantId
+      in: path
+      required: true
+      description: The merchant identifier.
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 32
+        pattern: ^[a-f0-9]{32}$
+        description: The ID of the merchant.
+        x-enriched-from: 01-Get-API-Token-List-for-Merchant_222692434.html
+    ApiTokenIdPath:
+      name: apiTokenId
+      in: path
+      required: true
+      description: The ID of the API token.
+      schema:
+        $ref: '#/components/schemas/ApiTokenId'
 security:
 - apiKey: []
 tags:
@@ -57,6 +202,8 @@ tags:
     \ levels:\n\n- PSP\n- Division\n- Merchant\n- Channel\n    \n\nThe settings follow\
     \ a hierarchy model. If a setting (RIRO) is set at a higher level, then it is\
     \ inherited at the lower levels unless overwritten."
+- name: API Token operations
+  description: Manage API tokens for merchant access to transaction processing.
 paths:
   /psps/{pspId}/ownedContacts:
     post:
@@ -77,6 +224,8 @@ paths:
                   description: The first and last name
                   example: Call Center Restricted
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 role:
                   type: string
                   description: 'The role of the account. Could be:
@@ -142,6 +291,8 @@ paths:
                   description: The contact description
                   example: daily operations
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 oauthRedirectUrl:
                   type: string
                   description: Required for OAUTH kind contacts (BIP, developer portal,
@@ -156,6 +307,9 @@ paths:
                   description: Send authenticator email upon contact creation.
                   example: 'true'
               type: object
+              required:
+              - name
+              x-enriched-from: 48741082.html
             examples:
               Add Contact (PSP level):
                 value:
@@ -181,12 +335,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Contact_48739456.html
+          maxLength: 32
+          description: The ID of the PSP
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Contact (PSP level)
       operationId: addContactPspLevel
     get:
@@ -199,12 +361,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 11-Get-Owned-Contacts-list_48739480.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Contacts (PSP level)
       operationId: listOwnedContactsPspLevel
   /divisions/{divisionId}/ownedContacts:
@@ -226,6 +396,8 @@ paths:
                   description: The first and last name
                   example: Call Center Restricted
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 role:
                   type: string
                   description: 'The role of the account. Could be:
@@ -291,6 +463,8 @@ paths:
                   description: The contact description
                   example: daily operations
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 oauthRedirectUrl:
                   type: string
                   description: Required for OAUTH kind contacts (BIP, developer portal,
@@ -305,6 +479,9 @@ paths:
                   description: Send authenticator email upon contact creation.
                   example: 'true'
               type: object
+              required:
+              - name
+              x-enriched-from: 48741082.html
             examples:
               Add Contact (Division level):
                 value:
@@ -330,12 +507,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Contact_48739456.html
+          maxLength: 32
+          description: The ID of the division
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Contact (Division level)
       operationId: addContactDivisionLevel
     get:
@@ -348,12 +533,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 11-Get-Owned-Contacts-list_48739480.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Contacts (Division level)
       operationId: listOwnedContactsDivisionLevel
   /merchants/{merchantId}/ownedContacts:
@@ -375,6 +568,8 @@ paths:
                   description: The first and last name
                   example: Call Center Restricted
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 role:
                   type: string
                   description: 'The role of the account. Could be:
@@ -440,6 +635,8 @@ paths:
                   description: The contact description
                   example: daily operations
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 oauthRedirectUrl:
                   type: string
                   description: Required for OAUTH kind contacts (BIP, developer portal,
@@ -454,6 +651,9 @@ paths:
                   description: Send authenticator email upon contact creation.
                   example: 'true'
               type: object
+              required:
+              - name
+              x-enriched-from: 48741082.html
             examples:
               Add Contact (Merchant level):
                 value:
@@ -479,12 +679,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Contact_48739456.html
+          maxLength: 32
+          description: The ID of the merchant
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Contact (Merchant level)
       operationId: addContactMerchantLevel
     get:
@@ -497,12 +705,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 11-Get-Owned-Contacts-list_48739480.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Contacts (Merchant level)
       operationId: listOwnedContactsMerchantLevel
   /contacts/{contactId}:
@@ -524,6 +740,8 @@ paths:
                   description: The first and last name
                   example: Call Center Restricted
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 role:
                   type: string
                   description: 'The role of the account. Could be:
@@ -589,6 +807,8 @@ paths:
                   description: The contact description
                   example: daily operations
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 32
                 oauthRedirectUrl:
                   type: string
                   description: Required for OAUTH kind contacts (BIP, developer portal,
@@ -613,6 +833,10 @@ paths:
                     - LOCKED'
                   example: ACTIVE
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 48741082.html
             examples:
               Edit Contact:
                 value:
@@ -639,12 +863,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 04-Edit-Contact_48739472.html
+          maxLength: 32
+          description: The ID of the contact
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Edit Contact
       operationId: editContact
     get:
@@ -657,12 +889,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 03-Get-Contact_48739479.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Get Contact
       operationId: getContact
     delete:
@@ -675,12 +915,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 07-Delete-Contact_48739467.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete Contact
       operationId: deleteContact
   /contacts/{contactId}/lockContact:
@@ -701,12 +949,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Lock-Contact_48739468.html
+          maxLength: 32
+          description: The ID of the contact
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Lock Contact
       operationId: lockContact
   /contacts/{contactId}/unlockContact:
@@ -734,12 +990,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 06-Unlock-Contact_48739469.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Unlock Contact
       operationId: unlockContact
   /contacts/{contactId}/setPassword:
@@ -767,12 +1031,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 02-Reset-Contact-Password_48739513.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Reset Contact Password
       operationId: resetContactPassword
   /channels/{channelId}/ownedContacts:
@@ -786,12 +1058,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 11-Get-Owned-Contacts-list_48739480.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Contacts (Channel level)
       operationId: listOwnedContactsChannelLevel
   /psps/{pspId}/attachedContacts:
@@ -805,12 +1085,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 10-Get-Attached-Contacts-list_48739481.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Contacts (PSP level)
       operationId: listAttachedContactsPspLevel
   /divisions/{divisionId}/attachedContacts:
@@ -824,12 +1112,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 10-Get-Attached-Contacts-list_48739481.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Contacts (Division level)
       operationId: listAttachedContactsDivisionLevel
   /merchants/{merchantId}/attachedContacts:
@@ -843,12 +1139,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 10-Get-Attached-Contacts-list_48739481.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Contacts (Merchant level)
       operationId: listAttachedContactsMerchantLevel
   /channels/{channelId}/attachedContacts:
@@ -862,12 +1166,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 10-Get-Attached-Contacts-list_48739481.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Contacts (Channel level)
       operationId: listAttachedContactsChannelLevel
   /psps/{pspId}/attachedContacts/{contactId}:
@@ -881,18 +1193,29 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       - name: contactId
         in: path
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach Contact (PSP level)
       operationId: detachContactPspLevel
   /divisions/{divisionId}/attachedContacts/{contactId}:
@@ -906,18 +1229,29 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       - name: contactId
         in: path
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach Contact (Division level)
       operationId: detachContactDivisionLevel
   /merchants/{merchantId}/attachedContacts/{contactId}:
@@ -931,18 +1265,29 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       - name: contactId
         in: path
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach Contact (Merchant level)
       operationId: detachContactMerchantLevel
   /channels/{channelId}/attachedContacts/{contactId}:
@@ -956,18 +1301,29 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       - name: contactId
         in: path
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Attach-Contact_48739463.html
+          maxLength: 32
+          description: The ID of the contact.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach Contact (Channel level)
       operationId: detachContactChannelLevel
   /psps/{pspId}/clearingInstitutes:
@@ -980,12 +1336,21 @@ paths:
         in: path
         schema:
           type: string
+          pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Get-Clearing-Institutes-list_48739582.html
+          maxLength: 32
+          description: The ID of the PSP
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 01-Get-Clearing-Institutes-list_48739582.html
       description: List Clearing Institutes
       operationId: listClearingInstitutes
   /psps/{pspId}/divisions:
@@ -1003,6 +1368,8 @@ paths:
                   description: The name of the division.
                   example: '{{$randomWord}}'
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Division_48741045.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1011,11 +1378,19 @@ paths:
                   type: string
                   description: The customer identifier.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Division_48741045.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the division entity.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Division_48741045.html
+                  maxLength: 32
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 01-Add-Division_48741045.html
             examples:
               Add Division:
                 value:
@@ -1034,12 +1409,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Division_48741045.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Division
       operationId: addDivision
     get:
@@ -1057,12 +1440,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 04-Get-Divisions-List_48741052.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Divisions
       operationId: listDivisions
       requestBody:
@@ -1089,6 +1480,8 @@ paths:
                   description: The name of the division.
                   example: '{{$randomWord}}'
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Division_48741045.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1097,11 +1490,19 @@ paths:
                   type: string
                   description: The customer identifier.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Division_48741045.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the division entity.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Division_48741045.html
+                  maxLength: 32
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 01-Add-Division_48741045.html
             examples:
               Add Division using PSP entity path:
                 value:
@@ -1120,12 +1521,20 @@ paths:
         schema:
           type: string
           pattern: ^[A-Za-z0-9 _-]*$
+          x-enriched-from: 01-Add-Division_48741045.html
+          maxLength: 256
+          description: The entity name identifying the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Division using PSP entity path
       operationId: addDivisionUsingPspEntityPath
   /divisions/{divisionId}:
@@ -1143,6 +1552,8 @@ paths:
                   description: The name of the division.
                   example: '{{$randomWord}}'
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 03-Edit-Division_48741050.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1152,12 +1563,20 @@ paths:
                   description: The customer identifier.
                   example: '{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Division_48741050.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the division entity.
                   example: New Market
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Division_48741050.html
+                  maxLength: 50
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 03-Edit-Division_48741050.html
             examples:
               Edit Division:
                 value:
@@ -1176,12 +1595,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 03-Edit-Division_48741050.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Edit Division
       operationId: editDivision
     delete:
@@ -1199,12 +1626,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Delete-Division_48741054.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 05-Delete-Division_48741054.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete Division
       operationId: deleteDivision
       requestBody:
@@ -1231,12 +1666,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 02-Get-Division_48741048.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Get Division
       operationId: getDivision
       requestBody:
@@ -1263,6 +1706,8 @@ paths:
                   description: The name of the merchant.
                   example: '{{$randomCountry}}'
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Merchant_48739408.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1271,11 +1716,19 @@ paths:
                   type: string
                   description: The customer identifier.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant_48739408.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the merchant entity.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant_48739408.html
+                  maxLength: 50
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 01-Add-Merchant_48739408.html
             examples:
               Add Merchant:
                 value:
@@ -1294,12 +1747,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Merchant_48739408.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Merchant
       operationId: addMerchant
     get:
@@ -1317,12 +1778,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 04-Get-Merchants-List_48739448.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Merchants
       operationId: listMerchants
       requestBody:
@@ -1349,6 +1818,8 @@ paths:
                   description: The name of the merchant.
                   example: '{{$randomCountry}}'
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Merchant_48739408.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1357,11 +1828,19 @@ paths:
                   type: string
                   description: The customer identifier.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant_48739408.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the merchant entity.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant_48739408.html
+                  maxLength: 50
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 01-Add-Merchant_48739408.html
             examples:
               Add Merchant using Division entity path:
                 value:
@@ -1380,18 +1859,29 @@ paths:
         schema:
           type: string
           pattern: ^[A-Za-z0-9_-]*$
+          x-enriched-from: 01-Add-Merchant_48739408.html
+          maxLength: 256
+          description: The entity name identifying the PSP.
         required: true
       - name: divisionName
         in: path
         schema:
           type: string
           pattern: ^[A-Za-z0-9_-]*$
+          x-enriched-from: 01-Add-Merchant_48739408.html
+          maxLength: 32
+          description: The entity name identifying the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Merchant using Division entity path
       operationId: addMerchantUsingDivisionEntityPath
   /merchants/{merchantId}:
@@ -1408,6 +1898,8 @@ paths:
                   type: string
                   description: The name of the merchant.
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 03-Edit-Merchant_48739416.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1416,12 +1908,20 @@ paths:
                   description: The customer identifier.
                   example: '{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant_48739416.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the merchant entity.
                   example: New Market
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant_48739416.html
+                  maxLength: 32
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 03-Edit-Merchant_48739416.html
             examples:
               Edit Merchant:
                 value:
@@ -1440,12 +1940,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 03-Edit-Merchant_48739416.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Edit Merchant
       operationId: editMerchant
     delete:
@@ -1463,12 +1971,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Delete-Merchant_48739419.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete Merchant
       operationId: deleteMerchant
       requestBody:
@@ -1495,12 +2011,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 02-Get-Merchant_48739417.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Get Merchant
       operationId: getMerchant
       requestBody:
@@ -1527,6 +2051,8 @@ paths:
                   description: The name of the channel.
                   example: Channel-{{$randomCity}}
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Channel_48741057.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1535,11 +2061,19 @@ paths:
                   type: string
                   description: The customer identifier.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Channel_48741057.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the channel entity.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Channel_48741057.html
+                  maxLength: 50
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 01-Add-Channel_48741057.html
             examples:
               Add Channel:
                 summary: Add Channel
@@ -1557,12 +2091,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Channel_48741057.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add a channel to a merchant. The Postman collection contains two
         equivalent requests for this same operation.
       operationId: addChannel
@@ -1589,12 +2131,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 04-Get-Channels-List_48741063.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Channels
       operationId: listChannels
   /channels/{channelId}:
@@ -1611,6 +2161,8 @@ paths:
                   type: string
                   description: The name of the channel.
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 03-Edit-Channel_48741061.html
+                  maxLength: 32
                 state:
                   type: string
                   description: LIVE, CONNECTOR_TEST, INTEGRATOR_TEST, DISABLED
@@ -1619,12 +2171,20 @@ paths:
                   description: The customer identifier.
                   example: Channel-{{$randomFirstName}}012{{$randomAlphaNumeric}}{{$randomAlphaNumeric}}
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Channel_48741061.html
+                  maxLength: 32
                 description:
                   type: string
                   description: The description of the channel entity.
                   example: New Channel in the market
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Channel_48741061.html
+                  maxLength: 50
               type: object
+              required:
+              - name
+              - state
+              x-enriched-from: 03-Edit-Channel_48741061.html
             examples:
               Edit Channel:
                 value:
@@ -1643,12 +2203,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 03-Edit-Channel_48741061.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Edit Channel
       operationId: editChannel
     delete:
@@ -1666,12 +2234,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Delete-Channel_48741065.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete Channel
       operationId: deleteChannel
     get:
@@ -1689,12 +2265,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 02-Get-Channel_48741059.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Get Channel
       operationId: getChannel
   /psps/{pspId}/ownedMerchantAccounts:
@@ -1712,6 +2296,8 @@ paths:
                   description: The merchant account name.
                   example: MA-Acquirer-NAB
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 256
                 state:
                   type: string
                   description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
@@ -1737,6 +2323,8 @@ paths:
                   type: string
                   description: The merchant IBAN for funds to be transferred (SEPA).
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 cleaingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
@@ -1747,10 +2335,14 @@ paths:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 username:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 merchantCategory:
                   type: string
                   description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
@@ -1792,6 +2384,8 @@ paths:
                     policy (see above)
                 debitAdviceProcedure:
                   type: string
+                  description: "Possible values\_are: DA or DD"
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 recurringCode:
                   type: string
                   description: NONE, RECURRING, INSTALLMENT
@@ -1857,32 +2451,60 @@ paths:
                   example: Test Name
                 dinersMerchantId:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantPwd:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 velocityDispachingActive:
                   type: string
                   description: TRUE or FALSE
@@ -1890,6 +2512,8 @@ paths:
                   type: string
                   description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 ticketSizeDispatchingActive:
                   type: string
                   description: TRUE or FALSE
@@ -1897,6 +2521,8 @@ paths:
                   type: string
                   description: '{Minimum ticket size};{Maximum ticket size}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 recurringDispatchingSetting:
                   type: string
                   description: 'ALL: All shoppers
@@ -1922,11 +2548,13 @@ paths:
                   description: 'The dynamic timeout: minutes to wait the response
                     from consumer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 pendingForAcquirerTimeoutInMins:
                   type: string
                   description: 'The dynamic timeout: minutes to wait the response
                     from acquirer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 uploadUser:
                   type: string
                   description: The credentials use to upload files to the provider.
@@ -1934,6 +2562,37 @@ paths:
                   type: string
                   description: The credentials use to upload files to the provider.
               type: object
+              required:
+              - name
+              - state
+              - supports3DSecure
+              - merchant3DName
+              - merchant3DUrl
+              - merchantIsoCountryCode
+              - merchant3DId
+              - merchant3DCategory
+              - visaMerchantAcquirerBin_v2
+              - visaRequestorId_v2
+              - visaRequestorName
+              - masterMerchantAcquirerBin_v2
+              - masterRequestorId_v2
+              - masterRequestorName
+              - amexMerchantAcquirerBin_v2
+              - amexRequestorId_v2
+              - amexRequestorName
+              - dinersMerchantId
+              - dinersMerchantPwd
+              - dinersMerchantAcquirerBin_v2
+              - dinersRequestorId_v2
+              - dinersRequestorName
+              - bcmcMerchantAcquirerBin_v2
+              - bcmcRequestorId_v2
+              - bcmcRequestorName
+              - cashlinkMaltaMerchantAcquirerBin_v2
+              - cashlinkMaltaRequestorId_v2
+              - cashlinkMaltaRequestorName
+              - key
+              x-enriched-from: 48741082.html
             examples:
               Add Merchant Account (PSP level):
                 value:
@@ -2009,12 +2668,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Merchant-Account_48739427.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Merchant Account (PSP level)
       operationId: addMerchantAccountPspLevel
     delete:
@@ -2032,12 +2699,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 14-Delete-All-Owned-Merchant-Accounts_90081018.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 14-Delete-All-Owned-Merchant-Accounts_90081018.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete All Merchant Account (PSP level)
       operationId: deleteAllMerchantAccountPspLevel
     get:
@@ -2055,12 +2730,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 09-Get-Owned-Merchant-Account-list_48739452.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Merchant Accounts (PSP level)
       operationId: listOwnedMerchantAccountsPspLevel
   /divisions/{divisionId}/ownedMerchantAccounts:
@@ -2078,6 +2761,8 @@ paths:
                   description: The merchant account name.
                   example: MA-Acquirer-NAB
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 256
                 state:
                   type: string
                   description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
@@ -2103,6 +2788,8 @@ paths:
                   type: string
                   description: The merchant IBAN for funds to be transferred (SEPA).
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 cleaingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
@@ -2113,10 +2800,14 @@ paths:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 username:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 merchantCategory:
                   type: string
                   description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
@@ -2158,6 +2849,8 @@ paths:
                     policy (see above)
                 debitAdviceProcedure:
                   type: string
+                  description: "Possible values\_are: DA or DD"
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 recurringCode:
                   type: string
                   description: NONE, RECURRING, INSTALLMENT
@@ -2223,32 +2916,60 @@ paths:
                   example: Test Name
                 dinersMerchantId:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantPwd:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 velocityDispachingActive:
                   type: string
                   description: TRUE or FALSE
@@ -2256,6 +2977,8 @@ paths:
                   type: string
                   description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 ticketSizeDispatchingActive:
                   type: string
                   description: TRUE or FALSE
@@ -2263,6 +2986,8 @@ paths:
                   type: string
                   description: '{Minimum ticket size};{Maximum ticket size}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 recurringDispatchingSetting:
                   type: string
                   description: 'ALL: All shoppers
@@ -2288,11 +3013,13 @@ paths:
                   description: 'The dynamic timeout: minutes to wait the response
                     from consumer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 pendingForAcquirerTimeoutInMins:
                   type: string
                   description: 'The dynamic timeout: minutes to wait the response
                     from acquirer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 uploadUser:
                   type: string
                   description: The credentials use to upload files to the provider.
@@ -2300,6 +3027,37 @@ paths:
                   type: string
                   description: The credentials use to upload files to the provider.
               type: object
+              required:
+              - name
+              - state
+              - supports3DSecure
+              - merchant3DName
+              - merchant3DUrl
+              - merchantIsoCountryCode
+              - merchant3DId
+              - merchant3DCategory
+              - visaMerchantAcquirerBin_v2
+              - visaRequestorId_v2
+              - visaRequestorName
+              - masterMerchantAcquirerBin_v2
+              - masterRequestorId_v2
+              - masterRequestorName
+              - amexMerchantAcquirerBin_v2
+              - amexRequestorId_v2
+              - amexRequestorName
+              - dinersMerchantId
+              - dinersMerchantPwd
+              - dinersMerchantAcquirerBin_v2
+              - dinersRequestorId_v2
+              - dinersRequestorName
+              - bcmcMerchantAcquirerBin_v2
+              - bcmcRequestorId_v2
+              - bcmcRequestorName
+              - cashlinkMaltaMerchantAcquirerBin_v2
+              - cashlinkMaltaRequestorId_v2
+              - cashlinkMaltaRequestorName
+              - key
+              x-enriched-from: 48741082.html
             examples:
               Add Merchant Account (Division level):
                 value:
@@ -2375,12 +3133,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Merchant-Account_48739427.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Merchant Account (Division level)
       operationId: addMerchantAccountDivisionLevel
     delete:
@@ -2398,12 +3164,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the division
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete All Merchant Account (Division level)
       operationId: deleteAllMerchantAccountDivisionLevel
     get:
@@ -2421,12 +3195,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the division
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Merchant Accounts (Division level)
       operationId: listOwnedMerchantAccountsDivisionLevel
   /merchants/{merchantId}/ownedMerchantAccounts:
@@ -2444,6 +3226,8 @@ paths:
                   description: The merchant account name.
                   example: MA-Acquirer-NAB
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 256
                 state:
                   type: string
                   description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
@@ -2469,6 +3253,8 @@ paths:
                   type: string
                   description: The merchant IBAN for funds to be transferred (SEPA).
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 cleaingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
@@ -2479,10 +3265,14 @@ paths:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 username:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 merchantCategory:
                   type: string
                   description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
@@ -2524,6 +3314,8 @@ paths:
                     policy (see above)
                 debitAdviceProcedure:
                   type: string
+                  description: "Possible values\_are: DA or DD"
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 recurringCode:
                   type: string
                   description: NONE, RECURRING, INSTALLMENT
@@ -2589,32 +3381,60 @@ paths:
                   example: Test Name
                 dinersMerchantId:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantPwd:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 velocityDispachingActive:
                   type: string
                   description: TRUE or FALSE
@@ -2622,6 +3442,8 @@ paths:
                   type: string
                   description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 ticketSizeDispatchingActive:
                   type: string
                   description: TRUE or FALSE
@@ -2629,6 +3451,8 @@ paths:
                   type: string
                   description: '{Minimum ticket size};{Maximum ticket size}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 recurringDispatchingSetting:
                   type: string
                   description: 'ALL: All shoppers
@@ -2654,11 +3478,13 @@ paths:
                   description: 'The dynamic timeout: minutes to wait the response
                     from consumer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 pendingForAcquirerTimeoutInMins:
                   type: string
                   description: 'The dynamic timeout: minutes to wait the response
                     from acquirer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 uploadUser:
                   type: string
                   description: The credentials use to upload files to the provider.
@@ -2666,6 +3492,37 @@ paths:
                   type: string
                   description: The credentials use to upload files to the provider.
               type: object
+              required:
+              - name
+              - state
+              - supports3DSecure
+              - merchant3DName
+              - merchant3DUrl
+              - merchantIsoCountryCode
+              - merchant3DId
+              - merchant3DCategory
+              - visaMerchantAcquirerBin_v2
+              - visaRequestorId_v2
+              - visaRequestorName
+              - masterMerchantAcquirerBin_v2
+              - masterRequestorId_v2
+              - masterRequestorName
+              - amexMerchantAcquirerBin_v2
+              - amexRequestorId_v2
+              - amexRequestorName
+              - dinersMerchantId
+              - dinersMerchantPwd
+              - dinersMerchantAcquirerBin_v2
+              - dinersRequestorId_v2
+              - dinersRequestorName
+              - bcmcMerchantAcquirerBin_v2
+              - bcmcRequestorId_v2
+              - bcmcRequestorName
+              - cashlinkMaltaMerchantAcquirerBin_v2
+              - cashlinkMaltaRequestorId_v2
+              - cashlinkMaltaRequestorName
+              - key
+              x-enriched-from: 48741082.html
             examples:
               Add Merchant Account (Merchant level):
                 value:
@@ -2741,12 +3598,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 01-Add-Merchant-Account_48739427.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Merchant Account (Merchant level)
       operationId: addMerchantAccountMerchantLevel
     delete:
@@ -2764,12 +3629,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the merchant
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete All Merchant Account (Merchant level)
       operationId: deleteAllMerchantAccountMerchantLevel
     get:
@@ -2787,12 +3660,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the merchant
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Merchant Accounts (Merchant level)
       operationId: listOwnedMerchantAccountsMerchantLevel
   /channels/{channelId}/ownedMerchantAccounts:
@@ -2810,6 +3691,8 @@ paths:
                   description: The merchant account name.
                   example: MA-Acquirer-NAB
                   pattern: ^[A-Za-z0-9_-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 256
                 state:
                   type: string
                   description: The merchant Account state. LIVE, CLOSED, TEST or DISABLED.
@@ -2835,6 +3718,8 @@ paths:
                   type: string
                   description: The merchant IBAN for funds to be transferred (SEPA).
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 cleaingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
@@ -2845,10 +3730,14 @@ paths:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 username:
                   type: string
                   description: The credentials use to connect to the provider.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 128
                 merchantCategory:
                   type: string
                   description: RETAIL, SERVICES, AIRLINE, HOTEL, TRAVEL, GAMING, GAMBLING,
@@ -2890,6 +3779,8 @@ paths:
                     policy (see above)
                 debitAdviceProcedure:
                   type: string
+                  description: "Possible values\_are: DA or DD"
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 recurringCode:
                   type: string
                   description: NONE, RECURRING, INSTALLMENT
@@ -2955,32 +3846,60 @@ paths:
                   example: Test Name
                 dinersMerchantId:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantPwd:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 dinersRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 bcmcRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 jcbRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 cashlinkMaltaRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 48741082.html
                 velocityDispachingActive:
                   type: string
                   description: TRUE or FALSE
@@ -2988,6 +3907,8 @@ paths:
                   type: string
                   description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 ticketSizeDispatchingActive:
                   type: string
                   description: TRUE or FALSE
@@ -2995,6 +3916,8 @@ paths:
                   type: string
                   description: '{Minimum ticket size};{Maximum ticket size}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
+                  maxLength: 32
                 recurringDispatchingSetting:
                   type: string
                   description: 'ALL: All shoppers
@@ -3020,11 +3943,13 @@ paths:
                   description: 'The dynamic timeout: minutes to wait the response
                     from consumer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 pendingForAcquirerTimeoutInMins:
                   type: string
                   description: 'The dynamic timeout: minutes to wait the response
                     from acquirer before timing-out'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 01-Add-Merchant-Account_48739427.html
                 uploadUser:
                   type: string
                   description: The credentials use to upload files to the provider.
@@ -3032,6 +3957,37 @@ paths:
                   type: string
                   description: The credentials use to upload files to the provider.
               type: object
+              required:
+              - name
+              - state
+              - supports3DSecure
+              - merchant3DName
+              - merchant3DUrl
+              - merchantIsoCountryCode
+              - merchant3DId
+              - merchant3DCategory
+              - visaMerchantAcquirerBin_v2
+              - visaRequestorId_v2
+              - visaRequestorName
+              - masterMerchantAcquirerBin_v2
+              - masterRequestorId_v2
+              - masterRequestorName
+              - amexMerchantAcquirerBin_v2
+              - amexRequestorId_v2
+              - amexRequestorName
+              - dinersMerchantId
+              - dinersMerchantPwd
+              - dinersMerchantAcquirerBin_v2
+              - dinersRequestorId_v2
+              - dinersRequestorName
+              - bcmcMerchantAcquirerBin_v2
+              - bcmcRequestorId_v2
+              - bcmcRequestorName
+              - cashlinkMaltaMerchantAcquirerBin_v2
+              - cashlinkMaltaRequestorId_v2
+              - cashlinkMaltaRequestorName
+              - key
+              x-enriched-from: 48741082.html
             examples:
               Add Merchant Account (Channel level):
                 value:
@@ -3107,12 +4063,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the channel
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Add Merchant Account (Channel level)
       operationId: addMerchantAccountChannelLevel
     delete:
@@ -3130,12 +4094,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 14-Delete-All-Owned-Merchant-Accounts_90081018.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 14-Delete-All-Owned-Merchant-Accounts_90081018.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete All Merchant Account (Channel level)
       operationId: deleteAllMerchantAccountChannelLevel
     get:
@@ -3153,12 +4125,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 09-Get-Owned-Merchant-Account-list_48739452.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Owned Merchant Accounts (Channel level)
       operationId: listOwnedMerchantAccountsChannelLevel
   /merchantAccounts/{merchantAccountId}:
@@ -3233,39 +4213,73 @@ paths:
                   example: Name
                 dinersMerchantId:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 dinersMerchantPwd:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 dinersMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 dinersRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 dinersRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 bcmcMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 bcmcRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 bcmcRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 jcbMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 jcbRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 jcbRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 cashlinkMaltaMerchantAcquirerBin_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 cashlinkMaltaRequestorId_v2:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 cashlinkMaltaRequestorName:
                   type: string
+                  description: "Required for\_3D Secure v2.x"
+                  x-enriched-from: 10-3D-Secure-setup_50267480.html
                 name:
                   type: string
                   example: MA-Acquirer-NAB
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  maxLength: 256
+                  description: The name of the merchant account.
                 state:
                   type: string
                   example: LIVE
+                  description: "Possible values\_are \"LIVE\", \"CLOSED\", \"TEST\"\
+                    \ or \"DISABLED\""
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 clearingInstituteName:
                   type: string
                   example: EMC_NAB
@@ -3282,6 +4296,8 @@ paths:
                 iban:
                   type: string
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  maxLength: 32
                 cleaingInstituteId:
                   type: string
                 terminalId:
@@ -3289,56 +4305,137 @@ paths:
                 password:
                   type: string
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  maxLength: 128
                 username:
                   type: string
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  maxLength: 128
                 merchantCategory:
                   type: string
+                  description: "Possible values\_are: RETAIL, SERVICES, AIRLINE, HOTEL,\
+                    \ TRAVEL, GAMING, GAMBLING, DIGITAL_CONTENT, AUCTION, ADULT, UTILITIES,\
+                    \ E_TICKETING or ONLINE_FINANCIAL"
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 transactionCategory:
                   type: string
+                  description: "Possible values\_are: ANY, MOTO, ECOMMERCE, EWALLET"
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 cvvInstruction:
                   type: string
                 cvvRejectionPolicy:
                   type: string
                 avsCheckActive:
                   type: string
+                  description: TRUE or FALSE
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 avsRejectionPolicy:
                   type: string
+                  description: "Possible values\_are: A, Z, N, U"
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 avsReviewPolicy:
                   type: string
+                  description: "Possible values\_are: A, Z, N, U"
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 debitAdviceProcedure:
                   type: string
+                  description: "Possible values\_are: DA or DD"
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 recurringCode:
                   type: string
+                  description: "Possible values\_are: NONE, RECURRING, INSTALLMENT"
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 velocityDispachingActive:
                   type: string
+                  description: TRUE or FALSE
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 velocityDispatchingSetting:
                   type: string
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  maxLength: 32
+                  description: '{Maximum number of Tx};{Maximum volume};{within};{HOUR|DAY|WEEK|MONTH|YEAR}For
+                    example, 12;11;2;DAY'
                 ticketSizeDispatchingActive:
                   type: string
+                  description: TRUE or FALSE
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 ticketSizeDispatchingSetting:
                   type: string
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  maxLength: 32
+                  description: '{Minimum ticket size};{Maximum ticket size}For example,
+                    2;10'
                 recurringDispatchingSetting:
                   type: string
+                  description: 'ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time
+                    shoppers'
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 shopperDispatchingSetting:
                   type: string
+                  description: 'ALL: All shoppersTRUE: Recurring shoppersFALSE: First-time
+                    shoppers'
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 shopperDispatchingScope:
                   type: string
+                  description: PSP, DIVISION, MERCHANT, or CHANNEL
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 shopperDispatchingValidity:
                   type: string
+                  description: in days
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                 pendingTimeoutInMins:
                   type: string
                   pattern: ^[0-9]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  description: Define time in minutes when this payment request from
+                    Consumer should timeout.
                 pendingForAcquirerTimeoutInMins:
                   type: string
                   pattern: ^[0-9]*$
+                  x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+                  description: Define time in minutes when the final payment status
+                    request from Acquirer should timeout.
                 uploadUser:
                   type: string
                 uploadPassword:
                   type: string
               type: object
+              required:
+              - supports3DSecure
+              - merchant3DName
+              - merchant3DUrl
+              - merchantIsoCountryCode
+              - merchant3DId
+              - merchant3DCategory
+              - visaMerchantAcquirerBin_v2
+              - visaRequestorId_v2
+              - visaRequestorName
+              - masterMerchantAcquirerBin_v2
+              - masterRequestorId_v2
+              - masterRequestorName
+              - amexMerchantAcquirerBin_v2
+              - amexRequestorId_v2
+              - amexRequestorName
+              - dinersMerchantId
+              - dinersMerchantPwd
+              - dinersMerchantAcquirerBin_v2
+              - dinersRequestorId_v2
+              - dinersRequestorName
+              - bcmcMerchantAcquirerBin_v2
+              - bcmcRequestorId_v2
+              - bcmcRequestorName
+              - cashlinkMaltaMerchantAcquirerBin_v2
+              - cashlinkMaltaRequestorId_v2
+              - cashlinkMaltaRequestorName
+              - key
+              - name
+              - state
+              x-enriched-from:
+              - 10-3D-Secure-setup_50267480.html
+              - 48741082.html
             examples:
               Edit Merchant Account:
                 summary: Edit Merchant Account
@@ -3393,12 +4490,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 03-Edit-Merchant-Account_48739429.html
+          maxLength: 32
+          description: The ID of the merchant account.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Update a merchant account. The Postman collection uses this same
         endpoint for both general merchant account edits and 3DS2 configuration, and
         the examples below capture both workflows.
@@ -3426,12 +4531,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 02-Get-Merchant-Account_48741782.html
+          maxLength: 32
+          description: The ID of the merchant account.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Get Merchant Account
       operationId: getMerchantAccount
     delete:
@@ -3449,12 +4562,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 04-Delete-Merchant-Account_48739430.html
+          maxLength: 32
+          description: The ID of the merchant account.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 04-Delete-Merchant-Account_48739430.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Delete Merchant Account
       operationId: deleteMerchantAccount
   /psps/{pspId}/attachedMerchantAccounts:
@@ -3473,16 +4594,20 @@ paths:
                     entity level.
                   example: '{{merchantAccountId}}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+                  maxLength: 32
                 binRangeLimit:
                   type: string
                   description: List of bin ranges (6 or 8 digits) separated by semicolons.
                   example: 420000:440000;520000:550000
                   pattern: ^[0-9]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 binCountryLimit:
                   type: string
                   description: List of country codes separated by semicolons.
                   example: DE;NL
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 subTypes:
                   type: string
                   description: List of brands comma-separated.
@@ -3492,6 +4617,7 @@ paths:
                   description: The currency. No list of currencies supported.
                   example: EUR
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 processTransactionsWithoutBinIdentification:
                   type: boolean
                   description: Allow transactions with unrecognizable BIN to process
@@ -3557,12 +4683,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Attach Merchant Account (PSP level)
       operationId: attachMerchantAccountPspLevel
     delete:
@@ -3580,12 +4714,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the PSP
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach All Merchant Accounts (PSP level)
       operationId: detachAllMerchantAccountsPspLevel
     get:
@@ -3603,12 +4745,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Get-Attached-Merchant-Account-list_48739442.html
+          maxLength: 32
+          description: The ID of the PSP.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Merchant Accounts (PSP level)
       operationId: listAttachedMerchantAccountsPspLevel
   /divisions/{divisionId}/attachedMerchantAccounts:
@@ -3627,16 +4777,20 @@ paths:
                     entity level.
                   example: '{{merchantAccountId}}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+                  maxLength: 32
                 binRangeLimit:
                   type: string
                   description: List of bin ranges (6 or 8 digits) separated by semicolons.
                   example: 420000:440000;520000:550000
                   pattern: ^[0-9]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 binCountryLimit:
                   type: string
                   description: List of country codes separated by semicolons.
                   example: DE;NL
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 subTypes:
                   type: string
                   description: List of brands comma-separated.
@@ -3646,6 +4800,7 @@ paths:
                   description: The currency. No list of currencies supported.
                   example: EUR
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 processTransactionsWithoutBinIdentification:
                   type: boolean
                   description: Allow transactions with unrecognizable BIN to process
@@ -3711,12 +4866,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Attach Merchant Account (Division level)
       operationId: attachMerchantAccountDivisionLevel
     delete:
@@ -3734,12 +4897,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the division
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach All Merchant Accounts (Division level)
       operationId: detachAllMerchantAccountsDivisionLevel
     get:
@@ -3757,12 +4928,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Get-Attached-Merchant-Account-list_48739442.html
+          maxLength: 32
+          description: The ID of the division.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Merchant Accounts (Division level)
       operationId: listAttachedMerchantAccountsDivisionLevel
   /merchants/{merchantId}/attachedMerchantAccounts:
@@ -3781,16 +4960,20 @@ paths:
                     entity level.
                   example: '{{merchantAccountId}}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+                  maxLength: 32
                 binRangeLimit:
                   type: string
                   description: List of bin ranges (6 or 8 digits) separated by semicolons.
                   example: 420000:440000;520000:550000
                   pattern: ^[0-9]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 binCountryLimit:
                   type: string
                   description: List of country codes separated by semicolons.
                   example: DE;NL
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 subTypes:
                   type: string
                   description: List of brands comma-separated.
@@ -3800,6 +4983,7 @@ paths:
                   description: The currency. No list of currencies supported.
                   example: EUR
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 processTransactionsWithoutBinIdentification:
                   type: boolean
                   description: Allow transactions with unrecognizable BIN to process
@@ -3865,12 +5049,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Attach Merchant Account (Merchant level)
       operationId: attachMerchantAccountMerchantLevel
     delete:
@@ -3888,12 +5080,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the merchant
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach All Merchant Accounts (Merchant level)
       operationId: detachAllMerchantAccountsMerchantLevel
     get:
@@ -3911,12 +5111,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Get-Attached-Merchant-Account-list_48739442.html
+          maxLength: 32
+          description: The ID of the merchant.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Merchant Accounts (Merchant level)
       operationId: listAttachedMerchantAccountsMerchantLevel
   /channels/{channelId}/attachedMerchantAccounts:
@@ -3935,16 +5143,20 @@ paths:
                     entity level.
                   example: '{{merchantAccountId}}'
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+                  maxLength: 32
                 binRangeLimit:
                   type: string
                   description: List of bin ranges (6 or 8 digits) separated by semicolons.
                   example: 420000:440000;520000:550000
                   pattern: ^[0-9]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 binCountryLimit:
                   type: string
                   description: List of country codes separated by semicolons.
                   example: DE;NL
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 subTypes:
                   type: string
                   description: List of brands comma-separated.
@@ -3954,6 +5166,7 @@ paths:
                   description: The currency. No list of currencies supported.
                   example: EUR
                   pattern: ^[A-Z]*$
+                  x-enriched-from: 05-Attach-Merchant-Account_48739431.html
                 processTransactionsWithoutBinIdentification:
                   type: boolean
                   description: Allow transactions with unrecognizable BIN to process
@@ -4019,12 +5232,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 05-Attach-Merchant-Account_48739431.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Attach Merchant Account (Channel level)
       operationId: attachMerchantAccountChannelLevel
     delete:
@@ -4042,12 +5263,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the channel
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach All Merchant Accounts (Channel level)
       operationId: detachAllMerchantAccountsChannelLevel
     get:
@@ -4065,12 +5294,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 08-Get-Attached-Merchant-Account-list_48739442.html
+          maxLength: 32
+          description: The ID of the channel.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: List Attached Merchant Accounts (Channel level)
       operationId: listAttachedMerchantAccountsChannelLevel
   /attachedMerchantAccounts/{attachedMerchantAccountId}:
@@ -4089,12 +5326,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 06-Edit-Attached-Merchant-Account_48739439.html
+          maxLength: 32
+          description: The ID of the attached merchant account.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 07-Detach-Merchant-Account_48739443.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Detach Merchant Account
       operationId: detachMerchantAccount
   /merchants/{merchantId}/setting:
@@ -4115,12 +5360,18 @@ paths:
                   description: The configuration key in the UI to activate / deactivate
                     3DS2.
                   pattern: ^[A-Za-z0-9 _-]*$
+                  x-enriched-from: 48741082.html
+                  maxLength: 500
                 value:
                   type: string
                   description: 'The possible values: None, No 3DSecure, 3DSecure,
                     3DSecurePassThrough'
                   example: 3DSecure
               type: object
+              required:
+              - key
+              - value
+              x-enriched-from: 10-3D-Secure-setup_50267480.html
             examples:
               Manage 3DS2 activation:
                 summary: Manage 3DS2 activation
@@ -4146,12 +5397,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the merchant
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Update merchant-level settings. The Postman collection uses this
         same endpoint for generic RIRO updates and 3DS2 activation, and the examples
         below capture both workflows.
@@ -4183,12 +5442,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 48741082.html
+          maxLength: 32
+          description: The ID of the merchant
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Get RIRO (Merchant level)
       operationId: getRiroMerchantLevel
   /merchantAccounts/{merchantAccountId}/ThreeDEnrollmentCheck:
@@ -4206,7 +5473,11 @@ paths:
                   description: Your card number to check for 3DS2 eligibility.
                   example: '{{PAN}}'
                   pattern: ^[0-9]*$
+                  x-enriched-from: 11-3D-Secure-Enrollment-check_48739518.html
               type: object
+              required:
+              - cardNumber
+              x-enriched-from: 11-3D-Secure-Enrollment-check_48739518.html
             examples:
               Check 3DS Enrollment:
                 value:
@@ -4222,12 +5493,20 @@ paths:
         schema:
           type: string
           pattern: ^[a-f0-9]*$
+          x-enriched-from: 11-3D-Secure-Enrollment-check_48739518.html
+          maxLength: 32
+          description: The ID of the merchant account.
         required: true
       responses:
         '200':
           description: Successful response
           content:
-            application/json: {}
+            application/json:
+              example: {}
+              x-enriched-from: 48741082.html
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
       description: Check 3DS Enrollment
       operationId: check3dsEnrollment
   /channels/{channelId}/setting:
@@ -4299,3 +5578,329 @@ paths:
             application/json: {}
       description: Update RIRO (Channel level)
       operationId: updateRiroChannelLevel
+  /merchants/{merchantId}/apiTokens:
+    get:
+      tags:
+      - API Token operations
+      summary: List API tokens for merchant
+      description: List all API tokens created for the specified merchant.
+      operationId: listApiTokensForMerchant
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/MerchantIdPath'
+      responses:
+        '200':
+          description: API token list or tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ApiTokenListResponse'
+                - $ref: '#/components/schemas/ApiTokenError'
+              examples:
+                success:
+                  summary: API token list
+                  value:
+                    apiTokens:
+                    - id: ffffffffffffffffffffffffffffffff
+                      alias: SYSTEM_testMerchant02_1
+                      createdTime: '2026-05-07 17:45:49'
+                      lastDigits: 5NIWk=
+                      lastUsedTime: '2026-05-07 17:45:49'
+                      state: ACTIVE
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
+      x-source-doc: 09 Api Tokens Operations - 01 Get API Token List for Merchant.html
+      x-live-validation:
+        status: 200
+        apiBearerTokenReturned: false
+    post:
+      tags:
+      - API Token operations
+      summary: Create API token for merchant
+      description: Create a new API token for the specified merchant.
+      operationId: createApiTokenForMerchant
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/MerchantIdPath'
+      responses:
+        '201':
+          description: API token created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenCreatedResponse'
+              examples:
+                success:
+                  summary: Created API token
+                  value:
+                    apiToken:
+                      id: ffffffffffffffffffffffffffffffff
+                      alias: SYSTEM_testMerchant02_4
+                      apiBearerToken: <redacted>
+                      createdTime: '2026-05-07 17:45:49'
+                      lastDigits: s6OVM=
+                      lastUsedTime: '2026-05-07 17:45:49'
+                      state: ACTIVE
+        '200':
+          description: Tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+              example:
+                apiToken:
+                  alias: SYSTEM_OPP_Merchant_6
+                  apiBearerToken: OGFjN2E0ZGE5ZDE5ZWU3NjAxOWQxOWZmYmFkMTAwMTB8UEFIYlVTdWZBM2hZNFQ6SDJMTUs=
+                  createdTime: '2026-03-23 09:21:23'
+                  id: 7a93422f8b3642369f00397941de2c54
+                  lastDigits: JMTUs=
+                  lastUsedTime: '1970-01-01 00:00:00'
+                  state: ACTIVE
+              x-enriched-from: 09 Api Tokens Operations - 03 Create API Token.html
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+        '404':
+          description: There is an error in the URL.
+          x-enriched-from: 48741082.html
+      x-source-doc: 09 Api Tokens Operations - 03 Create API Token.html
+      x-live-validation:
+        status: 201
+        apiBearerTokenReturned: true
+  /apiTokens/{apiTokenId}:
+    get:
+      tags:
+      - API Token operations
+      summary: Get API token
+      description: Get information for the API token specified by ID.
+      operationId: getApiToken
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/ApiTokenIdPath'
+      responses:
+        '200':
+          description: API token details or tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ApiTokenResponse'
+                - $ref: '#/components/schemas/ApiTokenError'
+              example:
+                apiToken:
+                  alias: opp_merchant_XML
+                  createdTime: '2017-07-24 08:38:03'
+                  id: 60c84a05011a4f3aa6a64868e97ac748
+                  lastDigits: R5NzI=
+                  lastUsedTime: '1970-01-01 00:00:00'
+                  state: ACTIVE
+              x-enriched-from: 09 Api Tokens Operations - 02 Get API Token.html
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+      x-source-doc: 09 Api Tokens Operations - 02 Get API Token.html
+      x-live-validation:
+        status: 200
+        apiBearerTokenReturned: false
+    post:
+      tags:
+      - API Token operations
+      summary: Update API token
+      description: Update the alias of an API token.
+      operationId: updateApiToken
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/ApiTokenIdPath'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpdateApiTokenRequest'
+            example:
+              alias: newalias
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateApiTokenRequest'
+            example:
+              alias: newalias
+      responses:
+        '200':
+          description: Updated API token or tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ApiTokenResponse'
+                - $ref: '#/components/schemas/ApiTokenError'
+              example:
+                apiToken:
+                  alias: SYSTEM_OPP_Merchant_6
+                  createdTime: '2026-03-23 09:21:23'
+                  id: 7a93422f8b3642369f00397941de2c54
+                  lastDigits: JMTUs=
+                  lastUsedTime: '1970-01-01 00:00:00'
+                  state: ACTIVE
+              x-enriched-from: 09 Api Tokens Operations - 06 Update API Token.html
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+      x-source-doc: 09 Api Tokens Operations - 06 Update API Token.html
+      x-live-validation:
+        status: 200
+        acceptedContentTypes:
+        - application/x-www-form-urlencoded
+        - multipart/form-data
+        apiBearerTokenReturned: false
+    delete:
+      tags:
+      - API Token operations
+      summary: Delete API token
+      description: Delete a suspended API token.
+      operationId: deleteApiToken
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/ApiTokenIdPath'
+      responses:
+        '200':
+          description: API token deleted or tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ApiTokenDeleteResponse'
+                - $ref: '#/components/schemas/ApiTokenError'
+              examples:
+                success:
+                  summary: Deleted API token
+                  value: {}
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+      x-source-doc: 09 Api Tokens Operations - 07 Delete API Token.html
+      x-live-validation:
+        status: 200
+        responseShape: emptyObject
+  /apiTokens/{apiTokenId}/suspend:
+    post:
+      tags:
+      - API Token operations
+      summary: Suspend API token
+      description: Suspend an API token.
+      operationId: suspendApiToken
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/ApiTokenIdPath'
+      responses:
+        '200':
+          description: Suspended API token or tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ApiTokenResponse'
+                - $ref: '#/components/schemas/ApiTokenError'
+              examples:
+                success:
+                  summary: Suspended API token
+                  value:
+                    apiToken:
+                      id: ffffffffffffffffffffffffffffffff
+                      alias: openapi-test
+                      createdTime: '2026-05-07 17:45:49'
+                      lastDigits: s6OVM=
+                      lastUsedTime: '2026-05-07 17:45:49'
+                      state: SUSPENDED
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+      x-source-doc: 09 Api Tokens Operations - 04 Suspend API Token.html
+      x-live-validation:
+        status: 200
+        state: SUSPENDED
+        apiBearerTokenReturned: false
+  /apiTokens/{apiTokenId}/activate:
+    post:
+      tags:
+      - API Token operations
+      summary: Activate API token
+      description: Activate a suspended API token.
+      operationId: activateApiToken
+      security:
+      - apiKey: []
+      parameters:
+      - $ref: '#/components/parameters/ApiTokenIdPath'
+      responses:
+        '200':
+          description: Activated API token or tunneled error response.
+          x-legacy-error-codes:
+          - 200.*.*
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/ApiTokenResponse'
+                - $ref: '#/components/schemas/ApiTokenError'
+              examples:
+                success:
+                  summary: Activated API token
+                  value:
+                    apiToken:
+                      id: ffffffffffffffffffffffffffffffff
+                      alias: openapi-test
+                      createdTime: '2026-05-07 17:45:49'
+                      lastDigits: s6OVM=
+                      lastUsedTime: '2026-05-07 17:45:49'
+                      state: ACTIVE
+        default:
+          description: Error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiTokenError'
+      x-source-doc: 09 Api Tokens Operations - 05 Activate API Token.html
+      x-live-validation:
+        status: 200
+        state: ACTIVE
+        apiBearerTokenReturned: false

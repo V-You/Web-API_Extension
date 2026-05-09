@@ -3,7 +3,7 @@
  * Web API operation-manifest generator.
  *
  * Reads:
- *   - base_data/ACI_Web-API_OpenAPI_tmp.yaml
+ *   - base_data/ACI_Web-API_OpenAPI.yaml
  *   - base_data/character-value-mapping.yaml
  *
  * Writes:
@@ -29,7 +29,7 @@ import yaml from "js-yaml";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const SPEC = resolve(ROOT, "base_data/ACI_Web-API_OpenAPI_tmp.yaml");
+const SPEC = resolve(ROOT, "base_data/ACI_Web-API_OpenAPI.yaml");
 const MAPPING = resolve(ROOT, "base_data/character-value-mapping.yaml");
 const OUT_JSON = resolve(ROOT, "src_data/webapi-operation-manifest.json");
 const OUT_DTS = resolve(ROOT, "src_data/webapi-operation-manifest.d.ts");
@@ -370,7 +370,7 @@ function buildManifest(spec, mapping) {
     schemaVersion: 1,
     generatedAt: "GENERATED",
     source: {
-      spec: "base_data/ACI_Web-API_OpenAPI_tmp.yaml",
+      spec: "base_data/ACI_Web-API_OpenAPI.yaml",
       mapping: "base_data/character-value-mapping.yaml",
     },
     tools: Object.keys(toolIndex).sort(),

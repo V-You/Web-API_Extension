@@ -2,7 +2,7 @@
  * Phase 0 guardrail: assert every handler action invokes an HTTP
  * method + path that exists in the bundled OpenAPI spec.
  *
- * The test reads base_data/ACI_Web-API_OpenAPI_tmp.yaml as plain text
+ * The test reads base_data/ACI_Web-API_OpenAPI.yaml as plain text
  * (no YAML dependency): it extracts the set of `{path}` keys and their
  * HTTP methods with a simple regex. Handler paths are normalized to the
  * same `{p}` placeholder shape before comparison.
@@ -25,7 +25,7 @@ import { executeManageContact } from "./manage-contact";
 import { executeManageEntity } from "./manage-entity";
 import { executeManageMerchantAccount } from "./manage-merchant-account";
 
-const SPEC_PATH = resolve(__dirname, "../../base_data/ACI_Web-API_OpenAPI_tmp.yaml");
+const SPEC_PATH = resolve(__dirname, "../../base_data/ACI_Web-API_OpenAPI.yaml");
 const apiRequestMock = vi.mocked(apiRequest);
 
 interface SpecRoute {

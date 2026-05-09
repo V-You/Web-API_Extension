@@ -12,7 +12,6 @@ dist/
 CLAUDE.md
 .remember/
 base_data/ACI_Web-API_OpenAPI_tmp.old
-base_data/audit-fixture.json
 base_data/settings_recipes.json
 base_data/refined_API_specs/
 

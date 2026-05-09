@@ -9,7 +9,7 @@ import { useSyncExternalStore, useEffect, useState } from "react";
 import {
   subscribe,
   getJobsSnapshot,
-  loadJobs,
+  loadJobsFresh,
   type JobRecord,
 } from "./job-store";
 import {
@@ -27,7 +27,7 @@ export function useJobs(): JobRecord[] {
 
   useEffect(() => {
     if (!loaded) {
-      loadJobs().then(() => setLoaded(true));
+      loadJobsFresh().then(() => setLoaded(true));
     }
   }, [loaded]);
 
