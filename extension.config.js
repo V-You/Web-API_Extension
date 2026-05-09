@@ -1,3 +1,33 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+function patchRuntimeAssets(outputPath) {
+  const manifestPath = path.join(outputPath, "manifest.json");
+  const sandboxHtmlPath = path.join(outputPath, "sandbox", "sandbox.html");
+  const sandboxJsPath = path.join(outputPath, "sandbox", "sandbox.js");
+
+  if (!fs.existsSync(manifestPath) || !fs.existsSync(sandboxHtmlPath) || !fs.existsSync(sandboxJsPath)) return;
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.sandbox = {
+    ...manifest.sandbox,
+    pages: ["sandbox/sandbox.html"],
+  };
+  manifest.content_security_policy = {
+    ...(manifest.content_security_policy ?? {}),
+    sandbox: "sandbox allow-scripts; script-src 'self' 'unsafe-eval'; object-src 'self';",
+  };
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+class RuntimeAssetsPatchPlugin {
+  apply(compiler) {
+    compiler.hooks.afterEmit.tap("RuntimeAssetsPatchPlugin", (compilation) => {
+      patchRuntimeAssets(compilation.outputOptions.path || compiler.outputPath);
+    });
+  }
+}
+
 module.exports = {
   browser: {
     chrome: {
@@ -70,6 +100,7 @@ module.exports = {
           { from: "sandbox/sandbox.js", to: "sandbox/sandbox.js" },
         ],
       }),
+      new RuntimeAssetsPatchPlugin(),
       new DefinePlugin({
         __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
         __APP_VERSION__: JSON.stringify(pkg.version),

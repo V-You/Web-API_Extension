@@ -52,14 +52,13 @@ async function waitForSandboxReady() {
 }
 
 async function getSandboxUrl() {
-  const manifestUrl = new URL("../manifest.json", location.href);
-  const manifest = await fetch(manifestUrl).then((response) => response.json());
+  const manifest = chrome.runtime.getManifest();
   const pages = Array.isArray(manifest.sandbox?.pages) ? manifest.sandbox.pages : [];
   const page = pages.includes("sandbox/sandbox.html") ? "sandbox/sandbox.html" : pages[0];
   const sandboxCsp = String(manifest.content_security_policy?.sandbox ?? "");
-  if (page !== "sandbox/sandbox.html" || !sandboxCsp.includes("'unsafe-eval'")) {
+  if (page !== "sandbox/sandbox.html") {
     throw new Error(
-      "Invalid sandbox manifest. Rebuild and reload the extension so manifest.sandbox.pages is sandbox/sandbox.html and sandbox CSP includes unsafe-eval.",
+      `Invalid sandbox manifest. Expected sandbox/sandbox.html. Observed pages=${JSON.stringify(pages)} csp=${JSON.stringify(sandboxCsp)} extensionId=${chrome.runtime.id}`,
     );
   }
   return new URL(`../${page}`, location.href).href;
