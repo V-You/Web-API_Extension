@@ -58,6 +58,9 @@ const AUTOMATION_CHIPS = [
   "Draft a job to list all contacts under this scope",
 ];
 
+const CHAT_MESSAGES_SESSION_KEY = "chat:messages";
+const CHAT_HISTORY_SESSION_KEY = "chat:history";
+
 interface WorkflowReviewState {
   label: string;
   script: string;
@@ -189,6 +192,7 @@ export function ChatPage() {
   const [workflowReviewError, setWorkflowReviewError] = useState<string | null>(null);
   const watchedJobIds = useRef(new Set<string>());
   const announcedJobStates = useRef(new Map<string, string>());
+  const chatStateLoaded = useRef(false);
 
   const refreshContext = useCallback(async () => {
     const context = await getActiveChatContext();
@@ -214,6 +218,16 @@ export function ChatPage() {
   }, [jobs]);
 
   useEffect(() => {
+    chrome.storage.session.get([CHAT_MESSAGES_SESSION_KEY, CHAT_HISTORY_SESSION_KEY]).then((stored) => {
+      if (Array.isArray(stored[CHAT_MESSAGES_SESSION_KEY])) {
+        setMessages(stored[CHAT_MESSAGES_SESSION_KEY] as DisplayMessage[]);
+      }
+      if (Array.isArray(stored[CHAT_HISTORY_SESSION_KEY])) {
+        setHistory(stored[CHAT_HISTORY_SESSION_KEY] as GeminiContent[]);
+      }
+      chatStateLoaded.current = true;
+    });
+
     getLlmProviderSettings(DEFAULT_CHAT_PROVIDER).then((settings) => {
       setSavedSettings(settings);
       setModelInput(settings?.model ?? DEFAULT_GEMINI_MODEL);
@@ -288,6 +302,20 @@ export function ChatPage() {
       chrome.tabs.onUpdated.removeListener(handleTabUpdated);
     };
   }, [refreshContext]);
+
+  useEffect(() => {
+    if (!chatStateLoaded.current) return;
+    void chrome.storage.session.set({
+      [CHAT_MESSAGES_SESSION_KEY]: messages.slice(-80),
+    });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!chatStateLoaded.current) return;
+    void chrome.storage.session.set({
+      [CHAT_HISTORY_SESSION_KEY]: history.slice(-40),
+    });
+  }, [history]);
 
   const effectiveContext = useMemo(() => {
     if (manualEntityId.trim()) {

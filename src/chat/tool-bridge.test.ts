@@ -129,6 +129,7 @@ describe("chat tool bridge", () => {
     expect(tokenNames).toContain("create_api_token");
     expect(tokenNames).toContain("list_api_tokens");
     expect(tokenNames).toContain("delete_api_token");
+    expect(tokenNames).toContain("send_test_transaction");
   });
 
   it("exposes execute_workflow only when automation mode is enabled", () => {

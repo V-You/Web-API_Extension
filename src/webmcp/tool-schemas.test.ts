@@ -24,6 +24,7 @@ describe("tool schema definitions", () => {
       "suspend_api_token",
       "activate_api_token",
       "delete_api_token",
+      "send_test_transaction",
     ]);
   });
 

@@ -549,6 +549,34 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
       additionalProperties: false,
     },
   },
+
+  // send_test_transaction
+  {
+    name: "send_test_transaction",
+    title: "Send test transaction",
+    description:
+      "Send a UAT test transaction to a channel using a locally stored transaction bearer token. " +
+      "Returns the exact submitted form fields, endpoint, HTTP status, and gateway response with Authorization redacted.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        channelId: { type: "string", description: "Channel entity ID to use as the transaction entityId." },
+        merchantId: { type: "string", description: "Optional merchant ID used to select a stored transaction token." },
+        transactionTokenId: { type: "string", description: "Optional stored token row ID to use." },
+        amount: { type: "string", description: "Transaction amount. Default 92.00." },
+        currency: { type: "string", description: "Currency code. Default EUR." },
+        paymentBrand: { type: "string", description: "Payment brand. Default VISA." },
+        paymentType: { type: "string", description: "Payment type. Default PA." },
+        cardNumber: { type: "string", description: "Test card number. Default 4200000000000000." },
+        cardHolder: { type: "string", description: "Test card holder. Default Jane Jones." },
+        cardExpiryMonth: { type: "string", description: "Card expiry month. Default 05." },
+        cardExpiryYear: { type: "string", description: "Card expiry year. Default 2034." },
+        cardCvv: { type: "string", description: "Card CVV. Default 123." },
+      },
+      required: ["channelId"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 /**

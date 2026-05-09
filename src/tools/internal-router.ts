@@ -2,8 +2,9 @@ import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { confirmIfMutating, describeMutatingCall } from "../bridge/write-confirm-utils";
 import { getJobFresh, type JobRecord } from "../jobs/job-store";
 import type { EntityType } from "../lib/entity-types";
-import { getActiveEnv, getCredentials } from "../lib/storage";
+import { getActiveEnv, getCredentials, getTransactionTokens } from "../lib/storage";
 import { isChatAccessTokenControlEnabled } from "../chat/chat-mode";
+import { sendExampleTransaction } from "../lib/transaction-client";
 import type { ApiCredentials, AuditEventType, Environment } from "../lib/types";
 import { executeTypedTool, isReadOnlyTool } from "./adapter";
 import { executeDescribeSettings } from "./describe-settings";
@@ -26,6 +27,7 @@ const API_TOKEN_TOOLS = new Set([
   "suspend_api_token",
   "activate_api_token",
   "delete_api_token",
+  "send_test_transaction",
 ]);
 
 export interface ToolSession {
@@ -349,7 +351,72 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
     describe_operation: async (params) => {
       return describeOperation({ toolName: params.toolName as string | undefined });
     },
+
+    send_test_transaction: async (params) => {
+      if (!await isChatAccessTokenControlEnabled()) {
+        throw new Error("Enable accessToken control in Chat settings before sending test transactions.");
+      }
+
+      const { env } = await sessionOrError();
+      if (env !== "uat") {
+        throw new Error("Test transactions are only enabled for UAT. Switch the active environment to UAT before sending a test transaction.");
+      }
+
+      const channelId = String(params.channelId ?? "").trim();
+      if (!channelId) throw new Error("channelId is required.");
+
+      const tokens = await getTransactionTokens(env);
+      const tokenId = String(params.transactionTokenId ?? "").trim();
+      const merchantId = String(params.merchantId ?? "").trim();
+      const candidates = tokens.filter((row) => {
+        if (tokenId && row.id !== tokenId) return false;
+        if (merchantId && row.merchantId !== merchantId) return false;
+        return row.state !== "DELETED";
+      });
+
+      if (candidates.length === 0) {
+        throw new Error("No stored transaction token matched this request. Save or create a transaction token in Connections first.");
+      }
+      if (candidates.length > 1 && !tokenId && !merchantId) {
+        throw new Error("Multiple transaction tokens are stored. Provide merchantId or transactionTokenId so the correct token can be selected.");
+      }
+
+      const token = candidates[0];
+      const bodyText = buildTestTransactionBody(channelId, params);
+      const result = await sendExampleTransaction(env, token.token, bodyText);
+      return {
+        ...result,
+        token: {
+          id: token.id,
+          merchantId: token.merchantId,
+          label: token.label,
+          source: token.source,
+          apiTokenId: token.apiTokenId,
+          lastDigits: token.lastDigits,
+        },
+      };
+    },
   };
+}
+
+function testTransactionField(params: Record<string, unknown>, key: string, fallback: string): string {
+  const value = params[key];
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function buildTestTransactionBody(channelId: string, params: Record<string, unknown>): string {
+  return [
+    `entityId=${channelId}`,
+    `amount=${testTransactionField(params, "amount", "92.00")}`,
+    `currency=${testTransactionField(params, "currency", "EUR")}`,
+    `paymentBrand=${testTransactionField(params, "paymentBrand", "VISA")}`,
+    `paymentType=${testTransactionField(params, "paymentType", "PA")}`,
+    `card.number=${testTransactionField(params, "cardNumber", "4200000000000000")}`,
+    `card.holder=${testTransactionField(params, "cardHolder", "Jane Jones")}`,
+    `card.expiryMonth=${testTransactionField(params, "cardExpiryMonth", "05")}`,
+    `card.expiryYear=${testTransactionField(params, "cardExpiryYear", "2034")}`,
+    `card.cvv=${testTransactionField(params, "cardCvv", "123")}`,
+  ].join("\n");
 }
 
 function normalizeTotalCalls(value: unknown): number {

@@ -16,6 +16,7 @@ const API_TOKEN_TOOLS = new Set([
   "suspend_api_token",
   "activate_api_token",
   "delete_api_token",
+  "send_test_transaction",
 ]);
 
 const READ_ONLY_ACTIONS: Record<string, string[]> = {
