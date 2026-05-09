@@ -54,8 +54,14 @@ async function waitForSandboxReady() {
 async function getSandboxUrl() {
   const manifestUrl = new URL("../manifest.json", location.href);
   const manifest = await fetch(manifestUrl).then((response) => response.json());
-  const page = manifest.sandbox?.pages?.[0];
-  if (!page) throw new Error("No sandbox page is declared in manifest.json.");
+  const pages = Array.isArray(manifest.sandbox?.pages) ? manifest.sandbox.pages : [];
+  const page = pages.includes("sandbox/sandbox.html") ? "sandbox/sandbox.html" : pages[0];
+  const sandboxCsp = String(manifest.content_security_policy?.sandbox ?? "");
+  if (page !== "sandbox/sandbox.html" || !sandboxCsp.includes("'unsafe-eval'")) {
+    throw new Error(
+      "Invalid sandbox manifest. Rebuild and reload the extension so manifest.sandbox.pages is sandbox/sandbox.html and sandbox CSP includes unsafe-eval.",
+    );
+  }
   return new URL(`../${page}`, location.href).href;
 }
 
