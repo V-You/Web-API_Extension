@@ -17,6 +17,56 @@
       "path": "General Risk Checks > Address Verification Service (AVS) (an.av) > Activate Address Verification Service (AVS) (an.av)",
       "default": "false"
     },
+
+    {
+      "id": 10058,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:genericExemptionSettings/config:skipForExemptionsLowValue",
+      "type": "boolean",
+      "path": "External Checks > Exemption Management > Generic Exemption Settings",
+      "default": "false"
+    },
+    {
+      "id": 10059,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:genericExemptionSettings/config:skipForExemptionsLowRisk",
+      "type": "boolean",
+      "path": "External Checks > Exemption Management > Generic Exemption Settings",
+      "default": "false"
+    },
+    {
+      "id": 10060,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:genericExemptionSettings/config:skipForExemptionsWhitelistedMerchant",
+      "type": "boolean",
+      "path": "External Checks > Exemption Management > Generic Exemption Settings",
+      "default": "false"
+    },
+    {
+      "id": 10061,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:genericExemptionSettings/config:skipForExemptionsCorporateCard",
+      "type": "boolean",
+      "path": "External Checks > Exemption Management > Generic Exemption Settings",
+      "default": "false"
+    },
+    {
+      "id": 10062,
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:paymentDeclineOptions/paymentDeclineOptions:cardNotEnrolled",
+      "type": "boolean",
+      "path": "External Checks > 3D Secure > Payment Decline Options",
+      "default": "false"
+    },
+    {
+      "id": 10063,
+      "key": "*/type:entity/module:ctpe/processing:transaction/transaction:externalFeatures/externalFeatures:allowForNewFieldsInPaymentAndQueryRes",
+      "type": "boolean",
+      "path": "Activate external features > Allow for new fields to be included in payment & query response",
+      "default": "false"
+    },
+    {
+      "id": 10064,
+      "key": "*/type:entity/module:ctpe/processing:transaction/transaction:externalFeatures/externalFeatures:connectorDetails",
+      "type": "boolean",
+      "path": "Activate external features > Include connector details in query response",
+      "default": "false"
+    },
     {
       "id": 10094,
       "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:allow3DSecureForVirtualCard",
@@ -81,59 +131,52 @@
       "default": ""
     },
     {
-      "id": 10103,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiType",
-      "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for VbV (VerifiedByVisa)",
-      "default": ""
-    },
-    {
       "id": 10104,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForAmex",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:amexThreeDSecure/amexThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for AmexSafekey",
+      "path": "External Checks > 3D Secure > Amex",
       "default": ""
     },
     {
       "id": 10105,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForBcmc",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:bancontactThreeDSecure/bancontactThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for Bancontact/Mister Cash",
+      "path": "External Checks > 3D Secure > Bancontact",
       "default": ""
     },
     {
       "id": 10106,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForCarteBancaire",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:carteBancaireThreeDSecure/carteBancaireThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for Carte Bancaire",
+      "path": "External Checks > 3D Secure > Carte Bancaire",
       "default": ""
     },
     {
       "id": 10107,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForCashlinkMalta",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:cashlinkMaltaThreeDSecure/cashlinkMaltaThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for CashlinkMALTA",
+      "path": "External Checks > 3D Secure > Cashlink Malta",
       "default": ""
     },
     {
       "id": 10108,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForDankort",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:dankortThreeDSecure/dankortThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for Dankort",
+      "path": "External Checks > 3D Secure > Dankort",
       "default": ""
     },
     {
       "id": 10109,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForDiners",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:dinersDiscoverThreeDSecure/dinersDiscoverThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for Diners ProtectBuy",
+      "path": "External Checks > 3D Secure > Diners/Discover",
       "default": ""
     },
     {
       "id": 10110,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForJcb",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:jcbThreeDSecure/jcbThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for JCB",
+      "path": "External Checks > 3D Secure > JCB",
       "default": ""
     },
     {
@@ -145,10 +188,11 @@
     },
     {
       "id": 10112,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForMasterCard",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:mastercardThreeDSecure/mastercardThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for MasterCard SecureCode",
-      "default": ""
+      "path": "External Checks > 3D Secure > Mastecard",
+      "default": "",
+      "values": "ACI_3DS_2,Disabled,BANKSERV_3DS_2"
     },
     {
       "id": 10113,
@@ -166,10 +210,11 @@
     },
     {
       "id": 10115,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:mpiTypeForVisa",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:visaThreeDSecure/visaThreeDSecure:type",
       "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set MPI Type for Verified By Visa",
-      "default": ""
+      "path": "External Checks > 3D Secure > Visa",
+      "default": "",
+      "values": "ACI_3DS_2,Disabled,BANKSERV_3DS_2"
     },
     {
       "id": 10116,
@@ -193,14 +238,6 @@
       "default": ""
     },
     {
-      "id": 10119,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:skipAuthenticationIfExempted",
-      "type": "boolean",
-      "path": "External Checks > 3D Secure Settings > Skip authentication if exemption applies",
-      "comment": "NEEDS_DEFAULT_LOOKUP",
-      "default": ""
-    },
-    {
       "id": 10120,
       "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:threeDregistration",
       "type": "",
@@ -209,17 +246,10 @@
     },
     {
       "id": 10121,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:threeDType",
-      "type": "",
-      "path": "",
-      "default": ""
-    },
-    {
-      "id": 10122,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/config:threeDType",
-      "type": "predefined list",
-      "path": "External Checks > 3D Secure Settings > Set 3DSecure Type",
-      "default": ""
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:paymentDeclineOptions/paymentDeclineOptions:noLiabilityShift",
+      "type": "boolean",
+      "path": "External Checks > 3D Secure > Payment Decline Options",
+      "default": "FALSE"
     },
     {
       "id": 10123,
@@ -236,17 +266,10 @@
       "default": ""
     },
     {
-      "id": 10125,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/failOn:amexStatusN",
-      "type": "boolean",
-      "path": "External Checks > 3D Secure Settings > Decline Payment Transaction in AMEX VeRes Status N or VeRes Status U",
-      "default": "false"
-    },
-    {
       "id": 10126,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/failOn:configError",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:paymentDeclineOptions/paymentDeclineOptions:configError",
       "type": "boolean",
-      "path": "External Checks > 3D Secure Settings > Decline Payment Transaction in case of 3D Config Error",
+      "path": "External Checks > 3D Secure > Payment Decline Options",
       "default": "true"
     },
     {
@@ -258,16 +281,9 @@
     },
     {
       "id": 10128,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/failOn:technicalError",
+      "key": "*/type:entity/module:ctpe/processing:risk/risk:paymentDeclineOptions/paymentDeclineOptions:technicalError",
       "type": "boolean",
-      "path": "External Checks > 3D Secure Settings > Decline Payment Transaction in case of technical 3D Error",
-      "default": "false"
-    },
-    {
-      "id": 10129,
-      "key": "*/type:entity/module:ctpe/processing:risk/risk:threeDSecure/failOn:visaStatusU",
-      "type": "boolean",
-      "path": "External Checks > 3D Secure Settings > Decline Payment Transaction in VISA VeRes Status U or PAres Status U",
+      "path": "External Checks > 3D Secure > Payment Decline Options",
       "default": "false"
     },
     {
@@ -2051,7 +2067,7 @@
       "id": 11016,
       "key": "*/type:entity/module:ctpe/processing:transaction/transaction:setting/setting:use3DSecureOnAcquirerSide",
       "type": "boolean",
-      "path": "Administration -> Processing -> Processing Settings -> Use 3D Secure on acquirer side",
+      "path": "Administration > Processing > Processing Settings > Use 3D Secure on acquirer side",
       "default": "false",
       "values": "TRUE, FALSE"
     },

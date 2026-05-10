@@ -136,6 +136,8 @@ Host permissions grant dashboard scope on `*.oppwa.com`, `*.ctpe.info`, and `*.p
 
 Connections can also create, store, and manage Merchant-scoped transaction bearer tokens for UAT/Prod test payments. The Web API token endpoints can create a new Merchant token directly; manual paste from BIP remains available as a fallback. These tokens are Merchant-level-and-below, not Channel-level, and are encrypted with the same PIN model as Web API credentials. Raw bearer tokens are not shown to the LLM, audit log, tool traces, console logs, or normal UI text.
 
+Chat and WebMCP clients can send UAT test transactions without exposing bearer tokens. The `send_test_transaction` tool can use a matching stored Merchant token or create a temporary Merchant token, send the transaction to a Channel, then suspend and delete the token before returning redacted diagnostics. Example prompts: "Send one test transaction to this Channel" or "Use the API token endpoint to create a token, then send the test transaction." Returned details include the endpoint, exact form fields, HTTP status, gateway response, token metadata, and cleanup status - never the raw `Authorization` value.
+
 > **Any LLM with browser-capability** can now connect to a supported dashboard site (`oppwa.com` or supported whitelabel domains), and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
 
 ### Example workflow using Google Gemini (browser side panel)

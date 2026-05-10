@@ -563,6 +563,11 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
         channelId: { type: "string", description: "Channel entity ID to use as the transaction entityId." },
         merchantId: { type: "string", description: "Optional merchant ID used to select a stored transaction token." },
         transactionTokenId: { type: "string", description: "Optional stored token row ID to use." },
+        tokenMode: {
+          type: "string",
+          enum: ["auto", "stored", "temporary"],
+          description: "Token strategy. auto tries a matching stored token and can retry with a temporary Merchant token on authentication failure; temporary creates, uses, suspends, and deletes a Merchant API token without exposing it.",
+        },
         amount: { type: "string", description: "Transaction amount. Default 92.00." },
         currency: { type: "string", description: "Currency code. Default EUR." },
         paymentBrand: { type: "string", description: "Payment brand. Default VISA." },
