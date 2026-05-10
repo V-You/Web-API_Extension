@@ -23,7 +23,7 @@ export interface LiveTestEnv {
   enabled: boolean;
   /** Reason when `enabled === false`. */
   skipReason?: string;
-  /** Optional scoped fixtures (set via `.env` or `process.env`). */
+  /** Optional scoped live-test ids (set via `.env` or `process.env`). */
   smokeDivisionId?: string;
   smokePspId?: string;
   smokePspName?: string;

@@ -1,32 +1,56 @@
 {
-  "schema_version": "ci-fixture-1",
+  "schema_version": "1.0",
   "purpose": "Guide the Chat tab toward ambitious, grounded read-only exploration in safe mode.",
   "promptChips": [
     "What entity am I looking at?",
     "What is my dupe check set to here?",
     "List all Plausibility Checks for this entity.",
     "How is 3DS configured here?",
-    "Which blacklist checks are active here?"
+    "Which blacklist checks are active here?",
+    "What are the oddest settings on this channel?",
+    "List contacts for this entity."
   ],
   "principles": [
     "Be proactive and ambitious in read-only mode - inspect available data before saying something cannot be done.",
     "Use the current dashboard context automatically unless the user clearly overrides it.",
     "When current BIP section context is available, use it to disambiguate scope-sensitive questions such as attached vs owned merchant accounts or contacts.",
     "Resolve UI labels, business phrases, and shortcodes with describe_settings before asking for exact setting keys.",
-    "Resolve cheap read-only ambiguity by checking the two most likely interpretations before asking the user to clarify."
+    "Resolve cheap read-only ambiguity by checking the two most likely interpretations before asking the user to clarify.",
+    "When the user asks what is configured on an entity, inspect real settings with manage_settings list_non_default when exact keys are not yet known.",
+    "Ground subjective answers in retrieved results - ranking, summarizing, and comparing are allowed when based on tool output.",
+    "If the exact request cannot be completed, pivot to the most helpful adjacent read-only analysis instead of stopping early."
   ],
   "playbooks": [
     {
       "trigger": "UI label or business phrase",
       "steps": [
         "Start with describe_settings using the user's phrase.",
-        "Use family groups, glossary expansion, and BIP paths to identify the exact settings or families behind the label."
+        "Use family groups, glossary expansion, and BIP paths to identify the exact settings or families behind the label.",
+        "If entity context is available, follow up with manage_settings list_non_default or batch_get to inspect actual values on that entity."
+      ]
+    },
+    {
+      "trigger": "What is configured here",
+      "steps": [
+        "Assume the current entity context unless the user says otherwise.",
+        "Use manage_settings list_non_default with a keyword or family-derived query to gather candidate settings.",
+        "Summarize what is enabled, unusual, inherited-looking, or notable rather than dumping raw JSON unless the user asks for it."
+      ]
+    },
+    {
+      "trigger": "Hierarchy or scope question",
+      "steps": [
+        "Use get_hierarchy from the current entity root when possible.",
+        "If a parent-level traversal is blocked, continue from the current entity instead of refusing outright.",
+        "Prefer human-readable trees, counts, and scope summaries over raw structures by default."
       ]
     },
     {
       "trigger": "Create another one like this",
       "steps": [
-        "Treat sibling-creation prompts as an instruction to derive the parent from the current entity before asking the user."
+        "Treat sibling-creation prompts such as 'create another channel just like this one' as an instruction to derive the parent from the current entity before asking the user.",
+        "Use manage_entity get on the current entity and inspect normalized parent information such as _parent, sender, merchantId, divisionId, or pspId.",
+        "Only ask the user for the parent ID after attempting to derive it from the current entity record and nearby hierarchy data."
       ]
     },
     {
@@ -38,25 +62,60 @@
     {
       "trigger": "Subjective or comparative question",
       "steps": [
-        "Gather a reasonable candidate set first with read-only tools."
+        "Gather a reasonable candidate set first with read-only tools.",
+        "State that the judgment is subjective when useful.",
+        "Pick the strongest candidate and explain why it stands out based on the retrieved results."
+      ]
+    },
+    {
+      "trigger": "Payment brand or processing capability question",
+      "steps": [
+        "Treat questions like 'configured to process VISA' or 'supports Mastercard' as potentially ambiguous between merchant-account capability and settings.",
+        "Check manage_merchant_account list for both owned and attached scopes first when the user is asking generically whether an entity can process a card brand or subtype.",
+        "Inspect the returned merchant accounts for subtype, payment-brand, or scheme evidence before looking at settings.",
+        "Only fall back to describe_settings and manage_settings when the user explicitly asks about settings or merchant-account evidence is missing.",
+        "If owned and attached answers differ, report both instead of forcing the user to ask a follow-up question."
       ]
     },
     {
       "trigger": "Risk or fraud configuration question",
       "steps": [
-        "Start with describe_settings using the user's language, such as risk, fraud, velocity, dupe check, plausibility, blacklist, AVS, or CVV."
+        "Start with describe_settings using the user's language, such as risk, fraud, velocity, dupe check, plausibility, blacklist, AVS, or CVV.",
+        "If the current entity is a merchant or channel, use manage_settings list_non_default with focused queries to inspect actual non-default risk settings.",
+        "If the current entity is a PSP or division, identify the relevant setting families first and explain that exact live values may require inspection on a merchant or channel below that level.",
+        "Summarize enabled checks, important thresholds, and unusual combinations instead of enumerating every raw key unless the user asks for a dump."
+      ]
+    },
+    {
+      "trigger": "Blacklist question",
+      "steps": [
+        "Use describe_settings with blacklist terms first to resolve the relevant ib.* families and user-facing labels.",
+        "If the entity is a merchant or channel, use manage_settings list_non_default with blacklist-focused queries to see which blacklist families are actually configured.",
+        "Call out the strongest active blacklist categories, such as accounts, BIN country, customer country, or IP-oriented variants, and mention when no blacklist settings appear to be customized."
       ]
     },
     {
       "trigger": "3DS or SCA question",
       "steps": [
-        "Use describe_settings for 3D Secure, 3DS, or SCA wording to resolve the entity-level settings involved."
+        "Use describe_settings for 3D Secure, 3DS, or SCA wording to resolve the entity-level settings involved.",
+        "Inspect merchant accounts with manage_merchant_account list and get when the question is operational, because Merchant Account fields such as threeDSecure can matter alongside entity settings.",
+        "If multiple merchant accounts exist, summarize patterns first and only drill into individual merchant accounts when the results differ or the user asks for detail."
+      ]
+    },
+    {
+      "trigger": "AVS or CVV question",
+      "steps": [
+        "Use describe_settings with AVS, address verification, CVV, or CVC phrasing to find the exact setting families and paths.",
+        "For AVS-style questions, also inspect merchant accounts because useRiskSettings can explain why risk checks are not taking effect on a Merchant Account.",
+        "For CVV-style questions, focus on entity-level validation settings first and state clearly when no Merchant Account field appears to be part of the current read-only evidence."
       ]
     },
     {
       "trigger": "Merchant-account troubleshooting",
       "steps": [
-        "Start with manage_merchant_account list for the current entity, checking both owned and attached scopes by default for generic merchant-account questions."
+        "Start with manage_merchant_account list for the current entity, checking both owned and attached scopes by default for generic merchant-account questions.",
+        "Use manage_merchant_account get on the most relevant merchant accounts to inspect fields and compare them when behavior differs across accounts.",
+        "When the issue involves risk, AVS, or 3DS, compare merchant-account fields with the related entity-level settings and explicitly mention mismatches such as useRiskSettings or threeDSecure not lining up with the surrounding configuration."
       ]
     }
   ],
@@ -66,6 +125,9 @@
     "Only ask for missing identifiers after checking whether current context and read-only discovery can recover them."
   ],
   "maintenance": [
-    "Use this file for prompt-side retrieval behavior and exploratory heuristics, not for authoritative API or settings metadata."
+    "Use this file for prompt-side retrieval behavior and exploratory heuristics, not for authoritative API or settings metadata.",
+    "Add business vocabulary to glossary.json and setting-family mappings to settings_family_profiles.json alongside this playbook when new UI terms appear.",
+    "When multi-surface troubleshooting patterns come from settings_recipes.json, reflect the retrieval habit here without making recipes authoritative runtime data.",
+    "Keep changes additive and conservative - prefer specific retrieval habits over broad product claims."
   ]
 }

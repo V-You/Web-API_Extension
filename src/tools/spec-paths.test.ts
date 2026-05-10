@@ -7,7 +7,7 @@
  * HTTP methods with a simple regex. Handler paths are normalized to the
  * same `{p}` placeholder shape before comparison.
  *
- * When the YAML is absent (pre-CI-fixture environments), the whole
+ * When the YAML is absent, the whole
  * suite skips with a clear reason.
  */
 
@@ -68,12 +68,12 @@ function normalize(path: string): string {
  * `/contacts/{p}/lockContact` so it can be looked up in the spec map.
  *
  * Any segment that was originally substituted with a variable (marked
- * here by fixture IDs) is converted to `{p}`. We keep known literal
+ * here by captured IDs) is converted to `{p}`. We keep known literal
  * sub-resource names (alphabetic, mixed-case) as-is.
  */
-function normalizeHandlerPath(path: string, idFixtures: string[]): string {
+function normalizeHandlerPath(path: string, dynamicIds: string[]): string {
   let out = path;
-  for (const id of idFixtures) {
+  for (const id of dynamicIds) {
     if (!id) continue;
     out = out.split(id).join("{p}");
   }
@@ -90,8 +90,8 @@ describeIf("handler HTTP method+path coverage vs bundled OpenAPI spec", () => {
     routes = loadSpecRoutes();
   });
 
-  function expectRoute(method: string, handlerPath: string, idFixtures: string[]) {
-    const normalized = normalizeHandlerPath(handlerPath, idFixtures);
+  function expectRoute(method: string, handlerPath: string, dynamicIds: string[]) {
+    const normalized = normalizeHandlerPath(handlerPath, dynamicIds);
     const route = routes.get(normalized);
     if (!route) {
       throw new Error(

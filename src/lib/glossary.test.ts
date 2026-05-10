@@ -1,40 +1,7 @@
 import glossaryData from "../../base_data/glossary.json";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-async function loadGlossaryModule() {
-  vi.resetModules();
-  vi.doMock("../../base_data/glossary.json", () => ({
-    default: {
-      entries: [
-        {
-          term: "Attached MA",
-          aliases: ["attached merchant account"],
-          definition: "An MA attached to a channel.",
-          context: "Configuration",
-        },
-        {
-          term: "Available MA",
-          aliases: ["owned merchant account"],
-          definition: "An MA owned by the current entity.",
-          context: "Configuration",
-        },
-        {
-          term: "subType",
-          aliases: ["payment brand"],
-          definition: "Card brand subtype vocabulary.",
-          context: "Configuration",
-        },
-      ],
-    },
-  }));
-
-  return import("./glossary");
-}
-
-afterEach(() => {
-  vi.doUnmock("../../base_data/glossary.json");
-  vi.resetModules();
-});
+import { expandGlossaryQuery, normalizeGlossaryText } from "./glossary";
 
 describe("glossary data", () => {
   it("keeps the shipped glossary non-empty and well-formed", () => {
@@ -51,30 +18,21 @@ describe("glossary data", () => {
       expect(entry.context.trim().length).toBeGreaterThan(0);
     }
   });
-});
+  it("resolves shipped aliases back to their canonical glossary terms", () => {
+    const entriesWithAliases = glossaryData.entries.filter((entry) => entry.aliases.length > 0);
 
-describe("glossary expansion", () => {
-  it("resolves attached merchant account phrasing", async () => {
-    const { expandGlossaryQuery } = await loadGlossaryModule();
-    const result = expandGlossaryQuery("attached merchant account");
+    expect(entriesWithAliases.length).toBeGreaterThan(1);
 
-    expect(result.applied).toBe(true);
-    expect(result.matchedEntries.map((entry) => entry.term)).toContain("Attached MA");
-  });
+    for (const entry of entriesWithAliases) {
+      for (const alias of entry.aliases) {
+        const result = expandGlossaryQuery(alias);
 
-  it("resolves owned merchant account phrasing", async () => {
-    const { expandGlossaryQuery } = await loadGlossaryModule();
-    const result = expandGlossaryQuery("owned merchant account");
-
-    expect(result.applied).toBe(true);
-    expect(result.matchedEntries.map((entry) => entry.term)).toContain("Available MA");
-  });
-
-  it("resolves payment-brand language to subtype vocabulary", async () => {
-    const { expandGlossaryQuery, normalizeGlossaryText } = await loadGlossaryModule();
-    const result = expandGlossaryQuery("payment brand");
-
-    expect(result.applied).toBe(true);
-    expect(result.matchedEntries.some((entry) => normalizeGlossaryText(entry.term) === "subtype")).toBe(true);
+        expect(result.applied, `expected glossary match for alias: ${alias}`).toBe(true);
+        expect(
+          result.matchedEntries.map((matchedEntry) => normalizeGlossaryText(matchedEntry.term)),
+          `expected canonical term match for alias: ${alias}`,
+        ).toContain(normalizeGlossaryText(entry.term));
+      }
+    }
   });
 });

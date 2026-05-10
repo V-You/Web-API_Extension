@@ -51,7 +51,7 @@ export type JobState =
  * `env_switch` (UI environment toggles), `contact_attach` (no per-action
  * tool in the bundled spec), `get_entity` (audited handwritten entity reads),
  * API token lifecycle events (Connections-owned controls may exist even when
- * CI fixtures omit the token operations), and `chat_automation_job_started`
+ * some specs omit the token operations), and `chat_automation_job_started`
  * (reviewed Chat job provenance) -- are declared here as literals. An alignment
  * test asserts both sides stay in sync.
  */
