@@ -112,6 +112,17 @@ describe("chat tool bridge", () => {
     expect(describeSettings?.parameters).toBeTruthy();
   });
 
+  it("emits unique Gemini function declaration names", () => {
+    const names = getChatToolDeclarations({
+      writeToolsEnabled: true,
+      accessTokenControlEnabled: true,
+      automationModeEnabled: true,
+    }).map((tool) => tool.name);
+    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+
+    expect(duplicates).toEqual([]);
+  });
+
   it("does not emit unsupported additionalProperties in serialized declarations", () => {
     expect(JSON.stringify(getChatToolDeclarations())).not.toContain("additionalProperties");
   });

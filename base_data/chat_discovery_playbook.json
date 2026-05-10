@@ -117,6 +117,15 @@
         "Use manage_merchant_account get on the most relevant merchant accounts to inspect fields and compare them when behavior differs across accounts.",
         "When the issue involves risk, AVS, or 3DS, compare merchant-account fields with the related entity-level settings and explicitly mention mismatches such as useRiskSettings or threeDSecure not lining up with the surrounding configuration."
       ]
+    },
+    {
+      "trigger": "Test transaction authentication failure or missing merchantId",
+      "steps": [
+        "If send_test_transaction returns code 800.900.300 or invalid authentication information and accessToken control is enabled, treat it as a recoverable token problem instead of stopping at the error.",
+        "Retry with send_test_transaction using tokenMode temporary when the user asks to get a temp token or otherwise indicates temporary-token testing.",
+        "If temporary token mode needs merchantId and the target is a Channel, use get_entity or manage_entity get for the Channel first, then derive the Merchant parent from fields such as _parent, merchantId, sender, parentId, or hierarchy context.",
+        "Only ask the user for merchantId after attempting that read-based recovery. Never expose the raw temporary token; rely on send_test_transaction to create, use, suspend, delete, and return redacted metadata."
+      ]
     }
   ],
   "responseStyle": [

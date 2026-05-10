@@ -20,11 +20,15 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Risk or fraud configuration question:");
     expect(prompt).toContain("3DS or SCA question:");
     expect(prompt).toContain("Merchant-account troubleshooting:");
+    expect(prompt).toContain("Test transaction authentication failure or missing merchantId:");
     expect(prompt).toContain("The dashboard binds context, but the Web API is authoritative.");
     expect(prompt).toContain("channel accessToken");
     expect(prompt).toContain("absent from that specific endpoint response");
     expect(prompt).toContain("Merchant-level-and-below secrets, not Channel-level tokens");
     expect(prompt).toContain("Raw bearer tokens must never appear in LLM context");
+    expect(prompt).toContain("800.900.300");
+    expect(prompt).toContain("Retry with send_test_transaction tokenMode=temporary");
+    expect(prompt).toContain("derive it before asking the user");
     expect(prompt).toContain("Generate Api Bearer token");
     expect(prompt).toContain("Never attempt writes or code execution.");
   });

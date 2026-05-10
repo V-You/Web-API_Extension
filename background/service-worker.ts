@@ -466,27 +466,49 @@ function registerToolsInMainWorld(schemas: ToolSchema[]) {
   function tryRegister(): boolean {
     if (registered) return true;
     if (!navigator.modelContext) return false;
+    const seen = new Set<string>();
+    const failures: Array<{ name: string; error: string }> = [];
+    let registeredCount = 0;
+
     for (const schema of schemas) {
-      navigator.modelContext.registerTool({
-        name: schema.name,
-        description: schema.description,
-        inputSchema: schema.inputSchema,
-        ...(schema.annotations ? { annotations: schema.annotations } : {}),
-        execute(input: Record<string, unknown>, _client: { requestUserInteraction: (cb: () => void) => void }) {
-          const callId = crypto.randomUUID();
-          return new Promise<string>((resolve, reject) => {
-            const timer = setTimeout(() => {
-              pending.delete(callId);
-              reject(new Error(`Tool ${schema.name} timed out.`));
-            }, CALL_TIMEOUT_MS);
-            pending.set(callId, { resolve, reject, timer });
-            window.postMessage({ type: "webmcp:tool-call", callId, tool: schema.name, params: input }, "*");
-          });
-        },
-      });
+      if (seen.has(schema.name)) {
+        failures.push({ name: schema.name, error: "Duplicate tool name skipped." });
+        continue;
+      }
+      seen.add(schema.name);
+
+      try {
+        navigator.modelContext.registerTool({
+          name: schema.name,
+          description: schema.description,
+          inputSchema: schema.inputSchema,
+          ...(schema.annotations ? { annotations: schema.annotations } : {}),
+          execute(input: Record<string, unknown>, _client: { requestUserInteraction: (cb: () => void) => void }) {
+            const callId = crypto.randomUUID();
+            return new Promise<string>((resolve, reject) => {
+              const timer = setTimeout(() => {
+                pending.delete(callId);
+                reject(new Error(`Tool ${schema.name} timed out.`));
+              }, CALL_TIMEOUT_MS);
+              pending.set(callId, { resolve, reject, timer });
+              window.postMessage({ type: "webmcp:tool-call", callId, tool: schema.name, params: input }, "*");
+            });
+          },
+        });
+        registeredCount++;
+      } catch (err) {
+        failures.push({ name: schema.name, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    if (registeredCount === 0) {
+      console.warn("[webmcp-main] No tools registered.", failures);
+      return false;
     }
     registered = true;
-    console.log(`[webmcp-main] Registered ${schemas.length} tools in main world.`);
+    console.log(`[webmcp-main] Registered ${registeredCount} tools in main world.`);
+    if (failures.length > 0) {
+      console.warn("[webmcp-main] Some tools were not registered.", failures);
+    }
 
     // Verify via testing API if available
     const testing = (navigator as { modelContextTesting?: { listTools: () => unknown[] } }).modelContextTesting;

@@ -421,7 +421,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
       }
 
       if (!merchantId) {
-        throw new Error("merchantId is required for temporary transaction token creation. Provide the Merchant parent of the target Channel.");
+        throw new Error("merchantId is required for temporary transaction token creation. If the target is a Channel, call get_entity or manage_entity get for that Channel and derive the Merchant parent from _parent, merchantId, sender, parentId, or nearby hierarchy context before asking the user.");
       }
 
       const result = await sendWithTemporaryTransactionToken(creds, env, merchantId, channelId, bodyText);

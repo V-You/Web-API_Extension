@@ -17,7 +17,7 @@ interface ToolCategory {
   generated: ToolEntry[];
 }
 
-const TOOL_CATEGORIES: ToolCategory[] = [
+export const TOOL_CATEGORIES: ToolCategory[] = [
   {
     label: "Entities",
     description: "Navigate and manage the payment hierarchy (PSP, division, merchant, channel)",
@@ -42,6 +42,7 @@ const TOOL_CATEGORIES: ToolCategory[] = [
     description: "Create, edit, or lock/unlock contact users on entities",
     handwritten: [
       { name: "manage_contact", hint: "read contacts -- get, list, find by username" },
+      { name: "attach_contact", hint: "attach an existing contact to an entity" },
     ],
     generated: [
       { name: "get_contact", hint: "read a single contact" },
@@ -72,7 +73,22 @@ const TOOL_CATEGORIES: ToolCategory[] = [
       { name: "detach_merchant_account", hint: "detach an MA from an entity" },
       { name: "list_owned_merchant_accounts", hint: "list MAs owned by an entity" },
       { name: "list_attached_merchant_accounts", hint: "list MAs attached to an entity" },
-      { name: "list_clearing_institutes", hint: "list CIs available at a PSP" },
+    ],
+  },
+  {
+    label: "API tokens and test transactions",
+    description: "Create short-lived transaction tokens and send UAT test payments",
+    handwritten: [
+      { name: "send_test_transaction", hint: "create/use/cleanup a temporary token or use a stored token" },
+    ],
+    generated: [
+      { name: "list_api_tokens", hint: "list token metadata for a merchant" },
+      { name: "get_api_token", hint: "read token metadata by ID" },
+      { name: "create_api_token", hint: "create a merchant API token" },
+      { name: "update_api_token", hint: "update a token alias" },
+      { name: "suspend_api_token", hint: "suspend a token" },
+      { name: "activate_api_token", hint: "reactivate a suspended token" },
+      { name: "delete_api_token", hint: "delete a suspended token" },
     ],
   },
   {
@@ -90,11 +106,15 @@ const TOOL_CATEGORIES: ToolCategory[] = [
     handwritten: [
       { name: "get_audit_log", hint: "query the local audit log with filters" },
       { name: "execute_workflow", hint: "run TypeScript in a sandbox with the virtual SDK" },
+      { name: "get_job_status", hint: "poll a background workflow Job" },
       { name: "describe_operation", hint: "inspect a tool's spec before calling it" },
     ],
     generated: [],
   },
 ];
+
+export const totalToolCount = TOOL_CATEGORIES.reduce((n, c) => n + c.handwritten.length + c.generated.length, 0);
+export const futureWebMcpToolCount = TOOL_CATEGORIES.reduce((n, c) => n + c.handwritten.length, 0);
 
 export function HomePage() {
   const { isUnlocked } = useCredentialStore();
@@ -142,8 +162,7 @@ export function HomePage() {
       </div>
 
       <p className="text-2xs text-slate-400 mt-1">
-        {TOOL_CATEGORIES.reduce((n, c) => n + c.handwritten.length + c.generated.length, 0)} tools
-        available. Click a category to see details.
+        {totalToolCount} tools available (needed for WebMCP: {futureWebMcpToolCount}). Click a category to see details.
       </p>
 
       <div className="grid gap-2">

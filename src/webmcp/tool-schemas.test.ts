@@ -17,6 +17,22 @@ describe("tool schema definitions", () => {
       "execute_workflow",
       "get_job_status",
       "describe_operation",
+      "send_test_transaction",
+    ]);
+  });
+
+  it("publishes each tool name once", () => {
+    const names = TOOL_SCHEMAS.map((schema) => schema.name);
+    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+
+    expect(duplicates).toEqual([]);
+  });
+
+  it("publishes the complete current WebMCP tool surface", () => {
+    const names = TOOL_SCHEMAS.map((schema) => schema.name).sort();
+
+    expect(names).toHaveLength(47);
+    expect(names).toEqual(expect.arrayContaining([
       "list_api_tokens",
       "get_api_token",
       "create_api_token",
@@ -25,7 +41,7 @@ describe("tool schema definitions", () => {
       "activate_api_token",
       "delete_api_token",
       "send_test_transaction",
-    ]);
+    ]));
   });
 
   it("exposes generated per-action tools alongside handwritten ones", () => {
@@ -52,11 +68,9 @@ describe("tool schema definitions", () => {
     expect(readOnlyTools).toEqual([
       "describe_operation",
       "describe_settings",
-      "get_api_token",
       "get_audit_log",
       "get_hierarchy",
       "get_job_status",
-      "list_api_tokens",
       "lookup_clearing_institutes",
       "manage_contact",
       "manage_entity",
@@ -114,5 +128,15 @@ describe("tool schema definitions", () => {
     expect(attachContact?.annotations?.readOnlyHint).toBeUndefined();
     expect(attachContact?.description).toContain("attachedContacts/{contactId}");
     expect((attachContact?.inputSchema as { required?: string[] }).required).toEqual(["entityId", "entityType", "contactId"]);
+  });
+
+  it("documents test-transaction recovery from stored-token authentication failures", () => {
+    const sendTestTransaction = TOOL_SCHEMAS.find((schema) => schema.name === "send_test_transaction");
+    const merchantId = (sendTestTransaction?.inputSchema as { properties?: Record<string, { description?: string }> }).properties?.merchantId;
+
+    expect(sendTestTransaction?.description).toContain("800.900.300");
+    expect(sendTestTransaction?.description).toContain("tokenMode=temporary");
+    expect(sendTestTransaction?.description).toContain("get_entity or manage_entity get");
+    expect(merchantId?.description).toContain("Required for tokenMode=temporary");
   });
 });

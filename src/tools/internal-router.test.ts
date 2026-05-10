@@ -169,4 +169,14 @@ describe("internal router transaction tools", () => {
     })).rejects.toThrow("No stored transaction token matched");
     expect(sendExampleTransactionMock).not.toHaveBeenCalled();
   });
+
+  it("tells the model how to recover a missing merchantId for temporary tokens", async () => {
+    const execute = createExecuteMap({ bypassWriteConfirmation: true });
+
+    await expect(execute.send_test_transaction({
+      channelId: "channel-1",
+      tokenMode: "temporary",
+    })).rejects.toThrow("call get_entity or manage_entity get");
+    expect(sendExampleTransactionMock).not.toHaveBeenCalled();
+  });
 });

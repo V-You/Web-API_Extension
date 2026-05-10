@@ -436,132 +436,19 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     },
   },
 
-  // api_token tools -- handwritten (not in OpenAPI spec) ---------------------------
-
-  // list_api_tokens
-  {
-    name: "list_api_tokens",
-    title: "List API tokens",
-    description: "List all API tokens for a merchant.",
-    annotations: { readOnlyHint: true },
-    inputSchema: {
-      type: "object",
-      properties: {
-        merchantId: { type: "string", description: "Merchant entity ID." },
-      },
-      required: ["merchantId"],
-      additionalProperties: false,
-    },
-  },
-
-  // get_api_token
-  {
-    name: "get_api_token",
-    title: "Get API token",
-    description: "Retrieve details of a single API token by ID. The bearer token field is not returned.",
-    annotations: { readOnlyHint: true },
-    inputSchema: {
-      type: "object",
-      properties: {
-        apiTokenId: { type: "string", description: "API token ID." },
-      },
-      required: ["apiTokenId"],
-      additionalProperties: false,
-    },
-  },
-
-  // create_api_token
-  {
-    name: "create_api_token",
-    title: "Create API token",
-    description:
-      "Create a new API token for a merchant. " +
-      "The raw bearer token is automatically redacted - it is never exposed. " +
-      "After creation, the temporary token is suspended and deleted for security.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        merchantId: { type: "string", description: "Merchant entity ID." },
-        alias: { type: "string", description: "Optional human-readable label for the token." },
-      },
-      required: ["merchantId"],
-      additionalProperties: false,
-    },
-  },
-
-  // update_api_token
-  {
-    name: "update_api_token",
-    title: "Update API token",
-    description: "Update the alias of an existing API token.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        apiTokenId: { type: "string", description: "API token ID." },
-        alias: { type: "string", description: "New alias for the token." },
-      },
-      required: ["apiTokenId"],
-      additionalProperties: false,
-    },
-  },
-
-  // suspend_api_token
-  {
-    name: "suspend_api_token",
-    title: "Suspend API token",
-    description: "Suspend an active API token, disabling its use for authentication.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        apiTokenId: { type: "string", description: "API token ID to suspend." },
-      },
-      required: ["apiTokenId"],
-      additionalProperties: false,
-    },
-  },
-
-  // activate_api_token
-  {
-    name: "activate_api_token",
-    title: "Activate API token",
-    description: "Activate a previously suspended API token.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        apiTokenId: { type: "string", description: "API token ID to activate." },
-      },
-      required: ["apiTokenId"],
-      additionalProperties: false,
-    },
-  },
-
-  // delete_api_token
-  {
-    name: "delete_api_token",
-    title: "Delete API token",
-    description: "Permanently delete an API token. This action is irreversible.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        apiTokenId: { type: "string", description: "API token ID to delete." },
-      },
-      required: ["apiTokenId"],
-      additionalProperties: false,
-    },
-  },
-
   // send_test_transaction
   {
     name: "send_test_transaction",
     title: "Send test transaction",
     description:
-      "Send a UAT test transaction to a channel using a locally stored transaction bearer token. " +
-      "Returns the exact submitted form fields, endpoint, HTTP status, and gateway response with Authorization redacted.",
+      "Send a UAT test transaction to a channel using a stored or temporary Merchant transaction bearer token. " +
+      "If a stored-token attempt returns code 800.900.300 or invalid authentication information, retry with tokenMode=temporary after deriving merchantId from the Channel parent via get_entity or manage_entity get. " +
+      "Temporary mode creates, uses, suspends, and deletes the Merchant token without exposing it. Returns submitted form fields, endpoint, HTTP status, and gateway response with Authorization redacted.",
     inputSchema: {
       type: "object",
       properties: {
         channelId: { type: "string", description: "Channel entity ID to use as the transaction entityId." },
-        merchantId: { type: "string", description: "Optional merchant ID used to select a stored transaction token." },
+        merchantId: { type: "string", description: "Optional Merchant parent ID. Required for tokenMode=temporary; derive it from the Channel with get_entity or manage_entity get before asking the user." },
         transactionTokenId: { type: "string", description: "Optional stored token row ID to use." },
         tokenMode: {
           type: "string",
@@ -585,8 +472,8 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
 ];
 
 /**
- * Full published WebMCP inventory: 12 handwritten tools + generated
- * per-action write/read tools derived from the operation manifest.
+ * Full published WebMCP inventory: handwritten tools + generated per-action
+ * write/read tools derived from the operation manifest.
  */
 export const TOOL_SCHEMAS: ToolSchema[] = [
   ...HANDWRITTEN_TOOL_SCHEMAS,
