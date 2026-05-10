@@ -119,14 +119,15 @@
     {
       "term": "Available MA",
       "aliases": [
-        "Created MA"
+        "Created MA",
+        "owned merchant account"
       ],
       "definition": "An MA that exists at an Entity but is not yet attached to a Channel.",
       "context": "Configuration"
     },
     {
       "term": "Attached MA",
-      "aliases": [],
+      "aliases": ["attached merchant account"],
       "definition": "An MA that is linked to a Channel for processing transactions.",
       "context": "Configuration"
     },
@@ -259,6 +260,17 @@
         "Div"
       ],
       "definition": "An organizational entity below a PSP and above a Merchant.",
+      "context": "Configuration"
+    },
+    {
+      "term": "subType",
+      "aliases": [
+        "subtype",
+        "Subtype",
+        "payment brand",
+        "card brand"
+      ],
+      "definition": "Brand, that an Attached Merchant Account will accept for processing. Examples: VISA, MasterCard, PayPal, Klarna Checkoug, MB Way. Mandatory during setup (alongside currency).",
       "context": "Configuration"
     }
   ]

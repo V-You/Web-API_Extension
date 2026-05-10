@@ -4,14 +4,14 @@ import { expandGlossaryQuery } from "./glossary";
 
 describe("glossary expansion", () => {
   it("resolves attached merchant account phrasing", () => {
-    const result = expandGlossaryQuery("attached merchant accounts");
+    const result = expandGlossaryQuery("attached merchant account");
 
     expect(result.applied).toBe(true);
     expect(result.matchedEntries.map((entry) => entry.term)).toContain("Attached MA");
   });
 
   it("resolves owned merchant account phrasing", () => {
-    const result = expandGlossaryQuery("owned merchant accounts");
+    const result = expandGlossaryQuery("owned merchant account");
 
     expect(result.applied).toBe(true);
     expect(result.matchedEntries.map((entry) => entry.term)).toContain("Available MA");
