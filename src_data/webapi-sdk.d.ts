@@ -124,7 +124,7 @@ export interface Params_create_merchant_account {
   /** The merchant IBAN for funds to be transferred (SEPA). */
   "iban"?: string;
   /** OR The id of the acquirer or alternative payment method. */
-  "cleaingInstituteId"?: string;
+  "clearingInstituteId"?: string;
   /** The card acceptor terminal id. */
   "terminalId"?: string;
   /** The credentials use to connect to the provider. */
@@ -382,7 +382,7 @@ export interface Params_edit_merchant_account {
   "key": string;
   "connectorSpecificParameter.MerchantKeyId"?: string;
   "iban"?: string;
-  "cleaingInstituteId"?: string;
+  "clearingInstituteId"?: string;
   "terminalId"?: string;
   "password"?: string;
   "username"?: string;

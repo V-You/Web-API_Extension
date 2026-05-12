@@ -170,7 +170,7 @@ describeIf("live write tests (UAT)", () => {
         parentId: env.smokeDivisionId,
         name: `smoke-ma-${stamp}`,
         state: "TEST",
-        cleaingInstituteId: env.smokeClearingInstituteId,
+        clearingInstituteId: env.smokeClearingInstituteId,
       },
       { creds: env.credentials, env: "uat" },
     );

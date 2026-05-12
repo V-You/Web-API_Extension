@@ -1347,7 +1347,7 @@
             ]
           },
           {
-            "name": "cleaingInstituteId",
+            "name": "clearingInstituteId",
             "logicalType": "string",
             "required": "example_core",
             "description": "OR The id of the acquirer or alternative payment method.",
@@ -1948,7 +1948,7 @@
             ]
           },
           {
-            "name": "cleaingInstituteId",
+            "name": "clearingInstituteId",
             "logicalType": "string",
             "required": "example_core",
             "description": "OR The id of the acquirer or alternative payment method.",
@@ -2549,7 +2549,7 @@
             ]
           },
           {
-            "name": "cleaingInstituteId",
+            "name": "clearingInstituteId",
             "logicalType": "string",
             "required": "example_core",
             "description": "OR The id of the acquirer or alternative payment method.",
@@ -3150,7 +3150,7 @@
             ]
           },
           {
-            "name": "cleaingInstituteId",
+            "name": "clearingInstituteId",
             "logicalType": "string",
             "required": "example_core",
             "description": "OR The id of the acquirer or alternative payment method.",
@@ -4601,7 +4601,7 @@
             ]
           },
           {
-            "name": "cleaingInstituteId",
+            "name": "clearingInstituteId",
             "logicalType": "string",
             "required": "optional",
             "description": null,
@@ -6224,7 +6224,7 @@
           ]
         },
         {
-          "name": "cleaingInstituteId",
+          "name": "clearingInstituteId",
           "logicalType": "string",
           "required": "example_core",
           "description": "OR The id of the acquirer or alternative payment method.",
@@ -6825,7 +6825,7 @@
           ]
         },
         {
-          "name": "cleaingInstituteId",
+          "name": "clearingInstituteId",
           "logicalType": "string",
           "required": "example_core",
           "description": "OR The id of the acquirer or alternative payment method.",
@@ -7426,7 +7426,7 @@
           ]
         },
         {
-          "name": "cleaingInstituteId",
+          "name": "clearingInstituteId",
           "logicalType": "string",
           "required": "example_core",
           "description": "OR The id of the acquirer or alternative payment method.",
@@ -8027,7 +8027,7 @@
           ]
         },
         {
-          "name": "cleaingInstituteId",
+          "name": "clearingInstituteId",
           "logicalType": "string",
           "required": "example_core",
           "description": "OR The id of the acquirer or alternative payment method.",
@@ -10915,7 +10915,7 @@
           ]
         },
         {
-          "name": "cleaingInstituteId",
+          "name": "clearingInstituteId",
           "logicalType": "string",
           "required": "optional",
           "description": null,

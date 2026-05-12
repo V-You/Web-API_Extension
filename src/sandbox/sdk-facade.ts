@@ -136,6 +136,20 @@ function normalizeMerchantAccountEditArgs(args: unknown[]): { merchantAccountId:
   return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
 }
 
+function withMerchantAccountCreateAliases(result: AdapterResult, fields: Record<string, string>): AdapterResult {
+  const data = isRecord(result.data) ? result.data : {};
+  const merchantAccountId = String(data.merchantAccountId ?? data.id ?? fields.merchantAccountId ?? fields.id ?? fields.merchantId ?? "");
+  const name = String(data.name ?? fields.name ?? merchantAccountId);
+  return {
+    ...result,
+    data: {
+      ...data,
+      ...(merchantAccountId ? { id: data.id ?? merchantAccountId, merchantAccountId } : {}),
+      ...(name ? { name } : {}),
+    },
+  };
+}
+
 /**
  * Build the full `sdk` object injected into sandbox scripts.
  *
@@ -430,7 +444,10 @@ export function buildSdkFacade(
           { fields },
         );
         if (options.planOnlyWrites) return plannedResult("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields });
-        return runTyped("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields });
+        return withMerchantAccountCreateAliases(
+          await runTyped("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields }),
+          fields,
+        );
       },
       async edit(...args: unknown[]) {
         const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);

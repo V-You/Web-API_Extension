@@ -2325,7 +2325,7 @@ paths:
                   pattern: ^[A-Za-z0-9 _-]*$
                   x-enriched-from: 01-Add-Merchant-Account_48739427.html
                   maxLength: 32
-                cleaingInstituteId:
+                clearingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
                 terminalId:
@@ -2608,7 +2608,7 @@ paths:
                   cashlinkMaltaMerchantAcquirerBin_v2: ''
                   cashlinkMaltaRequestorId_v2: ''
                   cashlinkMaltaRequestorName: ''
-                  cleaingInstituteId: ''
+                  clearingInstituteId: ''
                   clearingInstituteName: EMC_NAB
                   connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
                   cvvInstruction: ''
@@ -2790,7 +2790,7 @@ paths:
                   pattern: ^[A-Za-z0-9 _-]*$
                   x-enriched-from: 01-Add-Merchant-Account_48739427.html
                   maxLength: 32
-                cleaingInstituteId:
+                clearingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
                 terminalId:
@@ -3073,7 +3073,7 @@ paths:
                   cashlinkMaltaMerchantAcquirerBin_v2: ''
                   cashlinkMaltaRequestorId_v2: ''
                   cashlinkMaltaRequestorName: ''
-                  cleaingInstituteId: ''
+                  clearingInstituteId: ''
                   clearingInstituteName: EMC_NAB
                   connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
                   cvvInstruction: ''
@@ -3255,7 +3255,7 @@ paths:
                   pattern: ^[A-Za-z0-9 _-]*$
                   x-enriched-from: 01-Add-Merchant-Account_48739427.html
                   maxLength: 32
-                cleaingInstituteId:
+                clearingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
                 terminalId:
@@ -3538,7 +3538,7 @@ paths:
                   cashlinkMaltaMerchantAcquirerBin_v2: ''
                   cashlinkMaltaRequestorId_v2: ''
                   cashlinkMaltaRequestorName: ''
-                  cleaingInstituteId: ''
+                  clearingInstituteId: ''
                   clearingInstituteName: EMC_NAB
                   connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
                   cvvInstruction: ''
@@ -3720,7 +3720,7 @@ paths:
                   pattern: ^[A-Za-z0-9 _-]*$
                   x-enriched-from: 01-Add-Merchant-Account_48739427.html
                   maxLength: 32
-                cleaingInstituteId:
+                clearingInstituteId:
                   type: string
                   description: OR The id of the acquirer or alternative payment method.
                 terminalId:
@@ -4003,7 +4003,7 @@ paths:
                   cashlinkMaltaMerchantAcquirerBin_v2: ''
                   cashlinkMaltaRequestorId_v2: ''
                   cashlinkMaltaRequestorName: ''
-                  cleaingInstituteId: ''
+                  clearingInstituteId: ''
                   clearingInstituteName: EMC_NAB
                   connectorSpecificParameter.MerchantKeyId: e5b933be-a929-426a-b839-97a28229c672
                   cvvInstruction: ''
@@ -4298,7 +4298,7 @@ paths:
                   pattern: ^[A-Za-z0-9 _-]*$
                   x-enriched-from: 03-Edit-Merchant-Account_48739429.html
                   maxLength: 32
-                cleaingInstituteId:
+                clearingInstituteId:
                   type: string
                 terminalId:
                   type: string

@@ -106,7 +106,7 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);
 
-    await sdk.merchantAccounts.create("merchant-1", { id: "MID-1", name: "MID one", status: "ACTIVE" });
+    const result = await sdk.merchantAccounts.create("merchant-1", { id: "MID-1", name: "MID one", status: "ACTIVE" });
 
     expect(executeTypedToolMock).toHaveBeenCalledWith(
       "create_merchant_account",
@@ -121,6 +121,9 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
       }),
       expect.objectContaining({ confirm: true }),
     );
+    expect(result).toMatchObject({
+      data: { id: "MID-1", merchantAccountId: "MID-1", name: "MID one" },
+    });
   });
 
   it("accepts merchant account update as an alias for edit", async () => {

@@ -115,6 +115,21 @@ function buildSwSdk(
     return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
   }
 
+  function withMerchantAccountCreateAliases(result: unknown, fields: Record<string, string>): unknown {
+    if (!isRecord(result)) return result;
+    const data = isRecord(result.data) ? result.data : {};
+    const merchantAccountId = String(data.merchantAccountId ?? data.id ?? fields.merchantAccountId ?? fields.id ?? fields.merchantId ?? "");
+    const name = String(data.name ?? fields.name ?? merchantAccountId);
+    return {
+      ...result,
+      data: {
+        ...data,
+        ...(merchantAccountId ? { id: data.id ?? merchantAccountId, merchantAccountId } : {}),
+        ...(name ? { name } : {}),
+      },
+    };
+  }
+
   function unwrapApiData(result: unknown): unknown {
     if (result && typeof result === "object" && "data" in result) {
       return (result as { data: unknown }).data;
@@ -291,7 +306,10 @@ function buildSwSdk(
       async create(...args: unknown[]) {
         const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
         recordWrite("manage_merchant_account", "create", entityId, entityType, { fields });
-        return executeManageMerchantAccount({ action: "create", entityType, entityId, fields }, creds, env);
+        return withMerchantAccountCreateAliases(
+          await executeManageMerchantAccount({ action: "create", entityType, entityId, fields }, creds, env),
+          fields,
+        );
       },
       async edit(...args: unknown[]) {
         const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
