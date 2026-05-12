@@ -1,11 +1,15 @@
 import { TOOL_SCHEMAS, type ToolSchema } from "../webmcp/tool-schemas";
-import { createExecuteMap } from "../tools/internal-router";
+import { createExecuteMap, type ExecuteMapOptions } from "../tools/internal-router";
+import { isRecoverableToolError } from "../tools/recoverable-error";
 import type { ChatToolDeclaration } from "./llm-adapter";
+import { contextPacketFor, resolveChannelMerchantFromContext, type ChatContextRecord } from "./context-store";
 
 export interface ChatToolCatalogOptions {
   writeToolsEnabled?: boolean;
   accessTokenControlEnabled?: boolean;
   automationModeEnabled?: boolean;
+  context?: ChatContextRecord | null;
+  startWorkflowJob?: ExecuteMapOptions["startWorkflowJob"];
 }
 
 const API_TOKEN_TOOLS = new Set([
@@ -250,10 +254,53 @@ export async function executeChatTool(
     throw new Error(`Action ${requestedAction ?? "unknown"} is not available for ${name} in chat safe mode.`);
   }
 
-  const execute = EXECUTE_MAP[name];
+  const executeMap = options.startWorkflowJob ? createExecuteMap({ startWorkflowJob: options.startWorkflowJob }) : EXECUTE_MAP;
+  const execute = executeMap[name];
   if (!execute) {
     throw new Error(`No execute handler found for ${name}.`);
   }
 
-  return execute(args);
+  try {
+    return await execute(applyContextDefaults(name, args, options));
+  } catch (error) {
+    if (isRecoverableToolError(error)) return error.payload;
+    throw error;
+  }
+}
+
+function applyContextDefaults(
+  name: string,
+  args: Record<string, unknown>,
+  options: ChatToolCatalogOptions,
+): Record<string, unknown> {
+  if (name === "execute_workflow") {
+    const packet = contextPacketFor(options.context ?? null);
+    if (!packet) return args;
+    const ids = Object.fromEntries(
+      Object.entries(packet.ids).filter(([, value]) => typeof value === "string" && value.trim()),
+    );
+    const next = { ...args };
+    if (!next.entityId) next.entityId = packet.current.entityId;
+    if (!next.entityType) next.entityType = packet.current.entityType;
+    next.contextSnapshot = {
+      entityId: packet.current.entityId,
+      entityType: packet.current.entityType,
+      ...(packet.current.entityName ? { entityName: packet.current.entityName } : {}),
+      ...(packet.current.section ? { section: packet.current.section } : {}),
+      ...(Object.keys(ids).length > 0 ? { ids } : {}),
+    };
+    return next;
+  }
+
+  if (name !== "send_test_transaction") return args;
+  const resolved = resolveChannelMerchantFromContext(options.context ?? null);
+  if (!resolved) return args;
+
+  const next = { ...args };
+  if (!next.channelId && resolved.channelId) next.channelId = resolved.channelId;
+  if (!next.merchantId && resolved.merchantId && resolved.confidence >= 90) {
+    next.merchantId = resolved.merchantId;
+    next.contextProvenance = resolved.provenance ?? "Merchant derived from current dashboard context.";
+  }
+  return next;
 }

@@ -26,6 +26,7 @@ import { apiRequest } from "../lib/api-client";
 import { sendExampleTransaction } from "../lib/transaction-client";
 import { getActiveEnv, getCredentials, getTransactionTokens } from "../lib/storage";
 import { createExecuteMap } from "./internal-router";
+import { RecoverableToolError } from "./recoverable-error";
 
 const apiRequestMock = vi.mocked(apiRequest);
 const sendExampleTransactionMock = vi.mocked(sendExampleTransaction);
@@ -147,6 +148,7 @@ describe("internal router transaction tools", () => {
     expect(JSON.stringify(result)).not.toContain("raw-stored-token");
     expect(JSON.stringify(result)).not.toContain("raw-temp-token");
     expect(result.previousAttempt).toBeDefined();
+    expect(result.originalError).toBeDefined();
   });
 
   it("rejects stored mode when the stored token merchant does not match", async () => {
@@ -178,5 +180,25 @@ describe("internal router transaction tools", () => {
       tokenMode: "temporary",
     })).rejects.toThrow("call get_entity or manage_entity get");
     expect(sendExampleTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("returns structured recovery metadata for missing merchantId", async () => {
+    const execute = createExecuteMap({ bypassWriteConfirmation: true });
+
+    try {
+      await execute.send_test_transaction({ channelId: "channel-1", tokenMode: "temporary" });
+      throw new Error("Expected send_test_transaction to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(RecoverableToolError);
+      expect((error as RecoverableToolError).payload).toMatchObject({
+        errorCode: "merchant_id_required",
+        failureCategory: "identifier_failure",
+        recoverable: true,
+        recovery: {
+          recommendedTool: "manage_entity",
+          retryTool: "send_test_transaction",
+        },
+      });
+    }
   });
 });

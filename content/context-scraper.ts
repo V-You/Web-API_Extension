@@ -7,6 +7,18 @@ interface ContextCandidate {
   source: "url" | "anchor" | "script" | "form";
   entityName?: string;
   section?: string;
+  ids?: Partial<Record<`${EntityType}Id`, string>>;
+  route?: {
+    url: string;
+    query: Record<string, string>;
+    section?: string;
+  };
+  contextEvidence?: Array<{
+    field: string;
+    value: string;
+    source: "url" | "anchor" | "script" | "form";
+    confidence: number;
+  }>;
 }
 
 const PATH_RE = /\/(psps|divisions|merchants|channels)\/([^/?#]+)/i;
@@ -94,6 +106,7 @@ function normalizeEditEntityType(rawType: string | null): EntityType | null {
 function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], confidence: number): ContextCandidate | null {
   const section = detectSectionFromUrl(rawUrl);
   const match = PATH_RE.exec(rawUrl);
+  const route = buildRoute(rawUrl, section);
   if (match) {
     const [, plural, entityId] = match;
     const entityType = TYPE_MAP[plural.toLowerCase()];
@@ -104,6 +117,9 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
       entityType,
       confidence,
       source,
+      ids: { [`${entityType}Id`]: entityId } as Partial<Record<`${EntityType}Id`, string>>,
+      ...(route ? { route } : {}),
+      contextEvidence: [{ field: `${entityType}Id`, value: entityId, source, confidence }],
       ...(section ? { section } : {}),
     };
   }
@@ -124,6 +140,8 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
     }
 
     const params = Array.from(url.searchParams.entries()).map(([key, value]) => [key.toLowerCase(), value] as const);
+    const ids = idsFromParams(params);
+    const contextEvidence = Object.entries(ids).map(([field, value]) => ({ field, value, source, confidence }));
 
     for (const [key, value] of params) {
       const entityType = QUERY_KEY_TYPES[key];
@@ -133,6 +151,12 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
           entityType,
           confidence: Math.max(40, confidence - 10),
           source,
+          ids: { ...ids, [`${entityType}Id`]: value } as Partial<Record<`${EntityType}Id`, string>>,
+          ...(route ? { route } : {}),
+          contextEvidence: [
+            ...contextEvidence,
+            { field: `${entityType}Id`, value, source, confidence: Math.max(40, confidence - 10) },
+          ],
           ...(section ? { section } : {}),
         };
       }
@@ -146,6 +170,9 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
         entityType,
         confidence: Math.max(35, confidence - 15),
         source,
+        ids: { ...ids, [`${entityType}Id`]: entityId } as Partial<Record<`${EntityType}Id`, string>>,
+        ...(route ? { route } : {}),
+        contextEvidence,
         ...(section ? { section } : {}),
       };
     }
@@ -154,6 +181,28 @@ function parseEntityUrl(rawUrl: string, source: ContextCandidate["source"], conf
   }
 
   return null;
+}
+
+function buildRoute(rawUrl: string, section: string | undefined): ContextCandidate["route"] | undefined {
+  try {
+    const url = new URL(rawUrl, location.href);
+    return {
+      url: url.href,
+      query: Object.fromEntries(Array.from(url.searchParams.entries())),
+      ...(section ? { section } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function idsFromParams(params: Array<readonly [string, string]>): Partial<Record<`${EntityType}Id`, string>> {
+  const ids: Partial<Record<`${EntityType}Id`, string>> = {};
+  for (const [key, value] of params) {
+    const entityType = QUERY_KEY_TYPES[key];
+    if (entityType && value) ids[`${entityType}Id`] = value;
+  }
+  return ids;
 }
 
 function detectEntityName(): string | undefined {
@@ -212,6 +261,8 @@ function detectFromInlineState(): ContextCandidate | null {
     entityType,
     confidence: 95,
     source: "script",
+    ids: { [`${entityType}Id`]: entityId } as Partial<Record<`${EntityType}Id`, string>>,
+    contextEvidence: [{ field: `${entityType}Id`, value: entityId, source: "script", confidence: 95 }],
   };
 }
 
@@ -233,6 +284,8 @@ function detectFromEntityForm(): ContextCandidate | null {
     entityType,
     confidence: 90,
     source: "form",
+    ids: { [`${entityType}Id`]: entityId } as Partial<Record<`${EntityType}Id`, string>>,
+    contextEvidence: [{ field: `${entityType}Id`, value: entityId, source: "form", confidence: 90 }],
     ...(entityName ? { entityName } : {}),
     ...(detectSectionFromUrl(location.href) ? { section: detectSectionFromUrl(location.href) } : {}),
   };

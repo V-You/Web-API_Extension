@@ -149,7 +149,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       context: message.context,
     }, Number(message.timeoutMs) || DEFAULT_JOB_TIMEOUT_MS)
       .then((result) => sendResponse({ ok: true, result }))
-      .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      .catch((err) => sendResponse({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        result: err && typeof err === "object" ? err.result : undefined,
+      }));
     return true;
   }
 
@@ -183,7 +187,11 @@ window.addEventListener("message", (event) => {
     if (!entry) return;
     clearTimeout(entry.timer);
     pendingSandboxRequests.delete(data.requestId);
-    if (data.type === "sandbox_error") entry.reject(new Error(String(data.error ?? "Sandbox execution failed.")));
+    if (data.type === "sandbox_error") {
+      const err = new Error(String(data.error ?? "Sandbox execution failed."));
+      err.result = data.result;
+      entry.reject(err);
+    }
     else entry.resolve(data.result);
     return;
   }

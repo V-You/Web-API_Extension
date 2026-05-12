@@ -13,12 +13,18 @@ const {
   executeTypedToolMock,
   executeManageContactMock,
   executeManageMerchantAccountMock,
+  executeLookupClearingInstitutesMock,
+  listCardProcessorsMock,
+  executeSendTestTransactionMock,
   requestConfirmMock,
   recordWriteMock,
 } = vi.hoisted(() => ({
   executeTypedToolMock: vi.fn(),
   executeManageContactMock: vi.fn(),
   executeManageMerchantAccountMock: vi.fn(),
+  executeLookupClearingInstitutesMock: vi.fn(),
+  listCardProcessorsMock: vi.fn(),
+  executeSendTestTransactionMock: vi.fn(),
   requestConfirmMock: vi.fn(),
   recordWriteMock: vi.fn(),
 }));
@@ -32,6 +38,15 @@ vi.mock("../tools/manage-contact", () => ({
 }));
 vi.mock("../tools/manage-merchant-account", () => ({
   executeManageMerchantAccount: executeManageMerchantAccountMock,
+}));
+vi.mock("../tools/lookup-clearing-institutes", () => ({
+  executeLookupClearingInstitutes: executeLookupClearingInstitutesMock,
+}));
+vi.mock("../tools/card-processors", () => ({
+  listCardProcessors: listCardProcessorsMock,
+}));
+vi.mock("../tools/send-test-transaction", () => ({
+  executeSendTestTransaction: executeSendTestTransactionMock,
 }));
 vi.mock("../bridge/confirm-bridge", () => ({
   requestConfirm: requestConfirmMock,
@@ -53,6 +68,12 @@ beforeEach(() => {
   executeManageContactMock.mockResolvedValue({ ok: true, status: 200, data: {} });
   executeManageMerchantAccountMock.mockReset();
   executeManageMerchantAccountMock.mockResolvedValue({ ok: true, status: 200, data: {} });
+  executeLookupClearingInstitutesMock.mockReset();
+  executeLookupClearingInstitutesMock.mockResolvedValue({ ok: true, status: 200, data: {} });
+  listCardProcessorsMock.mockReset();
+  listCardProcessorsMock.mockResolvedValue([{ id: "VISA", ciCode: "VISA", name: "VISA", requiredFields: [] }]);
+  executeSendTestTransactionMock.mockReset();
+  executeSendTestTransactionMock.mockResolvedValue({ ok: true, status: 200, data: { id: "tx-1" } });
   requestConfirmMock.mockReset();
   requestConfirmMock.mockResolvedValue("confirm");
 });
@@ -79,6 +100,85 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     // Params are NOT nested under `fields`. Regression guard for the
     // original attach bug.
     expect(params).not.toHaveProperty("fields");
+  });
+
+  it("accepts merchant account create shorthand with merchant parent id", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.merchantAccounts.create("merchant-1", { id: "MID-1", name: "MID one", status: "ACTIVE" });
+
+    expect(executeTypedToolMock).toHaveBeenCalledWith(
+      "create_merchant_account",
+      expect.objectContaining({
+        parentType: "merchant",
+        parentId: "merchant-1",
+        id: "MID-1",
+        merchantId: "MID-1",
+        name: "MID one",
+        status: "ACTIVE",
+        state: "LIVE",
+      }),
+      expect.objectContaining({ confirm: true }),
+    );
+  });
+
+  it("accepts merchant account update as an alias for edit", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.merchantAccounts.update("ma-1", { state: "LIVE" });
+
+    expect(executeTypedToolMock).toHaveBeenCalledWith(
+      "edit_merchant_account",
+      { merchantAccountId: "ma-1", state: "LIVE" },
+      expect.objectContaining({ confirm: true }),
+    );
+  });
+
+  it("exposes card processor list as a clearing-institute alias", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.cardProcessors.list("psp-1");
+
+    expect(listCardProcessorsMock).toHaveBeenCalledWith("psp-1", creds, env);
+  });
+
+  it("lists bundled card processors when no PSP ID is available", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.cardProcessors.list();
+
+    expect(listCardProcessorsMock).toHaveBeenCalledWith(undefined, creds, env);
+  });
+
+  it("accepts settings.edit as an alias for config.update", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes, { planOnlyWrites: true });
+
+    const result = await sdk.settings.edit("channel", "channel-1", {
+      "*/type:channel/duplicate:check": true,
+      "*/type:channel/duplicate:window": 10,
+    });
+
+    expect(result).toEqual({ ok: true, applied: [], errors: [] });
+    expect(writes).toEqual([
+      expect.objectContaining({
+        tool: "config",
+        action: "update",
+        entityId: "channel-1",
+        entityType: "channel",
+        params: {
+          settings: {
+            "*/type:channel/duplicate:check": true,
+            "*/type:channel/duplicate:window": 10,
+          },
+        },
+      }),
+    ]);
+    expect(requestConfirmMock).not.toHaveBeenCalled();
   });
 
   it("routes entity.create(division) through create_division with parent alias", async () => {
@@ -145,5 +245,30 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
       entityId: "div-1",
       entityType: "division",
     });
+  });
+
+  it("exposes test transactions through the workflow sdk", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes, { autoConfirmWrites: true });
+
+    await sdk.transactions.sendTest({ channelId: "channel-1", merchantId: "merchant-1", tokenMode: "temporary" });
+
+    expect(executeSendTestTransactionMock).toHaveBeenCalledWith(
+      { channelId: "channel-1", merchantId: "merchant-1", tokenMode: "temporary" },
+      creds,
+      env,
+      expect.objectContaining({ bypassWriteConfirmation: true, onWriteAccepted: expect.any(Function) }),
+    );
+
+    const onWriteAccepted = executeSendTestTransactionMock.mock.calls[0][3].onWriteAccepted as () => void;
+    onWriteAccepted();
+    expect(writes).toEqual([
+      expect.objectContaining({
+        tool: "send_test_transaction",
+        action: "send",
+        entityId: "channel-1",
+        entityType: "channel",
+      }),
+    ]);
   });
 });

@@ -9,7 +9,7 @@
  * The SW owns the actual execution lifecycle: start, pause, resume, cancel.
  */
 
-import { createJob, updateJob, getJob, type JobRecord, type JobProgress, type JobSource } from "../src/jobs/job-store";
+import { createJob, updateJob, getJob, type JobContextSnapshot, type JobRecord, type JobProgress, type JobSource } from "../src/jobs/job-store";
 import { appendAuditEntry } from "../src/lib/api-client";
 import { compileSandboxScript, type WriteRecord, type LogEntry } from "../src/sandbox";
 import { executeManageEntity } from "../src/tools/manage-entity";
@@ -17,10 +17,12 @@ import { executeGetHierarchy } from "../src/tools/get-hierarchy";
 import { executeManageContact } from "../src/tools/manage-contact";
 import { executeManageMerchantAccount } from "../src/tools/manage-merchant-account";
 import { executeLookupClearingInstitutes } from "../src/tools/lookup-clearing-institutes";
+import { listCardProcessors } from "../src/tools/card-processors";
 import { executeDescribeSettings } from "../src/tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
+import { executeSendTestTransaction } from "../src/tools/send-test-transaction";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
-import { abortOffscreenJob, executeJobInOffscreen } from "./offscreen-job-host";
+import { abortOffscreenJob, executeJobInOffscreen, type OffscreenJobExecuteResult } from "./offscreen-job-host";
 import type { EntityType } from "../src/lib/entity-types";
 import type { ApiCredentials, Environment } from "../src/lib/types";
 
@@ -29,7 +31,13 @@ import type { ApiCredentials, Environment } from "../src/lib/types";
 let activeJobId: string | null = null;
 let abortController: AbortController | null = null;
 let segmentStart = 0;
-let activeSandboxRuntime: { jobId: string; sdk: unknown; writes: WriteRecord[] } | null = null;
+let activeSandboxRuntime: { jobId: string; sdk: unknown; writes: WriteRecord[]; completedSdkCalls: number } | null = null;
+
+interface JobRuntimeContext {
+  entityId?: string | null;
+  entityType?: string | null;
+  ids?: Record<string, string>;
+}
 
 // -- Progress persistence -------------------------------------------------
 
@@ -54,9 +62,58 @@ async function flushProgress(jobId: string, force = false) {
 
 // -- SDK facade for SW (no confirm bridge) --------------------------------
 
-function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord[], signal?: AbortSignal, throttleRate?: number) {
+function buildSwSdk(
+  creds: ApiCredentials,
+  env: Environment,
+  writes: WriteRecord[],
+  signal?: AbortSignal,
+  throttleRate?: number,
+  runtimeContext?: JobRuntimeContext,
+) {
   const ctx: SdkContext = { creds, env, signal, throttleRate };
   const virtualSdk = createSdk(ctx);
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function toStringRecord(value: unknown): Record<string, string> {
+    if (!isRecord(value)) return {};
+    const fields = Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined && entry !== null)
+        .map(([key, entry]) => [key, String(entry)]),
+    );
+    if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
+    if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
+    return fields;
+  }
+
+  function normalizeMerchantAccountCreateArgs(args: unknown[]): { entityType: EntityType; entityId: string; fields: Record<string, string> } {
+    const [first, second, third] = args;
+    if (isRecord(first)) {
+      const entityType = String(first.parentType ?? first.entityType ?? "merchant") as EntityType;
+      const entityId = String(first.parentId ?? first.entityId ?? first.merchantId ?? "");
+      const nestedFields = isRecord(first.fields) ? first.fields : first;
+      const { parentType: _parentType, parentId: _parentId, entityType: _entityType, entityId: _entityId, merchantId: _merchantId, fields: _fields, ...rest } = nestedFields;
+      return { entityType, entityId, fields: toStringRecord(rest) };
+    }
+    if (typeof first === "string" && isRecord(second) && third === undefined) {
+      return { entityType: "merchant", entityId: first, fields: toStringRecord(isRecord(second.fields) ? second.fields : second) };
+    }
+    return { entityType: first as EntityType, entityId: String(second ?? ""), fields: toStringRecord(third) };
+  }
+
+  function normalizeMerchantAccountEditArgs(args: unknown[]): { merchantAccountId: string; fields: Record<string, string> } {
+    const [first, second] = args;
+    if (isRecord(first)) {
+      const merchantAccountId = String(first.merchantAccountId ?? first.id ?? "");
+      const nestedFields = isRecord(first.fields) ? first.fields : first;
+      const { merchantAccountId: _merchantAccountId, id: _id, fields: _fields, ...rest } = nestedFields;
+      return { merchantAccountId, fields: toStringRecord(rest) };
+    }
+    return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
+  }
 
   function unwrapApiData(result: unknown): unknown {
     if (result && typeof result === "object" && "data" in result) {
@@ -82,6 +139,38 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
     writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
   }
 
+  function extractMerchantId(value: unknown): string | null {
+    if (!isRecord(value)) return null;
+    const direct = value.merchantId ?? value.sender ?? value.parentId;
+    if (typeof direct === "string" && direct.trim()) return direct.trim();
+    if (isRecord(value._parent) && value._parent.type === "merchant" && typeof value._parent.id === "string") {
+      return value._parent.id.trim() || null;
+    }
+    if (isRecord(value.data)) return extractMerchantId(value.data);
+    if (isRecord(value.entity)) return extractMerchantId(value.entity);
+    return null;
+  }
+
+  async function resolveTransactionMerchantId(params: Record<string, unknown>, channelId: string): Promise<string> {
+    const supplied = String(params.merchantId ?? "").trim();
+    if (supplied) return supplied;
+
+    const contextMerchantId = runtimeContext?.ids?.merchantId?.trim();
+    if (contextMerchantId) return contextMerchantId;
+
+    if (runtimeContext?.entityType === "merchant" && runtimeContext.entityId) {
+      return runtimeContext.entityId;
+    }
+
+    if (channelId) {
+      const entity = await executeManageEntity({ action: "get", entityType: "channel", entityId: channelId }, creds, env);
+      const derived = extractMerchantId(entity);
+      if (derived) return derived;
+    }
+
+    throw new Error("Could not derive parent Merchant ID from the current Channel. The Channel GET response did not include _parent, merchantId, sender, or parentId.");
+  }
+
   return {
     config: {
       get: virtualSdk.config.get.bind(virtualSdk.config),
@@ -92,6 +181,29 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
       async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         recordWrite("config", "update", entityId, entityType, { settings });
         return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        recordWrite("config", "batch_update", entityId, entityType, { settings });
+        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
+      },
+    },
+    settings: {
+      get: virtualSdk.config.get.bind(virtualSdk.config),
+      batchGet: virtualSdk.config.batchGet.bind(virtualSdk.config),
+      describe: virtualSdk.config.describe.bind(virtualSdk.config),
+      validate: virtualSdk.config.validate.bind(virtualSdk.config),
+      coverage: virtualSdk.config.coverage.bind(virtualSdk.config),
+      async edit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        recordWrite("config", "update", entityId, entityType, { settings });
+        return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        recordWrite("config", "update", entityId, entityType, { settings });
+        return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async batchEdit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        recordWrite("config", "batch_update", entityId, entityType, { settings });
+        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
       },
       async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         recordWrite("config", "batch_update", entityId, entityType, { settings });
@@ -176,11 +288,18 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
         return executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env);
       },
-      async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
+      async create(...args: unknown[]) {
+        const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
         recordWrite("manage_merchant_account", "create", entityId, entityType, { fields });
         return executeManageMerchantAccount({ action: "create", entityType, entityId, fields }, creds, env);
       },
-      async edit(merchantAccountId: string, fields: Record<string, string>) {
+      async edit(...args: unknown[]) {
+        const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
+        recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
+        return executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env);
+      },
+      async update(...args: unknown[]) {
+        const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
         recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
         return executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env);
       },
@@ -211,12 +330,47 @@ function buildSwSdk(creds: ApiCredentials, env: Environment, writes: WriteRecord
         return executeLookupClearingInstitutes({ action: "list_live", pspId }, creds, env);
       },
     },
+    cardProcessors: {
+      async list(pspId?: string) {
+        return listCardProcessors(pspId, creds, env);
+      },
+      async listLive(pspId?: string) {
+        return listCardProcessors(pspId, creds, env);
+      },
+      async search(query: string) {
+        return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
+      },
+      async getFields(ciCode: string) {
+        return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
+      },
+    },
     describeSettings(query: string, limit?: number) {
       return executeDescribeSettings({ query, limit });
     },
     audit: {
       async get(opts?: GetAuditLogInput) {
         return executeGetAuditLog(opts ?? {});
+      },
+    },
+    transactions: {
+      async sendTest(params: Record<string, unknown>) {
+        const channelId = String(
+          params.channelId
+            ?? runtimeContext?.ids?.channelId
+            ?? (runtimeContext?.entityType === "channel" ? runtimeContext.entityId : "")
+            ?? "",
+        ).trim();
+        const merchantId = await resolveTransactionMerchantId(params, channelId);
+        const resolvedParams = {
+          ...params,
+          channelId,
+          merchantId,
+          contextProvenance: params.contextProvenance ?? "Merchant derived by Job runtime from current Channel context or Channel GET.",
+        };
+        return executeSendTestTransaction(resolvedParams, creds, env, {
+          bypassWriteConfirmation: true,
+          onWriteAccepted: () => recordWrite("send_test_transaction", "send", channelId, "channel", resolvedParams),
+        });
       },
     },
     management: {
@@ -239,6 +393,7 @@ export interface SwJobStartInput {
   entityType?: string;
   totalCalls: number;
   throttleRate?: number;
+  contextSnapshot?: JobContextSnapshot;
   creds: ApiCredentials;
   env: Environment;
   source?: JobSource;
@@ -268,6 +423,7 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
       entityType: input.entityType,
       totalCalls: input.totalCalls,
       throttleRate: input.throttleRate ?? 9,
+      contextSnapshot: input.contextSnapshot,
       env: input.env,
       source: input.source,
     });
@@ -388,7 +544,9 @@ export async function handleSandboxSdkCall(message: {
     throw new Error(`Unknown sandbox SDK method: ${path.join(".")}`);
   }
 
-  return fn(...args);
+  const result = await fn(...args);
+  if (activeSandboxRuntime?.jobId === jobId) activeSandboxRuntime.completedSdkCalls += 1;
+  return result;
 }
 
 export async function handleSandboxProgress(message: {
@@ -400,8 +558,12 @@ export async function handleSandboxProgress(message: {
   const jobId = String(message.jobId ?? "");
   if (activeJobId !== jobId) return;
 
+  const requestedCompletedCalls = Number(message.completedCalls ?? 0);
+  const completedSdkCalls = activeSandboxRuntime?.jobId === jobId
+    ? activeSandboxRuntime.completedSdkCalls
+    : requestedCompletedCalls;
   pendingProgress = {
-    completedCalls: Number(message.completedCalls ?? 0),
+    completedCalls: Math.min(requestedCompletedCalls, completedSdkCalls),
     totalCalls: Number(message.totalCalls ?? 0),
     checkpoint: message.checkpoint,
   };
@@ -451,15 +613,20 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
   const results: unknown[] = [];
   const writes: WriteRecord[] = [];
 
-  const sdk = buildSwSdk(creds, env, writes, signal, job.throttleRate);
-  activeSandboxRuntime = { jobId, sdk, writes };
-
   const context = {
-    entityId: job.entityId ?? null,
-    entityType: job.entityType ?? null,
+    id: job.entityId ?? job.contextSnapshot?.entityId ?? null,
+    type: job.entityType ?? job.contextSnapshot?.entityType ?? null,
+    entityId: job.entityId ?? job.contextSnapshot?.entityId ?? null,
+    entityType: job.entityType ?? job.contextSnapshot?.entityType ?? null,
+    entityName: job.contextSnapshot?.entityName ?? null,
+    section: job.contextSnapshot?.section ?? null,
+    ids: job.contextSnapshot?.ids ?? {},
     env,
     checkpoint: job.checkpoint ?? null,
   };
+
+  const sdk = buildSwSdk(creds, env, writes, signal, job.throttleRate, context);
+  activeSandboxRuntime = { jobId, sdk, writes, completedSdkCalls: 0 };
 
   // Parser-backed TS stripping (shared with sandbox.ts)
   const compiled = await compileSandboxScript(job.script);
@@ -499,6 +666,18 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
       elapsedMs: job.elapsedMs + segmentElapsed,
     });
   } catch (err) {
+    const partial = (err as Error & { result?: Partial<OffscreenJobExecuteResult> }).result;
+    if (partial) {
+      if (Array.isArray(partial.results)) results.push(...partial.results);
+      if (Array.isArray(partial.logs)) logs.push(...partial.logs as LogEntry[]);
+    }
+    if (activeSandboxRuntime?.jobId === jobId) {
+      pendingProgress = {
+        completedCalls: activeSandboxRuntime.completedSdkCalls,
+        totalCalls: Number(partial?.totalCalls ?? job.totalCalls),
+        checkpoint: pendingProgress?.checkpoint ?? job.checkpoint,
+      };
+    }
     await flushProgress(jobId, true);
     const segmentElapsed = Date.now() - segmentStart;
 

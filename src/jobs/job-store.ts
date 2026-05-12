@@ -17,6 +17,14 @@ import type { LogEntry } from "../sandbox/sandbox";
 
 export type JobSource = "webmcp" | "chat";
 
+export interface JobContextSnapshot {
+  entityId?: string;
+  entityType?: string;
+  entityName?: string;
+  section?: string;
+  ids?: Record<string, string>;
+}
+
 // -- Types ----------------------------------------------------------------
 
 export interface JobRecord {
@@ -28,6 +36,7 @@ export interface JobRecord {
   /** Entity context. */
   entityId?: string;
   entityType?: string;
+  contextSnapshot?: JobContextSnapshot;
   /** Lifecycle state. */
   state: JobState;
   /** Timestamps. */
@@ -98,6 +107,7 @@ function normalizeJob(raw: unknown): JobRecord {
     script: String(job.script ?? ""),
     entityId: job.entityId ? String(job.entityId) : undefined,
     entityType: job.entityType ? String(job.entityType) : undefined,
+    contextSnapshot: normalizeJobContextSnapshot(job.contextSnapshot),
     state: (job.state ?? "paused") as JobState,
     createdAt: String(job.createdAt ?? new Date().toISOString()),
     startedAt: job.startedAt ? String(job.startedAt) : undefined,
@@ -116,6 +126,26 @@ function normalizeJob(raw: unknown): JobRecord {
     source: job.source === "chat" ? "chat" : job.source === "webmcp" ? "webmcp" : undefined,
     chatStartedAuditAt: job.chatStartedAuditAt ? String(job.chatStartedAuditAt) : undefined,
   };
+}
+
+function normalizeJobContextSnapshot(raw: unknown): JobContextSnapshot | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const source = raw as Record<string, unknown>;
+  const ids = source.ids && typeof source.ids === "object" && !Array.isArray(source.ids)
+    ? Object.fromEntries(
+        Object.entries(source.ids as Record<string, unknown>)
+          .filter(([, value]) => typeof value === "string" && value.trim())
+          .map(([key, value]) => [key, String(value)]),
+      )
+    : undefined;
+  const snapshot: JobContextSnapshot = {
+    entityId: source.entityId ? String(source.entityId) : undefined,
+    entityType: source.entityType ? String(source.entityType) : undefined,
+    entityName: source.entityName ? String(source.entityName) : undefined,
+    section: source.section ? String(source.section) : undefined,
+    ...(ids && Object.keys(ids).length > 0 ? { ids } : {}),
+  };
+  return Object.values(snapshot).some((value) => value !== undefined) ? snapshot : undefined;
 }
 
 function normalizeJobs(raw: unknown): JobRecord[] {
@@ -171,7 +201,7 @@ export function getJobsSnapshot(): JobRecord[] {
 
 /** Create a new job record. Returns the record. */
 export async function createJob(
-  init: Pick<JobRecord, "label" | "script" | "entityId" | "entityType" | "totalCalls" | "throttleRate" | "env"> & { source?: JobSource }
+  init: Pick<JobRecord, "label" | "script" | "entityId" | "entityType" | "totalCalls" | "throttleRate" | "env"> & { source?: JobSource; contextSnapshot?: JobContextSnapshot }
 ): Promise<JobRecord> {
   const job: JobRecord = {
     id: crypto.randomUUID(),
@@ -179,6 +209,7 @@ export async function createJob(
     script: init.script,
     entityId: init.entityId,
     entityType: init.entityType,
+    contextSnapshot: init.contextSnapshot,
     state: "paused",
     createdAt: new Date().toISOString(),
     totalCalls: init.totalCalls,

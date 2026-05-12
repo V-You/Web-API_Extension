@@ -47,11 +47,25 @@ export function parseWorkflowDraft(text: string): ParsedWorkflowDraft {
 
   if (!label) throw new Error("The workflow draft is missing a label.");
   if (!script) throw new Error("The workflow draft is missing a script.");
+  validateWorkflowDraftScript(script);
   if (!Number.isInteger(totalCalls) || totalCalls < 1) {
     throw new Error("The workflow draft totalCalls estimate must be a positive integer.");
   }
 
   return { label, script, totalCalls };
+}
+
+function validateWorkflowDraftScript(script: string): void {
+  const forbidden = [
+    { pattern: /^\s*import\s/m, message: "Workflow scripts cannot use import statements. Use the injected sdk, console, sleep, results, context, signal, and progress values instead." },
+    { pattern: /^\s*export\s/m, message: "Workflow scripts cannot use export statements. Return data by pushing objects into results." },
+    { pattern: /\brequire\s*\(/, message: "Workflow scripts cannot use require(). Use injected SDK methods instead." },
+    { pattern: /\bfetch\s*\(/, message: "Workflow scripts cannot call fetch() directly. Use injected SDK methods instead." },
+  ];
+
+  for (const rule of forbidden) {
+    if (rule.pattern.test(script)) throw new Error(rule.message);
+  }
 }
 
 function parseLooseWorkflowDraft(source: string): ParsedWorkflowDraft | null {

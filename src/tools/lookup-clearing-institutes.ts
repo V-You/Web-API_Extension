@@ -52,15 +52,13 @@ export async function executeLookupClearingInstitutes(
 }
 
 function searchCI(input: LookupClearingInstitutesInput) {
-  if (!input.query) return { error: "query is required for search." };
-
-  const q = input.query.toLowerCase();
-  const matches = CI_ENTRIES.filter((ci) =>
-    ci.ci_code.toLowerCase().includes(q)
-  );
+  const q = input.query?.toLowerCase().trim() ?? "";
+  const matches = q
+    ? CI_ENTRIES.filter((ci) => ci.ci_code.toLowerCase().includes(q))
+    : CI_ENTRIES;
 
   return {
-    query: input.query,
+    query: input.query ?? "",
     matchCount: matches.length,
     matches: matches.map((ci) => ({
       ciCode: ci.ci_code,

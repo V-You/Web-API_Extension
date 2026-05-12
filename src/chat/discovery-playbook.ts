@@ -33,6 +33,7 @@ export interface ChatWorkflowDraftPromptOptions {
   entityType?: string;
   entityName?: string;
   section?: string;
+  knownIds?: Record<string, string>;
 }
 
 export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): string {
@@ -59,6 +60,12 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
     automationModeEnabled
       ? "Automation mode is enabled for this browser session. Use execute_workflow for repeated writes and backend batch work instead of calling write tools one by one. The separate Draft Job action may prepare longer TypeScript workflow scripts for review before a background Job starts."
       : "Automation mode is disabled. Do not draft or run workflow scripts from ordinary chat turns.",
+    automationModeEnabled
+      ? "Workflow scripts receive context.entityId, context.entityType, and when available context.ids with known dashboard IDs such as channelId and merchantId. Use context.ids before deriving IDs or asking the user."
+      : null,
+    automationModeEnabled
+      ? "If a user request combines creation, configuration, token handling, repeated calls, or transaction testing, prefer one execute_workflow Job over a long chain of individual tool calls."
+      : null,
     writeToolsEnabled
       ? "Use write tools only when the user clearly asks for a change and the available tools support it."
       : automationModeEnabled
@@ -90,11 +97,15 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
 }
 
 export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOptions): string {
+  const knownIds = options.knownIds && Object.keys(options.knownIds).length > 0
+    ? `Known context IDs available in the script as context.ids: ${Object.entries(options.knownIds).map(([key, value]) => `${key}=${value}`).join(", ")}.`
+    : null;
   const context = options.entityId && options.entityType
     ? [
         `Target context: ${options.entityType} ${options.entityId}.`,
         options.entityName ? `Entity name: ${options.entityName}.` : null,
         options.section ? `Current BIP section: ${options.section}.` : null,
+        knownIds,
       ].filter(Boolean).join("\n")
     : "No entity context is available. The script must ask for explicit identifiers by throwing a clear error if it cannot proceed.";
 
@@ -106,9 +117,16 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     "Return only valid JSON with this exact shape:",
     "{\"label\":\"short job label\",\"totalCalls\":1,\"script\":\"TypeScript workflow source\"}",
     "The response must parse with JSON.parse. Escape script newlines as \\n and quotes as \\\" inside the script string. Do not use raw multiline strings, backticks, comments outside JSON, or Markdown fences.",
-    "The script runs in the existing workflow sandbox with sdk, console, sleep, results, context, signal, and progress available.",
+      "The script runs in the existing workflow sandbox with sdk, console, sleep(ms), results array, context, signal, and progress available.",
     "Use context.entityId and context.entityType when the request targets the current dashboard entity.",
+    "Use context.ids.channelId and context.ids.merchantId when present; do not re-derive or throw for a Merchant parent that is already present there.",
     "Use sdk.entities.get(entityType, entityId) for entity details. Do not use sdk.management or sdk.manage_entity namespaces.",
+    "For settings, use sdk.settings.edit(entityType, entityId, settings) or sdk.config.update(entityType, entityId, settings). Use sdk.settings.batchEdit for multiple settings when that reads more naturally.",
+    "For merchant accounts, use sdk.merchantAccounts.create(parentType, parentId, fields) or sdk.merchantAccounts.create(merchantId, fields) for a Merchant parent. Use sdk.merchantAccounts.edit(merchantAccountId, fields) or sdk.merchantAccounts.update(merchantAccountId, fields) for changes.",
+    "For merchant account activation, use state: \"LIVE\" rather than status: \"ACTIVE\".",
+    "For random card processor or acquirer selection, use sdk.cardProcessors.list(context.ids?.pspId). PSP ID is optional; without it the SDK uses bundled clearing-institute data instead of the live PSP-scoped endpoint.",
+    "sdk.cardProcessors.list returns an array of { id, ciCode, name, requiredFields }. Choose one array item and use its ciCode or id as the clearing institute identifier.",
+    "Workflow context exposes both context.entityId/context.entityType and aliases context.id/context.type for the current entity.",
     "The BIP glossary maps users to contacts. For user or contact work, use sdk.contacts methods.",
     "Create contacts with sdk.contacts.create(entityType, entityId, fields). For a current merchant, call sdk.contacts.create(context.entityType, context.entityId, { email, name, role, kind, language, ... }).",
     "List contacts created on an entity with sdk.contacts.list(entityType, entityId, \"owned\"). List contacts attached to an entity with sdk.contacts.list(entityType, entityId, \"attached\"). These calls return arrays; use the returned arrays directly with map/filter and do not read an .items property.",
@@ -117,9 +135,12 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     "For attach-all-available-contact workflows, totalCalls must include the two list calls plus one call per contact you expect to attach. If the exact count is unknown, estimate conservatively above 1 and call progress() after each phase.",
     "Use contact creation fields from the API shape: email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail.",
     "Common contact defaults for generated examples are role: \"OPERATOR\", kind: \"SEND\", and language: \"en\" unless the user asks otherwise.",
+      "For test transactions, call sdk.transactions.sendTest({ channelId, merchantId, tokenMode: \"temporary\", ... }) once per transaction. merchantId is optional when the current context is a Channel - the Job runtime will derive it from context or a Channel GET before creating a temporary token.",
+      "Do not throw your own error for a missing parent Merchant before calling sdk.transactions.sendTest. Let the SDK helper perform deterministic recovery.",
     "Call progress(completedCalls, totalCalls, checkpoint) as work advances. Push final report objects into results.",
     "Keep the workflow focused and add short comments before sections that perform writes.",
     "Do not wrap the JSON in Markdown or code fences.",
+      "Do not use import, export, require, fetch, window, document, chrome, setTimeout, or setInterval in workflow scripts. All available capabilities are already injected.",
   ].join("\n");
 }
 

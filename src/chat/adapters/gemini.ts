@@ -206,7 +206,7 @@ export async function runGeminiTurn(input: RunGeminiTurnInput): Promise<GeminiTu
 
   return {
     history,
-    assistantText: "I stopped after reaching the tool-call limit for this turn.",
+    assistantText: "I stopped after reaching the tool-call limit for this turn. For multi-step write or test workflows, use Draft Job or ask me to run the workflow as a background Job so the work continues outside the chat tool loop.",
     toolEvents,
     finishReason: "max_rounds",
   };

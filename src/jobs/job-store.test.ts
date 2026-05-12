@@ -81,6 +81,27 @@ describe("job-store", () => {
     expect(stored[0].label).toBe("Test job");
   });
 
+  it("stores a compact context snapshot for workflow scripts", async () => {
+    const job = await createJob({
+      ...jobInit,
+      contextSnapshot: {
+        entityId: "channel-1",
+        entityType: "channel",
+        entityName: "Demo channel",
+        section: "risk",
+        ids: { channelId: "channel-1", merchantId: "merchant-1" },
+      },
+    });
+
+    expect(job.contextSnapshot).toEqual({
+      entityId: "channel-1",
+      entityType: "channel",
+      entityName: "Demo channel",
+      section: "risk",
+      ids: { channelId: "channel-1", merchantId: "merchant-1" },
+    });
+  });
+
   it("loads jobs from storage", async () => {
     storageStore.jobs = [{ id: "j1", label: "Stored", state: "completed" }];
     const jobs = await loadJobs();

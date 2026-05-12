@@ -31,12 +31,12 @@ import {
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
 import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt } from "../../src/chat/discovery-playbook";
-import { getActiveChatContext, type ChatContextRecord } from "../../src/chat/context-store";
+import { contextPacketFor, getActiveChatContext, resolveChannelMerchantFromContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
 import { parseWorkflowDraft, WorkflowDraftParseError } from "../../src/chat/workflow-draft";
 import { startJob } from "../../src/jobs/job-runner";
-import { estimateRuntime } from "../../src/jobs/job-store";
+import { estimateRuntime, type JobContextSnapshot } from "../../src/jobs/job-store";
 import { useJobs } from "../../src/jobs/use-jobs";
 import { getActiveEnv, getCredentials, getThrottleRate } from "../../src/lib/storage";
 import { runGeminiTurn, type GeminiContent } from "../../src/chat/adapters/gemini";
@@ -72,6 +72,7 @@ interface WorkflowReviewState {
   entityType?: EntityType;
   entityName?: string;
   section?: string;
+  contextSnapshot?: JobContextSnapshot;
 }
 
 interface ApiReadPreflight {
@@ -337,6 +338,38 @@ export function ChatPage() {
 
     return null;
   }, [autoUseContext, detectedContext, manualEntityId, manualEntityType]);
+  const contextPacket = useMemo(() => contextPacketFor(detectedContext), [detectedContext]);
+  const resolvedTarget = useMemo(() => resolveChannelMerchantFromContext(detectedContext), [detectedContext]);
+  const composerTargetPreview = useMemo(() => {
+    const channelId = resolvedTarget?.channelId
+      ?? contextPacket?.ids.channelId
+      ?? (effectiveContext?.entityType === "channel" ? effectiveContext.entityId : undefined);
+    const merchantId = resolvedTarget?.merchantId ?? contextPacket?.ids.merchantId;
+    if (channelId) {
+      return merchantId
+        ? `Targeting Channel ${channelId} under Merchant ${merchantId}.`
+        : `Targeting Channel ${channelId}. Merchant parent not detected yet.`;
+    }
+    if (effectiveContext) {
+      return `Targeting ${effectiveContext.entityType} ${effectiveContext.entityId}.`;
+    }
+    return null;
+  }, [contextPacket?.ids.channelId, contextPacket?.ids.merchantId, effectiveContext, resolvedTarget?.channelId, resolvedTarget?.merchantId]);
+  const jobContextSnapshot = useMemo<JobContextSnapshot | undefined>(() => {
+    if (!effectiveContext) return undefined;
+    const ids = contextPacket && effectiveContext.source === "detected"
+      ? Object.fromEntries(
+          Object.entries(contextPacket.ids).filter(([, value]) => typeof value === "string" && value.trim()),
+        )
+      : undefined;
+    return {
+      entityId: effectiveContext.entityId,
+      entityType: effectiveContext.entityType,
+      ...(detectedContext?.entityName && effectiveContext.source === "detected" ? { entityName: detectedContext.entityName } : {}),
+      ...(detectedContext?.section && effectiveContext.source === "detected" ? { section: detectedContext.section } : {}),
+      ...(ids && Object.keys(ids).length > 0 ? { ids } : {}),
+    };
+  }, [contextPacket, detectedContext?.entityName, detectedContext?.section, effectiveContext]);
 
   async function handleSaveSettings() {
     const apiKey = apiKeyInput.trim() || savedSettings?.apiKey;
@@ -510,10 +543,19 @@ export function ChatPage() {
     setMessages((current) => [...current, userMessage]);
     setInput("");
 
+    const parentContextText = contextPacket
+      ? [
+          contextPacket.ids.pspId ? `PSP ${contextPacket.ids.pspId}` : null,
+          contextPacket.ids.divisionId ? `Division ${contextPacket.ids.divisionId}` : null,
+          contextPacket.ids.merchantId ? `Merchant ${contextPacket.ids.merchantId}` : null,
+          contextPacket.ids.channelId ? `Channel ${contextPacket.ids.channelId}` : null,
+        ].filter(Boolean).join("; ")
+      : "";
     const contextText = effectiveContext
         ? [
             `Current dashboard context: ${effectiveContext.entityType} ${effectiveContext.entityId}${detectedContext?.entityName ? ` (${detectedContext.entityName})` : ""}.`,
             detectedContext?.section ? `Current BIP section: ${detectedContext.section}.` : null,
+            parentContextText ? `Known context IDs: ${parentContextText}.` : null,
             "Use this as the default target unless the user says otherwise.",
           ].filter(Boolean).join(" ")
       : "No dashboard context is available. Ask for explicit entity identifiers when needed.";
@@ -564,7 +606,30 @@ export function ChatPage() {
           modelName: savedSettings.model,
         }),
         tools: getChatToolDeclarations({ writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled }),
-        executeTool: (name, args) => executeChatTool(name, args, { writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled }),
+        maxRounds: automationModeEnabled ? 20 : undefined,
+        executeTool: (name, args) => executeChatTool(name, args, {
+          writeToolsEnabled,
+          accessTokenControlEnabled,
+          automationModeEnabled,
+          context: detectedContext,
+          startWorkflowJob: async (workflowInput) => {
+            const throttleRate = workflowInput.throttleRate ?? await getThrottleRate();
+            const job = await startJob({
+              ...workflowInput,
+              throttleRate,
+              contextSnapshot: workflowInput.contextSnapshot ?? jobContextSnapshot,
+              source: "chat",
+            });
+            watchedJobIds.current.add(job.id);
+            announcedJobStates.current.set(job.id, job.state);
+            return {
+              jobId: job.id,
+              state: job.state,
+              label: job.label,
+              totalCalls: job.totalCalls,
+            };
+          },
+        }),
       });
 
       setHistory(result.history);
@@ -611,7 +676,7 @@ export function ChatPage() {
       entityType: context.entityType,
       entityId: context.entityId,
     };
-    const result = await executeChatTool("manage_entity", args, { writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled });
+    const result = await executeChatTool("manage_entity", args, { writeToolsEnabled, accessTokenControlEnabled, automationModeEnabled, context: detectedContext });
     const requestedFields = requestedApiFields(request);
     return {
       id: crypto.randomUUID(),
@@ -704,6 +769,7 @@ export function ChatPage() {
         entityType: effectiveContext?.entityType,
         entityName: detectedContext?.entityName,
         section: detectedContext?.section,
+        knownIds: jobContextSnapshot?.ids,
       });
       const throttleRate = await getThrottleRate();
 
@@ -714,6 +780,7 @@ export function ChatPage() {
         userText: draftPrompt,
         systemPrompt: buildChatSystemPrompt({
           writeToolsEnabled: true,
+          accessTokenControlEnabled,
           automationModeEnabled: true,
           draftJobTurn: true,
           modelName: savedSettings.model,
@@ -751,6 +818,7 @@ export function ChatPage() {
         entityType: effectiveContext?.entityType,
         entityName: detectedContext?.entityName,
         section: detectedContext?.section,
+        contextSnapshot: jobContextSnapshot,
       });
       setMessages((current) => [
         ...current,
@@ -791,6 +859,7 @@ export function ChatPage() {
         entityType: workflowReview.entityType,
         totalCalls: workflowReview.totalCalls,
         throttleRate,
+        contextSnapshot: workflowReview.contextSnapshot,
         creds,
         env: workflowReview.env,
         source: "chat",
@@ -937,10 +1006,26 @@ export function ChatPage() {
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <span className="font-medium text-slate-600">Context</span>
             {detectedContext ? (
-              <p className="text-slate-700">
-                Detected: {detectedContext.entityType} {detectedContext.entityId}
-                {detectedContext.entityName ? ` (${detectedContext.entityName})` : ""}
-              </p>
+              <div className="space-y-1 text-slate-700">
+                <p>
+                  Detected: {detectedContext.entityType} {detectedContext.entityId}
+                  {detectedContext.entityName ? ` (${detectedContext.entityName})` : ""}
+                </p>
+                {contextPacket && (
+                  <div className="text-2xs text-slate-500">
+                    <span className="font-medium text-slate-600">Known IDs:</span>{" "}
+                    {[
+                      contextPacket.ids.pspId ? `PSP ${contextPacket.ids.pspId}` : null,
+                      contextPacket.ids.divisionId ? `Division ${contextPacket.ids.divisionId}` : null,
+                      contextPacket.ids.merchantId ? `Merchant ${contextPacket.ids.merchantId}` : null,
+                      contextPacket.ids.channelId ? `Channel ${contextPacket.ids.channelId}` : null,
+                    ].filter(Boolean).join(" | ") || "none"}
+                  </div>
+                )}
+                {resolvedTarget?.merchantId && (
+                  <p className="text-2xs text-slate-500">Targeting Channel {resolvedTarget.channelId} under Merchant {resolvedTarget.merchantId}</p>
+                )}
+              </div>
             ) : (
               <p className="text-slate-500">No entity detected yet -- navigate to an entity in the dashboard.</p>
             )}
@@ -1134,6 +1219,12 @@ export function ChatPage() {
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {composerTargetPreview && (
+        <p className="text-2xs text-slate-500">
+          {composerTargetPreview}
+        </p>
+      )}
 
       {workflowReview && (
         <WorkflowReviewDialog
@@ -1410,6 +1501,7 @@ function ToolMessage({
 }: {
   message: Extract<DisplayMessage, { role: "tool" }>;
 }) {
+  const [copiedFixture, setCopiedFixture] = useState(false);
   const result =
     typeof message.result === "object" && message.result !== null
       ? (message.result as Record<string, unknown>)
@@ -1427,6 +1519,22 @@ function ToolMessage({
       : "text-emerald-600";
   const statusSymbol = isHardFailure ? "\u2717" : isGuidance ? "\u25cf" : "\u2713";
 
+  async function handleCopyScenarioFixture() {
+    const fixture = {
+      id: `captured-${message.toolName}-${Date.now()}`,
+      prompt: "TODO: paste user prompt",
+      mode: "TODO: capture chat mode",
+      context: "TODO: paste context packet summary",
+      expectedTrace: [{ tool: message.toolName, args: message.args }],
+      observedResult: message.result,
+      failureCategory: result?.failureCategory ?? null,
+      forbidden: ["reveal_raw_bearer_token"],
+    };
+    await copyTextToClipboard(JSON.stringify(fixture, null, 2));
+    setCopiedFixture(true);
+    setTimeout(() => setCopiedFixture(false), 1500);
+  }
+
   return (
     <details className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
       <summary className="cursor-pointer font-medium text-slate-700 flex items-center gap-1">
@@ -1438,6 +1546,12 @@ function ToolMessage({
       <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-2xs text-slate-600">
 {JSON.stringify({ args: message.args, result: message.result }, null, 2)}
       </pre>
+      <button
+        onClick={() => void handleCopyScenarioFixture()}
+        className="mt-2 rounded border border-slate-200 bg-white px-2 py-1 text-2xs font-medium text-slate-600 hover:bg-slate-50"
+      >
+        {copiedFixture ? "Fixture copied" : "Copy scenario fixture"}
+      </button>
     </details>
   );
 }

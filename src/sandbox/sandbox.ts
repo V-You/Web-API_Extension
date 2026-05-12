@@ -448,8 +448,11 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
 
   // Context object with entity info and checkpoint (if resuming)
   const context = {
+    id: input.entityId ?? null,
+    type: input.entityType ?? null,
     entityId: input.entityId ?? null,
     entityType: input.entityType ?? null,
+    ids: input.entityId && input.entityType ? { [`${input.entityType}Id`]: input.entityId } : {},
     env: input.env,
     checkpoint: input.checkpoint ?? null,
   };

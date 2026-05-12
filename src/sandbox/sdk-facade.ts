@@ -29,8 +29,10 @@ import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
 import { executeManageMerchantAccount } from "../tools/manage-merchant-account";
 import { executeLookupClearingInstitutes } from "../tools/lookup-clearing-institutes";
+import { listCardProcessors } from "../tools/card-processors";
 import { executeDescribeSettings } from "../tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../tools/get-audit-log";
+import { executeSendTestTransaction } from "../tools/send-test-transaction";
 import type {
   Params_attach_merchant_account,
   Params_create_channel,
@@ -90,6 +92,48 @@ export interface SdkFacadeOptions {
 
 function plannedResult(tool: string, params: Record<string, unknown>): AdapterResult {
   return { ok: true, status: 0, data: { planned: true, tool, params } };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toStringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const fields = Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entry]) => entry !== undefined && entry !== null)
+      .map(([key, entry]) => [key, String(entry)]),
+  );
+  if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
+  if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
+  return fields;
+}
+
+function normalizeMerchantAccountCreateArgs(args: unknown[]): { entityType: EntityType; entityId: string; fields: Record<string, string> } {
+  const [first, second, third] = args;
+  if (isRecord(first)) {
+    const entityType = String(first.parentType ?? first.entityType ?? "merchant") as EntityType;
+    const entityId = String(first.parentId ?? first.entityId ?? first.merchantId ?? "");
+    const nestedFields = isRecord(first.fields) ? first.fields : first;
+    const { parentType: _parentType, parentId: _parentId, entityType: _entityType, entityId: _entityId, merchantId: _merchantId, fields: _fields, ...rest } = nestedFields;
+    return { entityType, entityId, fields: toStringRecord(rest) };
+  }
+  if (typeof first === "string" && isRecord(second) && third === undefined) {
+    return { entityType: "merchant", entityId: first, fields: toStringRecord(isRecord(second.fields) ? second.fields : second) };
+  }
+  return { entityType: first as EntityType, entityId: String(second ?? ""), fields: toStringRecord(third) };
+}
+
+function normalizeMerchantAccountEditArgs(args: unknown[]): { merchantAccountId: string; fields: Record<string, string> } {
+  const [first, second] = args;
+  if (isRecord(first)) {
+    const merchantAccountId = String(first.merchantAccountId ?? first.id ?? "");
+    const nestedFields = isRecord(first.fields) ? first.fields : first;
+    const { merchantAccountId: _merchantAccountId, id: _id, fields: _fields, ...rest } = nestedFields;
+    return { merchantAccountId, fields: toStringRecord(rest) };
+  }
+  return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
 }
 
 /**
@@ -167,6 +211,55 @@ export function buildSdkFacade(
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
         return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        const keys = Object.keys(settings);
+        await confirmAndWrite(
+          "config", "batch_update", "POST", entityId, entityType,
+          `Batch update ${keys.length} setting(s) on ${entityType} ${entityId}`,
+          { settings },
+        );
+        if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
+        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
+      },
+    },
+
+    // -- Settings aliases --
+    settings: {
+      get: virtualSdk.config.get.bind(virtualSdk.config),
+      batchGet: virtualSdk.config.batchGet.bind(virtualSdk.config),
+      describe: virtualSdk.config.describe.bind(virtualSdk.config),
+      validate: virtualSdk.config.validate.bind(virtualSdk.config),
+      coverage: virtualSdk.config.coverage.bind(virtualSdk.config),
+      async edit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        const keys = Object.keys(settings);
+        await confirmAndWrite(
+          "config", "update", "POST", entityId, entityType,
+          `Update ${keys.length} setting(s) on ${entityType} ${entityId}`,
+          { settings },
+        );
+        if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
+        return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        const keys = Object.keys(settings);
+        await confirmAndWrite(
+          "config", "update", "POST", entityId, entityType,
+          `Update ${keys.length} setting(s) on ${entityType} ${entityId}`,
+          { settings },
+        );
+        if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
+        return virtualSdk.config.update(entityType, entityId, settings);
+      },
+      async batchEdit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
+        const keys = Object.keys(settings);
+        await confirmAndWrite(
+          "config", "batch_update", "POST", entityId, entityType,
+          `Batch update ${keys.length} setting(s) on ${entityType} ${entityId}`,
+          { settings },
+        );
+        if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
+        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
       },
       async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         const keys = Object.keys(settings);
@@ -329,7 +422,8 @@ export function buildSdkFacade(
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
         return executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env);
       },
-      async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
+      async create(...args: unknown[]) {
+        const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
         await confirmAndWrite(
           "manage_merchant_account", "create", "POST", entityId, entityType,
           `Create merchant account on ${entityType} ${entityId}`,
@@ -338,7 +432,18 @@ export function buildSdkFacade(
         if (options.planOnlyWrites) return plannedResult("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields });
         return runTyped("create_merchant_account", { parentType: entityType, parentId: entityId, ...fields });
       },
-      async edit(merchantAccountId: string, fields: Record<string, string>) {
+      async edit(...args: unknown[]) {
+        const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
+        await confirmAndWrite(
+          "manage_merchant_account", "edit", "POST", merchantAccountId, "merchant_account",
+          `Edit merchant account ${merchantAccountId}`,
+          { fields },
+        );
+        if (options.planOnlyWrites) return plannedResult("edit_merchant_account", { merchantAccountId, ...fields });
+        return runTyped("edit_merchant_account", { merchantAccountId, ...fields });
+      },
+      async update(...args: unknown[]) {
+        const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
         await confirmAndWrite(
           "manage_merchant_account", "edit", "POST", merchantAccountId, "merchant_account",
           `Edit merchant account ${merchantAccountId}`,
@@ -411,6 +516,22 @@ export function buildSdkFacade(
       },
     },
 
+    // -- Card processor aliases --
+    cardProcessors: {
+      async list(pspId?: string) {
+        return listCardProcessors(pspId, creds, env);
+      },
+      async listLive(pspId?: string) {
+        return listCardProcessors(pspId, creds, env);
+      },
+      async search(query: string) {
+        return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
+      },
+      async getFields(ciCode: string) {
+        return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
+      },
+    },
+
     // -- Settings search (convenience alias for config.describe) --
     describeSettings(query: string, limit?: number) {
       return executeDescribeSettings({ query, limit });
@@ -420,6 +541,29 @@ export function buildSdkFacade(
     audit: {
       async get(opts?: GetAuditLogInput) {
         return executeGetAuditLog(opts ?? {});
+      },
+    },
+
+    // -- Test transactions --
+    transactions: {
+      async sendTest(params: Record<string, unknown>) {
+        const channelId = String(params.channelId ?? "");
+        const recordTransactionWrite = () => writes.push({
+          tool: "send_test_transaction",
+          action: "send",
+          entityId: channelId,
+          entityType: "channel",
+          params,
+          timestamp: new Date().toISOString(),
+        });
+        if (options.planOnlyWrites) {
+          recordTransactionWrite();
+          return plannedResult("send_test_transaction", params);
+        }
+        return executeSendTestTransaction(params, creds, env, {
+          bypassWriteConfirmation: options.autoConfirmWrites === true,
+          onWriteAccepted: recordTransactionWrite,
+        });
       },
     },
   };

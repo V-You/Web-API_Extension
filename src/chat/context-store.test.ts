@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getChatContextStorageKey, mergeChatContext, shouldReplaceChatContext, type ChatContextRecord } from "./context-store";
+import { buildChatContextPacket, getChatContextStorageKey, mergeChatContext, resolveChannelMerchantFromContext, shouldReplaceChatContext, type ChatContextRecord } from "./context-store";
 
 describe("chat context store", () => {
   it("builds deterministic session storage keys", () => {
@@ -77,6 +77,47 @@ describe("chat context store", () => {
       ...incoming,
       entityName: "Checkout Channel",
       section: "attachedMerchantAccounts",
+    });
+  });
+
+  it("builds a versioned context packet with current and known IDs", () => {
+    const record: ChatContextRecord = {
+      tabId: 7,
+      frameId: 0,
+      timestamp: 100,
+      entityId: "channel-1",
+      entityType: "channel",
+      confidence: 100,
+      source: "url",
+      ids: { merchantId: "merchant-1" },
+      contextEvidence: [{ field: "merchantId", value: "merchant-1", source: "url", confidence: 100 }],
+    };
+
+    expect(buildChatContextPacket(record)).toMatchObject({
+      schemaVersion: 1,
+      current: { entityId: "channel-1", entityType: "channel" },
+      ids: { channelId: "channel-1", merchantId: "merchant-1" },
+      contextEvidence: [{ field: "merchantId", value: "merchant-1", source: "url", confidence: 100 }],
+    });
+  });
+
+  it("resolves a Channel's Merchant parent without overwriting supplied values", () => {
+    const record: ChatContextRecord = {
+      tabId: 7,
+      frameId: 0,
+      timestamp: 100,
+      entityId: "channel-1",
+      entityType: "channel",
+      confidence: 100,
+      source: "url",
+      ids: { merchantId: "merchant-1" },
+    };
+
+    expect(resolveChannelMerchantFromContext(record)).toEqual({
+      channelId: "channel-1",
+      merchantId: "merchant-1",
+      provenance: "Merchant derived from current Channel context.",
+      confidence: 100,
     });
   });
 });

@@ -63,7 +63,9 @@ export async function executeJobInOffscreen(input: OffscreenJobExecuteInput): Pr
 
   const result = response as { ok?: boolean; error?: string; result?: OffscreenJobExecuteResult };
   if (!result.ok) {
-    throw new Error(result.error ?? "Offscreen job execution failed.");
+      const err = new Error(result.error ?? "Offscreen job execution failed.");
+      (err as Error & { result?: OffscreenJobExecuteResult }).result = result.result;
+      throw err;
   }
   if (!result.result) {
     throw new Error("Offscreen job host returned no result.");

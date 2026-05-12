@@ -65,4 +65,12 @@ describe("workflow draft parsing", () => {
     expect(() => parseWorkflowDraft("{}")).toThrow(/label/);
     expect(() => parseWorkflowDraft("{\"label\":\"x\",\"totalCalls\":0,\"script\":\"x\"}")).toThrow(/positive integer/);
   });
+
+  it("rejects sandbox-invalid imports before starting a job", () => {
+    expect(() => parseWorkflowDraft(JSON.stringify({
+      label: "Bad workflow",
+      totalCalls: 1,
+      script: "import { x } from 'y';\nresults.push(x);",
+    }))).toThrow(/cannot use import statements/);
+  });
 });

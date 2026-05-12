@@ -57,6 +57,8 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Automation workflow tools are enabled for this browser session.");
     expect(prompt).toContain("Automation mode is enabled for this browser session.");
     expect(prompt).toContain("Use execute_workflow for repeated writes and backend batch work instead of calling write tools one by one.");
+    expect(prompt).toContain("Workflow scripts receive context.entityId, context.entityType, and when available context.ids");
+    expect(prompt).toContain("prefer one execute_workflow Job over a long chain of individual tool calls");
     expect(prompt).toContain("This is a Draft Job turn.");
     expect(prompt).not.toContain("Automation mode is disabled.");
   });
@@ -69,11 +71,27 @@ describe("chat discovery playbook", () => {
       entityId: "m1",
       entityName: "Demo merchant",
       section: "risk",
+      knownIds: { merchantId: "m1", channelId: "c1" },
     });
 
     expect(prompt).toContain("Environment snapshot: uat.");
     expect(prompt).toContain("Target context: merchant m1.");
     expect(prompt).toContain("Entity name: Demo merchant.");
+    expect(prompt).toContain("Known context IDs available in the script as context.ids: merchantId=m1, channelId=c1.");
+    expect(prompt).toContain("Use context.ids.channelId and context.ids.merchantId when present");
+    expect(prompt).toContain("Do not use import, export, require, fetch");
+    expect(prompt).toContain("sdk.settings.edit(entityType, entityId, settings)");
+    expect(prompt).toContain("sdk.config.update(entityType, entityId, settings)");
+    expect(prompt).toContain("sdk.merchantAccounts.create(parentType, parentId, fields)");
+    expect(prompt).toContain("sdk.merchantAccounts.update(merchantAccountId, fields)");
+    expect(prompt).toContain("use state: \"LIVE\" rather than status: \"ACTIVE\"");
+    expect(prompt).toContain("sdk.cardProcessors.list(context.ids?.pspId)");
+    expect(prompt).toContain("PSP ID is optional");
+    expect(prompt).toContain("sdk.cardProcessors.list returns an array");
+    expect(prompt).toContain("context.id/context.type");
+    expect(prompt).toContain("sdk.transactions.sendTest");
+    expect(prompt).toContain("merchantId is optional when the current context is a Channel");
+    expect(prompt).toContain("Do not throw your own error for a missing parent Merchant");
     expect(prompt).toContain("Return only valid JSON");
     expect(prompt).toContain("The response must parse with JSON.parse");
     expect(prompt).toContain("Do not use sdk.management or sdk.manage_entity namespaces.");

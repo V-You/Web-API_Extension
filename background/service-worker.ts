@@ -27,6 +27,7 @@ const WEBMCP_EXECUTE_MAP = createExecuteMap({
       script: input.script,
       entityId: input.entityId,
       entityType: input.entityType,
+      contextSnapshot: input.contextSnapshot,
       totalCalls: input.totalCalls,
       throttleRate: input.throttleRate,
       creds: input.creds,
@@ -155,6 +156,9 @@ export interface ChatContextUpdateMessage {
     source: "url" | "anchor" | "script" | "form";
     entityName?: string;
     section?: string;
+    ids?: Record<string, string>;
+    route?: { url: string; query: Record<string, string>; section?: string };
+    contextEvidence?: Array<{ field: string; value: string; source: "url" | "anchor" | "script" | "form"; confidence: number }>;
   };
 }
 
@@ -278,6 +282,9 @@ chrome.runtime.onMessage.addListener(
         source: payload.source,
         entityName: payload.entityName,
         section: payload.section,
+        ids: payload.ids as never,
+        route: payload.route,
+        contextEvidence: payload.contextEvidence,
       })
         .then((context) => sendResponse({ ok: true, context }))
         .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
@@ -319,14 +326,23 @@ chrome.runtime.onMessage.addListener(
         sendResponse({ ok: false, error: "No tab ID" });
         return false;
       }
-      chrome.scripting.executeScript({
-        target: { tabId },
-        world: "MAIN",
-        func: registerToolsInMainWorld,
-        args: [TOOL_SCHEMAS],
-      })
-        .then(() => sendResponse({ ok: true }))
-        .catch((err) => sendResponse({ ok: false, error: String(err) }));
+      if (!chrome.scripting?.executeScript) {
+        sendResponse({ ok: false, error: "chrome.scripting.executeScript is not available." });
+        return false;
+      }
+      void (async () => {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId, frameIds: typeof _sender.frameId === "number" ? [_sender.frameId] : undefined },
+            world: "MAIN",
+            func: registerToolsInMainWorld,
+            args: [TOOL_SCHEMAS],
+          });
+          sendResponse({ ok: true });
+        } catch (err) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+        }
+      })();
       return true;
     }
   }
