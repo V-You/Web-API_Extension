@@ -92,6 +92,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("sdk.transactions.sendTest");
     expect(prompt).toContain("merchantId is optional when the current context is a Channel");
     expect(prompt).toContain("Do not throw your own error for a missing parent Merchant");
+    expect(prompt).toContain("Prefer transaction.status for summaries");
     expect(prompt).toContain("Return only valid JSON");
     expect(prompt).toContain("The response must parse with JSON.parse");
     expect(prompt).toContain("Do not use sdk.management or sdk.manage_entity namespaces.");

@@ -89,6 +89,10 @@ describe("internal router transaction tools", () => {
     ]);
     expect(JSON.stringify(result)).not.toContain("raw-temp-token");
     expect(result.cleanup).toEqual({ attempted: true, suspended: true, deleted: true, errors: [] });
+    expect(result.status).toBe(200);
+    expect(result.statusCode).toBe(200);
+    expect(result.response).toMatchObject({ ok: true, status: 200 });
+    expect(result.result).toMatchObject({ ok: true, status: 200 });
   });
 
   it("retries auto mode with a temporary token after a stored token authentication failure", async () => {

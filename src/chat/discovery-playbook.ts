@@ -137,6 +137,7 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     "Common contact defaults for generated examples are role: \"OPERATOR\", kind: \"SEND\", and language: \"en\" unless the user asks otherwise.",
       "For test transactions, call sdk.transactions.sendTest({ channelId, merchantId, tokenMode: \"temporary\", ... }) once per transaction. merchantId is optional when the current context is a Channel - the Job runtime will derive it from context or a Channel GET before creating a temporary token.",
       "Do not throw your own error for a missing parent Merchant before calling sdk.transactions.sendTest. Let the SDK helper perform deterministic recovery.",
+      "sendTest returns status-compatible fields at transaction.status, transaction.statusCode, transaction.response.status, and transaction.result.status. Prefer transaction.status for summaries and guard optional nested fields.",
     "Call progress(completedCalls, totalCalls, checkpoint) as work advances. Push final report objects into results.",
     "Keep the workflow focused and add short comments before sections that perform writes.",
     "Do not wrap the JSON in Markdown or code fences.",

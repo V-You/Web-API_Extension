@@ -1,4 +1,4 @@
-type Variant = "default" | "paused" | "subtle";
+type Variant = "default" | "paused" | "failed" | "subtle";
 
 interface Props {
   value: number;
@@ -10,6 +10,7 @@ interface Props {
 const VARIANTS: Record<Variant, { track: string; fill: string; height: string }> = {
   default: { track: "bg-slate-100", fill: "bg-blue-500", height: "h-2" },
   paused: { track: "bg-slate-100", fill: "bg-slate-400", height: "h-2" },
+  failed: { track: "bg-red-50", fill: "bg-red-500", height: "h-2" },
   subtle: { track: "bg-slate-100", fill: "bg-slate-400", height: "h-1" },
 };
 

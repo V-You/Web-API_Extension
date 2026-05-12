@@ -100,6 +100,7 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
   const pct = job.totalCalls > 0
     ? Math.min(100, Math.round((job.completedCalls / job.totalCalls) * 100))
     : 0;
+  const progressText = formatJobProgress(job, pct);
   const remaining = estimateRemaining(job);
   const liveElapsed = job.state === "running"
     ? (() => {
@@ -132,13 +133,13 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
 
       <ProgressBar
         value={pct}
-        variant={job.state === "running" ? "default" : "paused"}
-        aria-label={`${job.completedCalls} of ${job.totalCalls} calls completed`}
+        variant={job.state === "failed" ? "failed" : job.state === "running" ? "default" : "paused"}
+        aria-label={progressText}
       />
 
       {/* Stats */}
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>{job.completedCalls} / {job.totalCalls} calls ({pct}%)</span>
+        <span>{progressText}</span>
         <span>{elapsed}</span>
       </div>
       {job.source && (
@@ -216,6 +217,7 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
   const pct = job.totalCalls > 0
     ? Math.round((job.completedCalls / job.totalCalls) * 100)
     : 0;
+  const progressText = formatJobProgress(job, pct);
 
   return (
     <div className="border border-slate-200 rounded p-2 space-y-1.5">
@@ -224,7 +226,7 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
         <StateBadge state={job.state} />
       </div>
       <div className="text-xs text-slate-500">
-        {job.completedCalls} / {job.totalCalls} calls ({pct}%)
+        {progressText}
       </div>
       {job.error && (
         <div className="text-xs text-red-600">{job.error}</div>
@@ -333,6 +335,8 @@ function JobPreview({ job }: { job: JobRecord }) {
       totalCalls: job.totalCalls,
       throttleRate: job.throttleRate,
       checkpoint: job.checkpoint,
+      workflowCompleted: job.state === "completed",
+      note: job.state === "failed" ? "SDK calls completed before the workflow script failed; this is not a successful workflow completion." : undefined,
     },
     error: job.error,
     context: {
@@ -396,6 +400,12 @@ function formatDuration(ms: number): string {
   const hrs = Math.floor(mins / 60);
   const remMins = mins % 60;
   return `${hrs}h ${remMins}m`;
+}
+
+function formatJobProgress(job: JobRecord, pct: number): string {
+  const base = `${job.completedCalls} / ${job.totalCalls} SDK call(s)`;
+  if (job.state === "failed") return `${base} completed before failure`;
+  return `${base} (${pct}%)`;
 }
 
 function compareJobsNewestFirst(a: JobRecord, b: JobRecord): number {
