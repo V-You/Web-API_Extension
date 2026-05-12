@@ -22,7 +22,7 @@ interface CiEntry {
   fields: Record<string, string>;
 }
 
-const CI_ENTRIES: CiEntry[] = (ciData as { entries: CiEntry[] }).entries;
+const CI_ENTRIES: CiEntry[] = (ciData as unknown as { entries: CiEntry[] }).entries;
 
 export interface LookupClearingInstitutesInput {
   action: "search" | "get_fields" | "list_live";
