@@ -4,7 +4,6 @@
   "entries": [
     {
       "ci_code": "ACCEPTANCE",
-      "row_number": "1",
       "fields": {
         "merchant_id": "Merchant ID (VU)",
         "terminal_id": "POS Terminal ID"
@@ -12,7 +11,6 @@
     },
     {
       "ci_code": "AFTERPAY",
-      "row_number": "6",
       "fields": {
         "merchant_id": "Merchant ID",
         "merchant_name": "Merchant Name",
@@ -22,7 +20,6 @@
     },
     {
       "ci_code": "AMEX",
-      "row_number": "13",
       "fields": {
         "merchant_id": "Merchant ID (VU)",
         "terminal_id": "POS Terminal ID",
@@ -31,7 +28,6 @@
     },
     {
       "ci_code": "BARCLAYS",
-      "row_number": "25",
       "fields": {
         "merchant_id": "Merchant Number",
         "merchant_name": "Sort Code",
@@ -46,7 +42,6 @@
     },
     {
       "ci_code": "CHASEPAYMENTECH",
-      "row_number": "44",
       "fields": {
         "merchant_id": "Merchant ID",
         "merchant_name": "SdMerchantName",
@@ -58,7 +53,6 @@
     },
     {
       "ci_code": "CONCARDIS",
-      "row_number": "49",
       "fields": {
         "merchant_id": "Merchant ID (VU)",
         "terminal_id": "POS Terminal ID"
@@ -66,7 +60,6 @@
     },
     {
       "ci_code": "CONNECTIN",
-      "row_number": "50",
       "fields": {
         "password": "Password",
         "other_parameters": "connectorSpecificParameter.AUTHORIZATION_BEARER,connectorSpecificParameter.SECRET,connectorSpecificParameter.CUSTOM_DATA"
@@ -74,7 +67,6 @@
     },
     {
       "ci_code": "ELAVON",
-      "row_number": "60",
       "fields": {
         "merchant_id": "Merchant ID (VU)",
         "terminal_id": "POS Terminal ID"
@@ -82,7 +74,6 @@
     },
     {
       "ci_code": "EVRY",
-      "row_number": "75",
       "fields": {
         "merchant_name": "Merchant Name",
         "password": "Retailer Data",
@@ -91,14 +82,12 @@
     },
     {
       "ci_code": "FIRSTDATA COMPASS",
-      "row_number": "80",
       "fields": {
         "terminal_id": "Division Number (mandatory)"
       }
     },
     {
       "ci_code": "KLARNA PAYMENTS",
-      "row_number": "111",
       "fields": {
         "merchant_id": "Merchant ID",
         "username": "API username",
@@ -107,7 +96,6 @@
     },
     {
       "ci_code": "PAYPAL",
-      "row_number": "140",
       "fields": {
         "merchant_id": "Signature",
         "merchant_name": "API-Username",
@@ -122,14 +110,12 @@
     },
     {
       "ci_code": "SIBS",
-      "row_number": "167",
       "fields": {
         "merchant_id": "Merchant ID"
       }
     },
     {
       "ci_code": "VALITOR",
-      "row_number": "186",
       "fields": {
         "merchant_id": "Merchant ID",
         "merchant_name": "DBA Name",
