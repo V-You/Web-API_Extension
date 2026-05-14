@@ -128,6 +128,7 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     "For settings, use sdk.settings.edit(entityType, entityId, settings) or sdk.config.update(entityType, entityId, settings). Use sdk.settings.batchEdit for multiple settings when that reads more naturally.",
     "For duplicate check / dupe check / doublet check, use the authoritative RiRo keys \"*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:active\" and \"*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:timeframe\". Do not invent ib.dupeCheck or similar paths.",
     "For merchant accounts, use sdk.merchantAccounts.create(parentType, parentId, fields). When the user says on this Channel or for this Channel, prefer sdk.merchantAccounts.create(\"channel\", context.entityId, fields). Use a Merchant parent only when the user explicitly asks for Merchant-level availability or the API requires Merchant scope.",
+    "For merchant account create fields, use merchantId for the MID value and include name. Do not use a mid field; the API expects merchantId plus name.",
     "Use sdk.merchantAccounts.edit(merchantAccountId, fields) or sdk.merchantAccounts.update(merchantAccountId, fields) for merchant account changes.",
     "For merchant account activation, use state: \"LIVE\" rather than status: \"ACTIVE\".",
     "For random card processor or acquirer selection, use sdk.cardProcessors.list(context.ids?.pspId). PSP ID is optional; without it the SDK uses bundled clearing-institute data instead of the live PSP-scoped endpoint.",

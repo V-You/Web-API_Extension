@@ -84,6 +84,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("sdk.settings.edit(entityType, entityId, settings)");
     expect(prompt).toContain("sdk.config.update(entityType, entityId, settings)");
     expect(prompt).toContain("sdk.merchantAccounts.create(parentType, parentId, fields)");
+    expect(prompt).toContain("use merchantId for the MID value and include name");
     expect(prompt).toContain("sdk.merchantAccounts.update(merchantAccountId, fields)");
     expect(prompt).toContain("use state: \"LIVE\" rather than status: \"ACTIVE\"");
     expect(prompt).toContain("sdk.cardProcessors.list(context.ids?.pspId)");
