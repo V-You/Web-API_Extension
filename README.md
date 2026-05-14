@@ -645,6 +645,14 @@ The source metadata (`riro_consolidated_lookup.json`, 1,225 entries, schema vers
 
 Edit `settings_family_profiles.json` to extend shortcode families.
 
+### Situational glossary for transaction testing
+
+The next glossary layer is a planned situational glossary for transaction testing. Unlike `glossary.json`, which maps business words to settings language, this layer maps configuration-test situations to controlled payment experiments.
+
+The reason is simple: most configuration work eventually becomes a transaction test. When the user asks to test a change, the assistant should identify what behavior is being tested, keep unrelated transaction data stable, vary only the relevant field or timing, and report whether the result is verified, failed, or inconclusive. For example, duplicate-check testing should send two matching transactions inside the configured window and one outside it; 3DS-for-VISA testing should keep the payment brand as VISA; AVS testing should vary address fields while keeping the rest of the payload coherent.
+
+This will be implemented as a compact recipe dataset, tentatively `base_data/config_test_recipes.json`, with only matched recipes injected into workflow-draft context. It is intentionally scoped to transaction testing first so the extension can get the payment moment of truth right without creating one-off prompt rules for every RiRo setting.
+
 ### Chat discovery playbook
 
 The Chat tab loads `chat_discovery_playbook.json` through `src/chat/discovery-playbook.ts` to steer Gemini toward ambitious read-only discovery instead of early refusal. Use it for prompt-side retrieval habits, UI-language handling, and curated example prompts.
