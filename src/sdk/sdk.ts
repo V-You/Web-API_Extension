@@ -155,7 +155,7 @@ class SdkConfig {
       if (res.ok) {
         applied.push({ sdkPath: s.sdkPath, flatKey: s.flatKey, value: s.value, status: res.status });
       } else {
-        errors.push(`Failed to set ${s.sdkPath}: HTTP ${res.status}`);
+        errors.push(`Failed to set ${s.sdkPath}: ${formatApiFailure(res.status, res.apiOutcome?.errorCode, res.apiOutcome?.errorMessage)}`);
       }
     }
 
@@ -249,6 +249,13 @@ function extractRawValue(data: unknown): string {
     }
   }
   return String(data ?? "");
+}
+
+function formatApiFailure(status: number, code?: string, message?: string): string {
+  const parts = [`HTTP ${status}`];
+  if (code) parts.push(code);
+  if (message) parts.push(message);
+  return parts.join(" - ");
 }
 
 /** Create a new VirtualSdk instance bound to credentials and environment. */

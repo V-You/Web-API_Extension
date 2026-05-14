@@ -16,6 +16,7 @@ const {
   executeLookupClearingInstitutesMock,
   listCardProcessorsMock,
   executeSendTestTransactionMock,
+  executeSendTestTransactionsMock,
   requestConfirmMock,
   recordWriteMock,
 } = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ const {
   executeLookupClearingInstitutesMock: vi.fn(),
   listCardProcessorsMock: vi.fn(),
   executeSendTestTransactionMock: vi.fn(),
+  executeSendTestTransactionsMock: vi.fn(),
   requestConfirmMock: vi.fn(),
   recordWriteMock: vi.fn(),
 }));
@@ -47,6 +49,7 @@ vi.mock("../tools/card-processors", () => ({
 }));
 vi.mock("../tools/send-test-transaction", () => ({
   executeSendTestTransaction: executeSendTestTransactionMock,
+  executeSendTestTransactions: executeSendTestTransactionsMock,
 }));
 vi.mock("../bridge/confirm-bridge", () => ({
   requestConfirm: requestConfirmMock,
@@ -74,6 +77,8 @@ beforeEach(() => {
   listCardProcessorsMock.mockResolvedValue([{ id: "VISA", ciCode: "VISA", name: "VISA", requiredFields: [] }]);
   executeSendTestTransactionMock.mockReset();
   executeSendTestTransactionMock.mockResolvedValue({ ok: true, status: 200, data: { id: "tx-1" } });
+  executeSendTestTransactionsMock.mockReset();
+  executeSendTestTransactionsMock.mockResolvedValue({ ok: true, status: 200, transactions: [] });
   requestConfirmMock.mockReset();
   requestConfirmMock.mockResolvedValue("confirm");
 });

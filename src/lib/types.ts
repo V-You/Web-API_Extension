@@ -41,8 +41,6 @@ export type JobState =
   | "completed";
 
 /**
- * Audit event types.
-/**
  * Audit event type.
  *
  * Part-II P2-D4: the API-derived portion is generated from
@@ -68,7 +66,17 @@ export type AuditEventType =
   | "api_token_delete"
   | "api_token_suspend"
   | "api_token_update"
-  | "chat_automation_job_started";
+  | "chat_automation_job_started"
+  | "transaction_test_send"
+  | "transaction_test_send_batch";
+
+export interface ApiOutcome {
+  resultCode?: string;
+  resultDescription?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  isError: boolean;
+}
 
 export interface AuditEntry {
   id: string;
@@ -78,5 +86,10 @@ export interface AuditEntry {
   entityType: string;
   parameters: Record<string, unknown>;
   responseStatus: number;
+  apiOutcome?: ApiOutcome;
+  apiResultCode?: string;
+  apiResultDescription?: string;
+  apiErrorCode?: string;
+  apiErrorMessage?: string;
   environment: Environment;
 }

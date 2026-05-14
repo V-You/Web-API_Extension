@@ -13,6 +13,7 @@ import {
   getTreeRoot,
   type TreeNode,
   getByPath,
+  getByKey,
 } from "./riro-tree";
 
 export interface FlattenedSetting {
@@ -50,6 +51,21 @@ function walkObject(
   errors: string[]
 ) {
   for (const [key, value] of Object.entries(obj)) {
+    const flatMeta = getByKey(key);
+    if (flatMeta) {
+      const stringValue = valueToString(value);
+      if (flatMeta.tier === "A" && flatMeta.schema) {
+        const parsed = flatMeta.schema.safeParse(value);
+        if (!parsed.success) {
+          const issues = parsed.error.issues.map((issue) => issue.message).join("; ");
+          errors.push(`Validation failed for ${flatMeta.sdkPath}: ${issues}`);
+          continue;
+        }
+      }
+      out.push({ flatKey: flatMeta.flatKey, sdkPath: flatMeta.sdkPath, value: stringValue });
+      continue;
+    }
+
     const child = node.children.get(key);
     const currentPath = [...pathParts, key];
     const sdkPath = currentPath.join(".");

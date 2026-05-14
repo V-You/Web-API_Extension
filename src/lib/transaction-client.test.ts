@@ -29,4 +29,19 @@ describe("transaction client", () => {
     expect(result.request.authorization).toBe("[redacted]");
     expect(JSON.stringify(result)).not.toContain("raw-token-secret");
   });
+
+  it("marks non-success payment result codes as not ok", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ result: { code: "800.900.300", description: "invalid authentication information" } }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await sendExampleTransaction("uat", "raw-token-secret", "amount=92.00\ncurrency=EUR");
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(200);
+  });
 });

@@ -37,18 +37,11 @@ export function JobMonitor() {
   const jobs = useJobs();
   const orderedJobs = [...jobs].sort(compareJobsNewestFirst);
 
-  // Filter out the active job from the recoverable list.
-  // A stored running job with no active SW owner is recoverable after worker restart.
-  const pausedJobs = orderedJobs.filter(
-    (j) => j.id !== activeJob?.id && ["running", "resumed", "paused", "failed"].includes(j.state)
-  );
+  const storedJobs = orderedJobs.filter((job) => job.id !== activeJob?.id);
+  const storageBytes = JSON.stringify(jobs).length;
+  const storagePressure = jobs.length >= 45 || storageBytes >= 180_000;
 
-  // Finished jobs, including empty reports so silent completions and cancellations are visible.
-  const finishedJobs = orderedJobs.filter(
-    (j) => j.id !== activeJob?.id && (j.state === "completed" || j.state === "cancelled")
-  );
-
-  if (!activeJob && pausedJobs.length === 0 && finishedJobs.length === 0) {
+  if (!activeJob && storedJobs.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500">
         <p className="text-sm">No active or recoverable jobs.</p>
@@ -61,24 +54,19 @@ export function JobMonitor() {
 
   return (
     <div className="space-y-4">
+      {storagePressure && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-2xs text-amber-700">
+          Job storage is near its local retention limit ({jobs.length} jobs, {Math.round(storageBytes / 1024)} KB). Older jobs may rotate out.
+        </div>
+      )}
       {activeJob && <ActiveJobCard job={activeJob} />}
-      <div className="space-y-2">
-        <h3 className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-          Recoverable jobs
-        </h3>
-        {pausedJobs.length > 0 ? (
-          pausedJobs.map((job) => <RecoverableJobCard key={job.id} job={job} />)
-        ) : (
-          <p className="text-2xs text-slate-400">No recoverable jobs.</p>
-        )}
-      </div>
-      {finishedJobs.length > 0 && (
+      {storedJobs.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-            Finished jobs
+            Recent jobs
           </h3>
-          {finishedJobs.map((job) => (
-            <CompletedJobCard key={job.id} job={job} />
+          {storedJobs.map((job) => (
+            <StoredJobCard key={job.id} job={job} />
           ))}
         </div>
       )}
@@ -176,7 +164,7 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
           onClick={() => setExpanded(!expanded)}
           className="flex-1 px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
         >
-          {expanded ? "Hide" : "Preview"}
+          {expanded ? "Hide" : "Show"}
         </button>
         {job.state === "running" && (
           <>
@@ -211,7 +199,7 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
   );
 }
 
-function RecoverableJobCard({ job }: { job: JobRecord }) {
+function StoredJobCard({ job }: { job: JobRecord }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const pct = job.totalCalls > 0
@@ -239,84 +227,19 @@ function RecoverableJobCard({ job }: { job: JobRecord }) {
           onClick={() => setExpanded(!expanded)}
           className="flex-1 px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
         >
-          {expanded ? "Hide" : "Preview"}
+          {expanded ? "Hide" : "Show"}
         </button>
         {(job.state === "paused" || job.state === "failed") && <ResumeButton jobId={job.id} />}
-        <button
-          onClick={() => cancelJobById(job.id).catch((err) => setActionError(err instanceof Error ? err.message : "Failed to discard job"))}
-          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
-        >
-          Discard
-        </button>
+        {["running", "resumed", "paused", "failed"].includes(job.state) && (
+          <button
+            onClick={() => cancelJobById(job.id).catch((err) => setActionError(err instanceof Error ? err.message : "Failed to discard job"))}
+            className="flex-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-700 hover:bg-red-50"
+          >
+            Discard
+          </button>
+        )}
       </div>
       {expanded && <JobPreview job={job} />}
-    </div>
-  );
-}
-
-function CompletedJobCard({ job }: { job: JobRecord }) {
-  const [expanded, setExpanded] = useState(false);
-
-  function downloadJson() {
-    const blob = new Blob([JSON.stringify(job.results, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${job.label.replace(/[^a-z0-9]/gi, "_")}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function downloadCsv() {
-    // Best effort: convert array of objects to CSV
-    const items = job.results as Record<string, unknown>[];
-    if (items.length === 0) return;
-    const keys = [...new Set(items.flatMap((r) => Object.keys(r)))];
-    const header = keys.join(",") + "\n";
-    const rows = items.map((r) =>
-      keys.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","),
-    );
-    const blob = new Blob([header + rows.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${job.label.replace(/[^a-z0-9]/gi, "_")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <div className="border border-slate-200 rounded p-2 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium truncate">{job.label}</span>
-        <StateBadge state={job.state} />
-      </div>
-      <div className="text-xs text-slate-500">
-        {job.results.length} result(s) &ndash; {job.completedCalls} calls
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={downloadJson}
-          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
-        >
-          JSON
-        </button>
-        <button
-          onClick={downloadCsv}
-          className="flex-1 px-2 py-1 text-xs font-medium rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
-        >
-          CSV
-        </button>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="px-2 py-1 text-xs font-medium rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
-        >
-          {expanded ? "Hide" : "Preview"}
-        </button>
-      </div>
-      {expanded && (
-        <JobPreview job={job} />
-      )}
     </div>
   );
 }

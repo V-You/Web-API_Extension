@@ -13,7 +13,7 @@
 
 import { RateLimiter } from "./rate-limiter";
 import { redactSecrets } from "./redact";
-import type { ApiCredentials, AuditEntry, AuditEventType, Environment } from "./types";
+import type { ApiCredentials, ApiOutcome, AuditEntry, AuditEventType, Environment } from "./types";
 
 const DEFAULT_RATE_LIMIT = 9;
 const defaultLimiter = new RateLimiter(DEFAULT_RATE_LIMIT);
@@ -33,6 +33,7 @@ export interface ApiResponse<T = unknown> {
   ok: boolean;
   status: number;
   data: T;
+  apiOutcome?: ApiOutcome;
 }
 
 export interface RequestOptions {
@@ -137,6 +138,7 @@ export async function apiRequest<T = unknown>(
   } else {
     data = (await res.text()) as unknown as T;
   }
+  const apiOutcome = extractApiOutcome(data, opts.path);
 
   // Audit log
   if (auditMeta) {
@@ -152,11 +154,56 @@ export async function apiRequest<T = unknown>(
         ...(opts.params ?? {}),
       }),
       responseStatus: res.status,
+      ...(apiOutcome ? {
+        apiOutcome,
+        ...(apiOutcome.resultCode ? { apiResultCode: apiOutcome.resultCode } : {}),
+        ...(apiOutcome.resultDescription ? { apiResultDescription: apiOutcome.resultDescription } : {}),
+        ...(apiOutcome.errorCode ? { apiErrorCode: apiOutcome.errorCode } : {}),
+        ...(apiOutcome.errorMessage ? { apiErrorMessage: apiOutcome.errorMessage } : {}),
+      } : {}),
       environment: env,
     });
   }
 
-  return { ok: res.ok, status: res.status, data };
+  return { ok: res.ok && apiOutcome?.isError !== true, status: res.status, data, ...(apiOutcome ? { apiOutcome } : {}) };
+}
+
+export function extractApiOutcome(data: unknown, path = ""): ApiOutcome | undefined {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
+  const source = data as Record<string, unknown>;
+  const result = source.result;
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    const resultObject = result as Record<string, unknown>;
+    const code = stringValue(resultObject.code);
+    if (code) {
+      return {
+        resultCode: code,
+        resultDescription: stringValue(resultObject.description) ?? stringValue(resultObject.message),
+        isError: !isSuccessfulTransactionResult(code, path),
+      };
+    }
+  }
+
+  const error = source.error;
+  if (error && typeof error === "object" && !Array.isArray(error)) {
+    const errorObject = error as Record<string, unknown>;
+    const errorCode = stringValue(errorObject.code);
+    const errorMessage = stringValue(errorObject.message) ?? stringValue(errorObject.description);
+    if (errorCode || errorMessage) {
+      return { errorCode, errorMessage, isError: true };
+    }
+  }
+
+  return undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function isSuccessfulTransactionResult(code: string, path: string): boolean {
+  if (!path.includes("/payments") && !/^\d{3}\.\d{3}\.\d{3}$/.test(code)) return true;
+  return code.startsWith("000.");
 }
 
 /** Append an entry to the local audit log. Trims on write to protect local storage. */

@@ -32,7 +32,7 @@ import { executeLookupClearingInstitutes } from "../tools/lookup-clearing-instit
 import { listCardProcessors } from "../tools/card-processors";
 import { executeDescribeSettings } from "../tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../tools/get-audit-log";
-import { executeSendTestTransaction } from "../tools/send-test-transaction";
+import { executeSendTestTransaction, executeSendTestTransactions } from "../tools/send-test-transaction";
 import type {
   Params_attach_merchant_account,
   Params_create_channel,
@@ -98,6 +98,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function writeFailureMessage(result: Record<string, unknown>): string {
+  const outcome = isRecord(result.apiOutcome) ? result.apiOutcome : null;
+  const data = isRecord(result.data) ? result.data : null;
+  const dataError = isRecord(data?.error) ? data.error : null;
+  const messages = [
+    stringValue(outcome?.errorCode),
+    stringValue(outcome?.errorMessage),
+    stringValue(dataError?.code),
+    stringValue(dataError?.message),
+    stringValue(data?.error),
+  ].filter(Boolean);
+  if (messages.length > 0) return messages.join(" - ");
+  return typeof result.status === "number" ? `HTTP ${result.status}` : "unknown error";
+}
+
+function assertWriteSucceeded<T>(result: T, description: string): T {
+  if (!isRecord(result)) return result;
+  const errors = Array.isArray(result.errors) ? result.errors.map(String).filter(Boolean) : [];
+  if (errors.length > 0) throw new Error(`${description} failed: ${errors.join("; ")}`);
+  if (result.ok === false) throw new Error(`${description} failed: ${writeFailureMessage(result)}`);
+  if (typeof result.error === "string" && result.error.trim()) throw new Error(`${description} failed: ${result.error.trim()}`);
+  return result;
+}
+
 function toStringRecord(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
   const fields = Object.fromEntries(
@@ -107,6 +135,9 @@ function toStringRecord(value: unknown): Record<string, string> {
   );
   if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
   if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
+  if (fields.clearingInstitute && !fields.clearingInstituteName) fields.clearingInstituteName = fields.clearingInstitute;
+  delete fields.clearingInstitute;
+  if (fields.merchantId && !fields.name) fields.name = fields.merchantId;
   return fields;
 }
 
@@ -205,7 +236,7 @@ export function buildSdkFacade(
     toolName: string,
     params: Record<string, unknown>,
   ): Promise<AdapterResult> {
-    return executeTypedTool(toolName, params, { creds, env, confirm: true });
+    return assertWriteSucceeded(await executeTypedTool(toolName, params, { creds, env, confirm: true }), toolName);
   }
 
   return {
@@ -224,7 +255,7 @@ export function buildSdkFacade(
           { settings },
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
-        return virtualSdk.config.update(entityType, entityId, settings);
+        return assertWriteSucceeded(await virtualSdk.config.update(entityType, entityId, settings), "settings update");
       },
       async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         const keys = Object.keys(settings);
@@ -234,7 +265,7 @@ export function buildSdkFacade(
           { settings },
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
-        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
+        return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
       },
     },
 
@@ -253,7 +284,7 @@ export function buildSdkFacade(
           { settings },
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
-        return virtualSdk.config.update(entityType, entityId, settings);
+        return assertWriteSucceeded(await virtualSdk.config.update(entityType, entityId, settings), "settings update");
       },
       async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         const keys = Object.keys(settings);
@@ -263,7 +294,7 @@ export function buildSdkFacade(
           { settings },
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
-        return virtualSdk.config.update(entityType, entityId, settings);
+        return assertWriteSucceeded(await virtualSdk.config.update(entityType, entityId, settings), "settings update");
       },
       async batchEdit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         const keys = Object.keys(settings);
@@ -273,7 +304,7 @@ export function buildSdkFacade(
           { settings },
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
-        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
+        return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
       },
       async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
         const keys = Object.keys(settings);
@@ -283,7 +314,7 @@ export function buildSdkFacade(
           { settings },
         );
         if (options.planOnlyWrites) return { ok: true, applied: [], errors: [] };
-        return virtualSdk.config.batchUpdate(entityType, entityId, settings);
+        return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
       },
     },
 
@@ -385,7 +416,7 @@ export function buildSdkFacade(
           { contactId },
         );
         if (options.planOnlyWrites) return plannedResult("manage_contact", { action: "attach", entityType, entityId, contactId });
-        return executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env);
+        return assertWriteSucceeded(await executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env), "contact attach");
       },
       async detach(entityType: EntityType, entityId: string, contactId: string) {
         await confirmAndWrite(
@@ -578,6 +609,25 @@ export function buildSdkFacade(
           return plannedResult("send_test_transaction", params);
         }
         return executeSendTestTransaction(params, creds, env, {
+          bypassWriteConfirmation: options.autoConfirmWrites === true,
+          onWriteAccepted: recordTransactionWrite,
+        });
+      },
+      async sendTestBatch(params: Record<string, unknown>) {
+        const channelId = String(params.channelId ?? "");
+        const recordTransactionWrite = () => writes.push({
+          tool: "send_test_transactions",
+          action: "send_batch",
+          entityId: channelId,
+          entityType: "channel",
+          params,
+          timestamp: new Date().toISOString(),
+        });
+        if (options.planOnlyWrites) {
+          recordTransactionWrite();
+          return plannedResult("send_test_transactions", params);
+        }
+        return executeSendTestTransactions(params, creds, env, {
           bypassWriteConfirmation: options.autoConfirmWrites === true,
           onWriteAccepted: recordTransactionWrite,
         });

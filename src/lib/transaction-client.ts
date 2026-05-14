@@ -1,4 +1,5 @@
 import { redactSecrets } from "./redact";
+import { extractApiOutcome } from "./api-client";
 import type { Environment } from "./types";
 
 const TRANSACTION_ENDPOINTS: Record<Environment, string> = {
@@ -56,9 +57,10 @@ export async function sendExampleTransaction<T = unknown>(
   const data = contentType.includes("application/json")
     ? await res.json() as T
     : await res.text() as T;
+  const apiOutcome = extractApiOutcome(data, endpoint);
 
   return {
-    ok: res.ok,
+    ok: res.ok && apiOutcome?.isError !== true,
     status: res.status,
     data: redactSecrets(data),
     request: redactSecrets({

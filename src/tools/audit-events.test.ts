@@ -17,6 +17,9 @@ describe("audit event types align with the generated manifest module", () => {
     // there is no dedicated API operation to bind an audit entry to.
     "contact_attach",
     "get_entity",
+    "chat_automation_job_started",
+    "transaction_test_send",
+    "transaction_test_send_batch",
   ] as const;
 
   it("AUDIT_EVENT_TYPES matches the live manifest derivation", () => {

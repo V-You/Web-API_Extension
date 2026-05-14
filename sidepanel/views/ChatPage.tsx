@@ -147,6 +147,9 @@ function findFieldPaths(value: unknown, field: string, path = "$", matches: stri
 function formatJobStateNotice(job: { label: string; id: string; state: string; error?: string; completedCalls: number; totalCalls: number; results: unknown[]; writes: unknown[] }): string {
   const { label, id: jobId, state, error } = job;
   if (state === "completed") {
+    if (job.results.some(resultContainsFailure)) {
+      return `Job ${label} (${jobId}) completed with reported failures in its result payload. It ran ${job.completedCalls}/${job.totalCalls} calls, produced ${job.results.length} result(s), and recorded ${job.writes.length} write(s). Open the Jobs tab to inspect details.`;
+    }
     return `Job ${label} (${jobId}) completed with ${job.completedCalls}/${job.totalCalls} calls, ${job.results.length} result(s), and ${job.writes.length} recorded write(s). Open the Jobs tab to preview details.`;
   }
   if (state === "paused") {
@@ -159,6 +162,14 @@ function formatJobStateNotice(job: { label: string; id: string; state: string; e
     return `Job ${label} (${jobId}) failed${error ? `: ${error}` : "."} Open the Jobs tab to inspect details.`;
   }
   return `Job ${label} (${jobId}) is now ${state}.`;
+}
+
+function resultContainsFailure(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(resultContainsFailure);
+  const record = value as Record<string, unknown>;
+  if (record.ok === false) return true;
+  return Object.values(record).some(resultContainsFailure);
 }
 
 export function ChatPage() {
@@ -825,7 +836,7 @@ export function ChatPage() {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          text: "I drafted a workflow for review. Check the script before starting the background Job.",
+          text: "I drafted a workflow for review. Open the review card below to inspect and start it.",
         },
       ]);
     } catch (draftError) {
@@ -1235,6 +1246,14 @@ export function ChatPage() {
           onCancel={() => {
             setWorkflowReview(null);
             setWorkflowReviewError(null);
+            setMessages((current) => [
+              ...current,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                text: "Workflow cancelled. The script was not run.",
+              },
+            ]);
           }}
         />
       )}
@@ -1341,12 +1360,12 @@ function WorkflowReviewDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex max-h-[70vh] flex-col">
         <div className="border-b border-slate-200 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Review workflow Job</h2>
+              <h2 className="text-sm font-semibold text-slate-900">Review workflow job</h2>
               <p className="mt-1 text-xs text-slate-500">Approve the TypeScript source as a whole before it starts in the Jobs tab.</p>
             </div>
             <span className="rounded-full bg-red-50 px-2 py-0.5 text-2xs font-medium text-red-700">
@@ -1394,7 +1413,7 @@ function WorkflowReviewDialog({
                   ))}
                 </ul>
               ) : (
-                <span>Unable to infer exact endpoints from this script before runtime. Review the SDK calls below.</span>
+                <span>No API calls detected in this script. The runtime trace will show the truth.</span>
               )}
             </div>
           </div>
@@ -1423,7 +1442,7 @@ function WorkflowReviewDialog({
             disabled={busy}
             className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
           >
-            {copied ? "Copied" : "Copy"}
+            {copied ? "copied" : "copy"}
           </button>
           <button
             onClick={onCancel}
@@ -1437,7 +1456,7 @@ function WorkflowReviewDialog({
             disabled={busy}
             className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
-            {busy ? "Starting..." : "Start Job"}
+            {busy ? "Starting..." : "Start job"}
           </button>
         </div>
       </div>
@@ -1456,6 +1475,16 @@ function inferWorkflowApiPreview(draft: WorkflowReviewState): ApiPreviewEntry[] 
   const entityPathValue = draft.entityType && draft.entityId
     ? entityPathForPreview(draft.entityType, draft.entityId)
     : null;
+  const channelPath = draft.contextSnapshot?.ids?.channelId
+    ? `/channels/${draft.contextSnapshot.ids.channelId}`
+    : draft.entityType === "channel" && draft.entityId
+      ? `/channels/${draft.entityId}`
+      : null;
+  const merchantPath = draft.contextSnapshot?.ids?.merchantId
+    ? `/merchants/${draft.contextSnapshot.ids.merchantId}`
+    : draft.entityType === "merchant" && draft.entityId
+      ? `/merchants/${draft.entityId}`
+      : null;
 
   if (entityPathValue && /sdk\.(?:management\.)?entities\.get\(\s*context\.entityType\s*,\s*context\.entityId\s*\)/.test(draft.script)) {
     entries.push({ method: "GET", path: entityPathValue, reason: "query current entity details" });
@@ -1471,6 +1500,48 @@ function inferWorkflowApiPreview(draft: WorkflowReviewState): ApiPreviewEntry[] 
 
   if (entityPathValue && /sdk\.contacts\.attach\(\s*context\.entityType\s*,\s*context\.entityId\s*,/.test(draft.script)) {
     entries.push({ method: "POST", path: `${entityPathValue}/attachedContacts/{contactId}`, reason: "attach each missing contact" });
+  }
+
+  if (/sdk\.merchantAccounts\.create\(/.test(draft.script)) {
+    const targetPath = /sdk\.merchantAccounts\.create\(\s*["']merchant["']/.test(draft.script)
+      ? merchantPath
+      : /sdk\.merchantAccounts\.create\(\s*["']channel["']/.test(draft.script)
+        ? channelPath
+        : entityPathValue;
+    if (targetPath) entries.push({ method: "POST", path: `${targetPath}/ownedMerchantAccounts`, reason: "create merchant account" });
+  }
+
+  if (/sdk\.merchantAccounts\.attach\(/.test(draft.script)) {
+    const targetPath = /sdk\.merchantAccounts\.attach\(\s*["']merchant["']/.test(draft.script)
+      ? merchantPath
+      : /sdk\.merchantAccounts\.attach\(\s*["']channel["']/.test(draft.script)
+        ? channelPath
+        : entityPathValue;
+    if (targetPath) entries.push({ method: "POST", path: `${targetPath}/attachedMerchantAccounts`, reason: "attach merchant account" });
+  }
+
+  if (entityPathValue && /sdk\.(?:settings|config)\.(?:edit|update|batchEdit|batchUpdate)\(/.test(draft.script)) {
+    const targetPath = /sdk\.(?:settings|config)\.(?:edit|update|batchEdit|batchUpdate)\(\s*["']merchant["']/.test(draft.script)
+      ? merchantPath
+      : /sdk\.(?:settings|config)\.(?:edit|update|batchEdit|batchUpdate)\(\s*["']channel["']/.test(draft.script)
+        ? channelPath
+        : entityPathValue;
+    if (targetPath) entries.push({ method: "POST", path: `${targetPath}/setting`, reason: "update settings" });
+  }
+
+  if (/sdk\.transactions\.sendTestBatch\(/.test(draft.script)) {
+    if (merchantPath) entries.push({ method: "POST", path: `${merchantPath}/apiTokens`, reason: "create one temporary token for the batch" });
+    entries.push({ method: "POST", path: "https://eu-test.oppwa.com/v1/payments", reason: "send test transactions (batch)" });
+    entries.push({ method: "DELETE", path: "/apiTokens/{apiTokenId}", reason: "delete temporary token after the batch" });
+  } else if (/sdk\.transactions\.sendTest\(/.test(draft.script)) {
+    if (merchantPath) entries.push({ method: "POST", path: `${merchantPath}/apiTokens`, reason: "create temporary token when needed" });
+    entries.push({ method: "POST", path: "https://eu-test.oppwa.com/v1/payments", reason: "send test transaction" });
+    entries.push({ method: "DELETE", path: "/apiTokens/{apiTokenId}", reason: "delete temporary token after transaction" });
+  }
+
+  if (/sdk\.cardProcessors\.list(?:Live)?\(/.test(draft.script)) {
+    const pspId = draft.contextSnapshot?.ids?.pspId ?? "{pspId}";
+    entries.push({ method: "GET", path: `/psps/${pspId}/clearingInstitutes`, reason: "list live clearing institutes or card processors" });
   }
 
   return dedupeApiPreview(entries);

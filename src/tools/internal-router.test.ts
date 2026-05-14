@@ -11,10 +11,16 @@ vi.mock("../chat/chat-mode", () => ({
 }));
 
 vi.mock("../lib/api-client", () => ({
+  appendAuditEntry: vi.fn(),
   apiRequest: vi.fn(),
+  extractApiOutcome: vi.fn((data: unknown) => {
+    const result = data && typeof data === "object" ? (data as { result?: { code?: string; description?: string } }).result : undefined;
+    return result?.code ? { resultCode: result.code, resultDescription: result.description, isError: !result.code.startsWith("000.") } : undefined;
+  }),
 }));
 
 vi.mock("../lib/transaction-client", () => ({
+  parseTransactionBody: vi.fn((bodyText: string) => Object.fromEntries(new URLSearchParams(bodyText.replace(/\n/g, "&")).entries())),
   sendExampleTransaction: vi.fn(),
 }));
 
@@ -39,6 +45,11 @@ const creds = { baseUrl: "https://example.test", username: "user", password: "pa
 describe("internal router transaction tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiRequestMock.mockReset();
+    sendExampleTransactionMock.mockReset();
+    getActiveEnvMock.mockReset();
+    getCredentialsMock.mockReset();
+    getTransactionTokensMock.mockReset();
     getActiveEnvMock.mockResolvedValue("uat");
     getCredentialsMock.mockResolvedValue(creds);
     getTransactionTokensMock.mockResolvedValue([]);
@@ -88,7 +99,7 @@ describe("internal router transaction tools", () => {
       "/apiTokens/token-1",
     ]);
     expect(JSON.stringify(result)).not.toContain("raw-temp-token");
-    expect(result.cleanup).toEqual({ attempted: true, suspended: true, deleted: true, errors: [] });
+    expect(result.cleanup).toMatchObject({ attempted: true, suspended: true, deleted: true, directDeleteAttempted: false, suspendFallbackUsed: false, errors: [] });
     expect(result.status).toBe(200);
     expect(result.statusCode).toBe(200);
     expect(result.response).toMatchObject({ ok: true, status: 200 });

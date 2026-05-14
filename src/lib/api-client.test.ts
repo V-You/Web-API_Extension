@@ -19,7 +19,7 @@ vi.stubGlobal("crypto", {
   randomUUID: () => "test-uuid-1234",
 });
 
-import { apiRequest, type ApiResponse } from "./api-client";
+import { apiRequest, extractApiOutcome, type ApiResponse } from "./api-client";
 
 describe("api-client", () => {
   beforeEach(() => {
@@ -170,6 +170,24 @@ describe("api-client", () => {
       apiBearerToken: "[redacted]",
       alias: "wax_test",
     });
+  });
+
+  it("extracts API body errors even when HTTP status is 200", async () => {
+    const outcome = extractApiOutcome({ error: { code: "200.300.406", message: "invalid value" } }, "/channels/c1/setting");
+
+    expect(outcome).toEqual({ errorCode: "200.300.406", errorMessage: "invalid value", isError: true });
+  });
+
+  it("treats failing payment result codes as API errors", async () => {
+    const outcome = extractApiOutcome({ result: { code: "800.900.300", description: "invalid authentication information" } }, "https://eu-test.oppwa.com/v1/payments");
+
+    expect(outcome).toEqual({ resultCode: "800.900.300", resultDescription: "invalid authentication information", isError: true });
+  });
+
+  it("treats successful payment result codes as successful outcomes", async () => {
+    const outcome = extractApiOutcome({ result: { code: "000.100.110", description: "request successfully processed" } }, "https://eu-test.oppwa.com/v1/payments");
+
+    expect(outcome).toEqual({ resultCode: "000.100.110", resultDescription: "request successfully processed", isError: false });
   });
 
   it("trims audit entries by count", async () => {
