@@ -11,6 +11,14 @@ export interface ChatScenarioFixture {
     tool: string;
     args?: Record<string, unknown>;
   }>;
+  expectedRecipes?: string[];
+  forbiddenRecipes?: string[];
+  expectedWorkflowShape?: {
+    transactionHelper?: string;
+    count?: number;
+    phaseTypes?: string[];
+    constants?: string[];
+  };
   forbidden?: string[];
 }
 

@@ -31,6 +31,7 @@ import {
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
 import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt } from "../../src/chat/discovery-playbook";
+import { matchConfigTestRecipes, type MatchedConfigTestRecipe } from "../../src/chat/config-test-recipes";
 import { contextPacketFor, getActiveChatContext, resolveChannelMerchantFromContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
@@ -73,6 +74,7 @@ interface WorkflowReviewState {
   entityName?: string;
   section?: string;
   contextSnapshot?: JobContextSnapshot;
+  configTestRecipes?: Array<{ id: string; version: number; label: string; archetype: string; matchedSignals: string[] }>;
 }
 
 interface ApiReadPreflight {
@@ -162,6 +164,16 @@ function formatJobStateNotice(job: { label: string; id: string; state: string; e
     return `Job ${label} (${jobId}) failed${error ? `: ${error}` : "."} Open the Jobs tab to inspect details.`;
   }
   return `Job ${label} (${jobId}) is now ${state}.`;
+}
+
+function summarizeConfigTestRecipes(matches: MatchedConfigTestRecipe[]): WorkflowReviewState["configTestRecipes"] {
+  return matches.map((match) => ({
+    id: match.recipe.id,
+    version: match.recipe.version,
+    label: match.recipe.label,
+    archetype: match.recipe.archetype,
+    matchedSignals: match.matchedSignals,
+  }));
 }
 
 function resultContainsFailure(value: unknown): boolean {
@@ -772,6 +784,11 @@ export function ChatPage() {
     try {
       const env = await getActiveEnv();
       if (!env) throw new Error("No active environment. Unlock or select a connection before drafting a Job.");
+      const configTestRecipes = matchConfigTestRecipes({
+        prompt: trimmed,
+        env,
+        knownIds: jobContextSnapshot?.ids,
+      });
 
       const draftPrompt = buildChatWorkflowDraftPrompt({
         userRequest: trimmed,
@@ -781,6 +798,7 @@ export function ChatPage() {
         entityName: detectedContext?.entityName,
         section: detectedContext?.section,
         knownIds: jobContextSnapshot?.ids,
+        configTestRecipes,
       });
       const throttleRate = await getThrottleRate();
 
@@ -830,6 +848,7 @@ export function ChatPage() {
         entityName: detectedContext?.entityName,
         section: detectedContext?.section,
         contextSnapshot: jobContextSnapshot,
+        configTestRecipes: summarizeConfigTestRecipes(configTestRecipes),
       });
       setMessages((current) => [
         ...current,
@@ -1367,6 +1386,15 @@ function WorkflowReviewDialog({
             <div>
               <h2 className="text-sm font-semibold text-slate-900">Review workflow job</h2>
               <p className="mt-1 text-xs text-slate-500">Approve the TypeScript source as a whole before it starts in the Jobs tab.</p>
+              {draft.configTestRecipes && draft.configTestRecipes.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {draft.configTestRecipes.map((recipe) => (
+                    <span key={recipe.id} className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-2xs font-medium text-emerald-700">
+                      test intent: {recipe.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <span className="rounded-full bg-red-50 px-2 py-0.5 text-2xs font-medium text-red-700">
               {draft.env.toUpperCase()}
@@ -1399,6 +1427,25 @@ function WorkflowReviewDialog({
             <div className="mb-1 font-medium text-slate-600">Original request</div>
             <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-slate-700">{draft.prompt}</div>
           </div>
+
+          {draft.configTestRecipes && draft.configTestRecipes.length > 0 && (
+            <div>
+              <div className="mb-1 font-medium text-slate-600">Testing intent</div>
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-800">
+                <ul className="space-y-1">
+                  {draft.configTestRecipes.map((recipe) => (
+                    <li key={recipe.id}>
+                      <span className="font-medium">{recipe.label}</span>
+                      <span className="text-emerald-700"> - {recipe.id} v{recipe.version}</span>
+                      {recipe.matchedSignals.length > 0 && (
+                        <span className="text-emerald-700"> - matched {recipe.matchedSignals.join(", ")}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="mb-1 font-medium text-slate-600">Likely Web API calls</div>

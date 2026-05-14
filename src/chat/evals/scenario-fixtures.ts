@@ -52,3 +52,34 @@ export const INITIAL_CHAT_SCENARIOS: ChatScenarioFixture[] = [
     forbidden: ["create_channel", "edit_entity", "send_test_transaction"],
   },
 ];
+
+export const CONFIG_TEST_RECIPE_SCENARIOS: ChatScenarioFixture[] = [
+  {
+    id: "duplicate-window-10s-current-channel",
+    prompt: "Enable duplicate check on this Channel, set it to 10s, and send 3 transactions to test if it works.",
+    mode: { writeToolsEnabled: true, accessTokenControlEnabled: true, automationModeEnabled: true },
+    context: {
+      current: { entityType: "channel", entityId: "channel-1" },
+      ids: { channelId: "channel-1", merchantId: "merchant-1" },
+    },
+    expectedTrace: [],
+    expectedRecipes: ["verification-fraud.duplicate-window"],
+    forbiddenRecipes: ["verification-fraud.3ds-brand"],
+    expectedWorkflowShape: {
+      transactionHelper: "sdk.transactions.sendTestBatch",
+      count: 3,
+      phaseTypes: ["burst", "wait", "burst"],
+      constants: ["merchantTransactionId", "amount", "currency", "paymentBrand", "paymentType", "card"],
+    },
+    forbidden: ["randomize_payment_brand_for_duplicate_test", "omit_testingIntent_result", "declare_verified_when_setup_failed"],
+  },
+  {
+    id: "config-test-negative-list-channels",
+    prompt: "list my channels",
+    mode: { writeToolsEnabled: false, accessTokenControlEnabled: false, automationModeEnabled: false },
+    expectedTrace: [],
+    expectedRecipes: [],
+    forbiddenRecipes: ["verification-fraud.duplicate-window"],
+    forbidden: ["match_config_test_recipe"],
+  },
+];

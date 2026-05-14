@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt, CHAT_DISCOVERY_PROMPT_CHIPS, getDiscoveryPlaybookPurpose } from "./discovery-playbook";
+import { matchConfigTestRecipes } from "./config-test-recipes";
 
 describe("chat discovery playbook", () => {
   it("builds a system prompt that includes the discovery playbook guidance", () => {
@@ -93,6 +94,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("merchantId is optional when the current context is a Channel");
     expect(prompt).toContain("Do not throw your own error for a missing parent Merchant");
     expect(prompt).toContain("Prefer transaction.status for summaries");
+    expect(prompt).toContain("If transaction testing recipe context is present above");
     expect(prompt).toContain("Return only valid JSON");
     expect(prompt).toContain("The response must parse with JSON.parse");
     expect(prompt).toContain("Do not use sdk.management or sdk.manage_entity namespaces.");
@@ -104,6 +106,27 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Do not climb to the parent entity unless the user explicitly asks");
     expect(prompt).toContain("totalCalls must include the two list calls");
     expect(prompt).toContain("role: \"OPERATOR\", kind: \"SEND\", and language: \"en\"");
+  });
+
+  it("injects matched transaction-test recipes into workflow draft prompts", () => {
+    const configTestRecipes = matchConfigTestRecipes({
+      prompt: "Set duplicate check to 10s and send 3 transactions to test it.",
+      env: "uat",
+      knownIds: { channelId: "c1", merchantId: "m1" },
+    });
+
+    const prompt = buildChatWorkflowDraftPrompt({
+      userRequest: "Set duplicate check to 10s and send 3 transactions to test it.",
+      env: "uat",
+      entityType: "channel",
+      entityId: "c1",
+      knownIds: { channelId: "c1", merchantId: "m1" },
+      configTestRecipes,
+    });
+
+    expect(prompt).toContain("Transaction testing recipe context:");
+    expect(prompt).toContain("Use recipe verification-fraud.duplicate-window v1.");
+    expect(prompt).toContain("Push a final results entry with testingIntent");
   });
 
   it("includes the configured model name for meta questions", () => {

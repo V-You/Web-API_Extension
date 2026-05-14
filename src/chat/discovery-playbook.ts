@@ -1,4 +1,5 @@
 import playbookData from "../../base_data/chat_discovery_playbook.json";
+import { renderConfigTestRecipePrompt, type MatchedConfigTestRecipe } from "./config-test-recipes";
 
 interface DiscoveryPlaybookStep {
   trigger: string;
@@ -34,6 +35,7 @@ export interface ChatWorkflowDraftPromptOptions {
   entityName?: string;
   section?: string;
   knownIds?: Record<string, string>;
+  configTestRecipes?: MatchedConfigTestRecipe[];
 }
 
 export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): string {
@@ -108,12 +110,14 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
         knownIds,
       ].filter(Boolean).join("\n")
     : "No entity context is available. The script must ask for explicit identifiers by throwing a clear error if it cannot proceed.";
+  const configTestRecipePrompt = renderConfigTestRecipePrompt(options.configTestRecipes ?? []);
 
   return [
     "Draft a reviewed background Job for the Web API Extension.",
     `Environment snapshot: ${options.env}.`,
     context,
     `User request: ${options.userRequest}`,
+    configTestRecipePrompt,
     "Return only valid JSON with this exact shape:",
     "{\"label\":\"short job label\",\"totalCalls\":1,\"script\":\"TypeScript workflow source\"}",
     "The response must parse with JSON.parse. Escape script newlines as \\n and quotes as \\\" inside the script string. Do not use raw multiline strings, backticks, comments outside JSON, or Markdown fences.",
@@ -138,7 +142,7 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     "Use contact creation fields from the API shape: email, name, role, kind, language, mobile, autoAttach, description, oauthRedirectUrl, sendCredentialsMail, and sendAuthenticatorMail.",
     "Common contact defaults for generated examples are role: \"OPERATOR\", kind: \"SEND\", and language: \"en\" unless the user asks otherwise.",
     "For multiple test transactions in one workflow, call sdk.transactions.sendTestBatch({ channelId, merchantId, count, tokenMode: \"temporary\", ... }) so one temporary token covers the whole batch. merchantId is optional when the current context is a Channel - the Job runtime will derive it from context or a Channel GET before creating a temporary token.",
-    "To verify a duplicate-check window such as 10 seconds, send two transactions immediately with the same merchantTransactionId, then send the third after the window plus at least 1 second. Use sdk.transactions.sendTestBatch({ count: 3, pauseAfter: 2, pauseMs: 11000, merchantTransactionId, ... }) for that pattern. The expected result is first accepted, second duplicate-rejected, third accepted; if earlier setup or processing fails, report the test as inconclusive.",
+    "If transaction testing recipe context is present above, follow it before choosing random transaction values. Keep recipe constants stable, vary only recipe variables, and report verified, failed, or inconclusive in a final testingIntent result object.",
     "For a single test transaction, call sdk.transactions.sendTest({ channelId, merchantId, tokenMode: \"temporary\", ... }). Do not throw your own error for a missing parent Merchant before calling the transaction helper. Let the SDK helper perform deterministic recovery.",
     "sendTest returns status-compatible fields at transaction.status, transaction.statusCode, transaction.response.status, and transaction.result.status. Prefer transaction.status for summaries and guard optional nested fields. sendTestBatch returns a transactions array with the same per-transaction fields.",
     "Call progress(completedCalls, totalCalls, checkpoint) as work advances. Push final report objects into results.",

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "recipes": [
+    {
+      "id": "verification-fraud.duplicate-window",
+      "version": 1,
+      "archetype": "verification_fraud",
+      "label": "duplicate window verification",
+      "scope": "transaction_testing",
+      "enabled": true,
+      "experimental": false,
+      "fixtureIds": ["duplicate-window-10s-current-channel"],
+      "matcher": {
+        "triggerTerms": ["duplicate check", "dupe check", "doublet check", "db.db"],
+        "settingFamilies": ["db.db"],
+        "settingKeys": [
+          "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:active",
+          "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:timeframe"
+        ],
+        "requiresTestIntent": true
+      },
+      "appliesTo": {
+        "environments": ["uat"],
+        "regions": [],
+        "tenantTypes": []
+      },
+      "constants": ["channelId", "amount", "currency", "paymentBrand", "paymentType", "card", "merchantTransactionId"],
+      "variables": ["timing"],
+      "transactionPlan": {
+        "helper": "sdk.transactions.sendTestBatch",
+        "count": 3,
+        "phases": [
+          { "type": "burst", "count": 2 },
+          { "type": "wait", "msFromSetting": "timeframe + 1000", "minimumMs": 11000 },
+          { "type": "burst", "count": 1 }
+        ]
+      },
+      "expectedSignals": [
+        { "transactionIndex": 1, "verdict": "accepted", "resultCodePatterns": ["000.*"] },
+        { "transactionIndex": 2, "verdict": "duplicate_rejected", "resultCodePatterns": [], "requiresLiveCalibration": true },
+        { "transactionIndex": 3, "verdict": "accepted", "resultCodePatterns": ["000.*"] }
+      ],
+      "inconclusiveIf": [
+        "merchant account or route setup fails",
+        "all transactions fail before risk evaluation",
+        "result details do not expose the risk decision"
+      ],
+      "rendering": {
+        "summary": "Use the same merchantTransactionId and stable payment payload. If the timeframe is 10 seconds, send two transactions immediately, wait at least 11 seconds, then send the third."
+      }
+    }
+  ]
+}

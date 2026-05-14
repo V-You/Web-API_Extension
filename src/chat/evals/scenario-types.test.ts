@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { INITIAL_CHAT_SCENARIOS } from "./scenario-fixtures";
+import { CONFIG_TEST_RECIPE_SCENARIOS, INITIAL_CHAT_SCENARIOS } from "./scenario-fixtures";
 import { validateScenarioTrace, type ChatScenarioFixture } from "./scenario-types";
 
 describe("chat scenario eval helpers", () => {
@@ -36,5 +36,19 @@ describe("chat scenario eval helpers", () => {
       expect(scenario.prompt).toBeTruthy();
       expect(scenario.forbidden?.length).toBeGreaterThan(0);
     }
+  });
+
+  it("ships config-test recipe scenarios", () => {
+    expect(CONFIG_TEST_RECIPE_SCENARIOS.map((scenario) => scenario.id)).toEqual([
+      "duplicate-window-10s-current-channel",
+      "config-test-negative-list-channels",
+    ]);
+    expect(CONFIG_TEST_RECIPE_SCENARIOS[0].expectedRecipes).toEqual(["verification-fraud.duplicate-window"]);
+    expect(CONFIG_TEST_RECIPE_SCENARIOS[0].expectedWorkflowShape).toMatchObject({
+      transactionHelper: "sdk.transactions.sendTestBatch",
+      count: 3,
+      phaseTypes: ["burst", "wait", "burst"],
+    });
+    expect(CONFIG_TEST_RECIPE_SCENARIOS[1].expectedRecipes).toEqual([]);
   });
 });
