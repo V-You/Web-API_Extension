@@ -131,6 +131,33 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     });
   });
 
+  it("normalizes merchant account mid shorthand to merchantId and name", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.merchantAccounts.create("channel", "channel-1", {
+      clearingInstituteId: "ci-1",
+      mid: "MID-123",
+      paymentBrand: "VISA",
+      state: "LIVE",
+    });
+
+    expect(executeTypedToolMock).toHaveBeenCalledWith(
+      "create_merchant_account",
+      expect.objectContaining({
+        parentType: "channel",
+        parentId: "channel-1",
+        clearingInstituteId: "ci-1",
+        merchantId: "MID-123",
+        name: "MID-123",
+        paymentBrand: "VISA",
+        state: "LIVE",
+      }),
+      expect.objectContaining({ confirm: true }),
+    );
+    expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("mid");
+  });
+
   it("accepts merchant account update as an alias for edit", async () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);

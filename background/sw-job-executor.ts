@@ -87,6 +87,8 @@ function buildSwSdk(
     );
     if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
     if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
+    if (fields.mid && !fields.merchantId) fields.merchantId = fields.mid;
+    delete fields.mid;
     if (fields.clearingInstitute && !fields.clearingInstituteName) fields.clearingInstituteName = fields.clearingInstitute;
     delete fields.clearingInstitute;
     if (fields.merchantId && !fields.name) fields.name = fields.merchantId;
