@@ -111,13 +111,14 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);
 
-    const result = await sdk.merchantAccounts.create("merchant-1", { id: "MID-1", name: "MID one", status: "ACTIVE" });
+    const result = await sdk.merchantAccounts.create("merchant-1", { id: "MID-1", name: "MID one", status: "ACTIVE", clearingInstituteId: "8a8294175e7a703e015e802ca88315ca" });
 
     expect(executeTypedToolMock).toHaveBeenCalledWith(
       "create_merchant_account",
       expect.objectContaining({
         parentType: "merchant",
         parentId: "merchant-1",
+        clearingInstituteId: "8a8294175e7a703e015e802ca88315ca",
         merchantId: "MID-1",
         name: "MID one",
         state: "LIVE",
@@ -136,9 +137,8 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     const sdk = buildSdkFacade(creds, env, writes);
 
     await sdk.merchantAccounts.create("channel", "channel-1", {
-      clearingInstituteId: "ci-1",
+      clearingInstituteId: "8a8294175e7a703e015e802ca88315ca",
       mid: "MID-123",
-      paymentBrand: "VISA",
       state: "LIVE",
     });
 
@@ -147,15 +147,68 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
       expect.objectContaining({
         parentType: "channel",
         parentId: "channel-1",
-        clearingInstituteId: "ci-1",
+        clearingInstituteId: "8a8294175e7a703e015e802ca88315ca",
         merchantId: "MID-123",
         name: "MID-123",
-        paymentBrand: "VISA",
         state: "LIVE",
       }),
       expect.objectContaining({ confirm: true }),
     );
     expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("mid");
+  });
+
+  it("normalizes CI codes in clearingInstituteId to clearingInstituteName", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.merchantAccounts.create("merchant", "merchant-1", {
+      clearingInstituteId: "ACCEPTANCE",
+      merchantId: "RAND-123",
+      name: "RAND-123",
+      state: "LIVE",
+    });
+
+    expect(executeTypedToolMock).toHaveBeenCalledWith(
+      "create_merchant_account",
+      expect.objectContaining({
+        parentType: "merchant",
+        parentId: "merchant-1",
+        clearingInstituteName: "ACCEPTANCE",
+        merchantId: "RAND-123",
+        name: "RAND-123",
+        state: "LIVE",
+      }),
+      expect.objectContaining({ confirm: true }),
+    );
+    expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("clearingInstituteId");
+  });
+
+  it("rejects merchant account create without state before the API call", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await expect(sdk.merchantAccounts.create("channel", "channel-1", {
+      clearingInstituteId: "8a8294175e7a703e015e802ca88315ca",
+      merchantId: "MID-123",
+      name: "MID-123",
+    })).rejects.toThrow(/state/);
+
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-manifest merchant account create fields before the API call", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await expect(sdk.merchantAccounts.create("channel", "channel-1", {
+      clearingInstituteId: "8a8294175e7a703e015e802ca88315ca",
+      merchantId: "MID-123",
+      name: "MID-123",
+      state: "LIVE",
+      paymentBrand: "VISA",
+    })).rejects.toThrow(/paymentBrand/);
+
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
   });
 
   it("accepts merchant account update as an alias for edit", async () => {

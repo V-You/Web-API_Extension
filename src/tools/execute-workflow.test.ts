@@ -72,4 +72,19 @@ describe("execute_workflow declarative workflow mode", () => {
       results: [{ tool: "create_contact", result: { ok: true, status: 200, data: { id: "created" } } }],
     });
   });
+
+  it("rejects freeform planOnly scripts before unsafe evaluation", async () => {
+    const result = await executeWorkflow(
+      { script: "await sdk.contacts.list('merchant', 'm1');", planOnly: true },
+      {} as never,
+      "uat" as never,
+    );
+
+    expect(result).toMatchObject({
+      status: "error",
+      writeCount: 0,
+    });
+    expect("error" in result ? result.error : "").toMatch(/planOnly for freeform workflow scripts/);
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+  });
 });

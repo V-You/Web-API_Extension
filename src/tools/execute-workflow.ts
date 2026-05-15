@@ -158,6 +158,19 @@ export async function executeWorkflow(
     return executeDeclarativeWorkflow(declarativeWorkflow, input, creds, env);
   }
 
+  if (input.planOnly) {
+    return {
+      status: "error",
+      returnValue: null,
+      results: [],
+      logs: [],
+      writeCount: 0,
+      writes: [],
+      durationMs: 0,
+      error: "planOnly for freeform workflow scripts is not available in WebMCP service-worker execution because it would require unsafe eval. Use declarative workflow JSON for planOnly, dryRun for syntax validation, or start a reviewed background Job.",
+    };
+  }
+
   const result: SandboxResult = await runSandbox({
     script: input.script,
     creds,

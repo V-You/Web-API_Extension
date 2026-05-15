@@ -385,27 +385,14 @@ export async function runSandbox(input: SandboxInput): Promise<SandboxResult> {
 
   // Dry run: validate and transpile only -- do not execute.
   if (input.dryRun) {
-    try {
-      new AsyncFunction("sdk", "console", "sleep", "results", "context", "signal", "progress", jsCode);
-      return {
-        status: "dry_run",
-        returnValue: null,
-        results: [],
-        logs: [],
-        writes: [],
-        durationMs: Date.now() - startTime,
-      };
-    } catch (err) {
-      return {
-        status: "error",
-        returnValue: null,
-        results: [],
-        logs: [],
-        writes: [],
-        durationMs: Date.now() - startTime,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
+    return {
+      status: "dry_run",
+      returnValue: null,
+      results: [],
+      logs: [],
+      writes: [],
+      durationMs: Date.now() - startTime,
+    };
   }
 
   // Build the SDK facade

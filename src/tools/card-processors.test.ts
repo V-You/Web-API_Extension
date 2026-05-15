@@ -24,16 +24,16 @@ describe("card processor helpers", () => {
     const processors = normalizeCardProcessors({
       data: {
         clearingInstitutes: [
-          { id: "CI-1", name: "Processor one", fields: { key: "required" } },
+          { id: "8a8294175e7a703e015e802ca88315ca", ciCode: "BARCLAYS", name: "Barclays", fields: { key: "required" } },
         ],
       },
     });
 
     expect(processors).toEqual([
       {
-        id: "CI-1",
-        ciCode: "CI-1",
-        name: "Processor one",
+        id: "8a8294175e7a703e015e802ca88315ca",
+        ciCode: "BARCLAYS",
+        name: "Barclays",
         requiredFields: ["key"],
       },
     ]);

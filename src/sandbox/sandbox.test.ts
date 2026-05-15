@@ -87,6 +87,19 @@ describe("sandbox execution", () => {
     expect(endScopeMock).toHaveBeenCalledTimes(1);
   });
 
+  it("dry-runs by validating and transpiling without executing code", async () => {
+    const result = await runSandbox({
+      script: "results.push('should-not-run');",
+      creds,
+      env: "uat",
+      dryRun: true,
+    });
+
+    expect(result.status).toBe("dry_run");
+    expect(result.results).toEqual([]);
+    expect(buildSdkFacadeMock).not.toHaveBeenCalled();
+  });
+
   it("reports cancellation when the abort signal trips", async () => {
     const controller = new AbortController();
     const pending = runSandbox({

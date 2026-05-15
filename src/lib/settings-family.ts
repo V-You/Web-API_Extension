@@ -112,6 +112,12 @@ export function resolveSettingFamilies(query: string): FamilySearchExpansion {
       if (!normalizedAlias || !normalizedQuery.includes(normalizedAlias)) continue;
       matchedBy.add("alias");
       matchedInputs.add(family.aliases[index]);
+      if (family.shortcode === "db.db") {
+        blockedQueryTerms.add(normalizedAlias);
+        for (const token of normalizedAlias.split(" ")) {
+          if (token.length >= 3) blockedQueryTerms.add(token);
+        }
+      }
     }
 
     if (matchedBy.size === 0) continue;

@@ -53,8 +53,9 @@ function extractProcessorArray(result: unknown): unknown[] {
 function normalizeProcessor(entry: unknown): CardProcessorCandidate | null {
   if (!entry || typeof entry !== "object") return null;
   const source = entry as Record<string, unknown>;
-  const ciCode = String(source.ciCode ?? source.ci_code ?? source.id ?? source.code ?? source.name ?? "").trim();
+  const ciCode = String(source.ciCode ?? source.ci_code ?? source.code ?? source.name ?? source.id ?? "").trim();
   if (!ciCode) return null;
+  const id = String(source.id ?? source.clearingInstituteId ?? ciCode).trim() || ciCode;
   const name = String(source.name ?? source.displayName ?? source.ciName ?? ciCode).trim() || ciCode;
   const requiredFields = Array.isArray(source.requiredFields)
     ? source.requiredFields.map(String)
@@ -63,7 +64,7 @@ function normalizeProcessor(entry: unknown): CardProcessorCandidate | null {
       : [];
 
   return {
-    id: ciCode,
+    id,
     ciCode,
     name,
     requiredFields,

@@ -3,7 +3,7 @@
     {
       "shortcode": "db.db",
       "label": "Identifies Doublet within Timeframe",
-      "aliases": ["doublet check", "dupe check", "duplicate check"],
+      "aliases": ["doublet check", "dupe check", "duplicate check", "dupe", "dedup", "dedupe", "duplicate"],
       "rankingProfile": {
         "keyContainsBoosts": [
           ["/processing:risk/risk:doublication/", 220],

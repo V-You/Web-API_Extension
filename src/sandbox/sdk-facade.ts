@@ -24,6 +24,7 @@ import type { ApiCredentials, Environment } from "../lib/types";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { recordWrite } from "../bridge/write-status";
 import { executeTypedTool, type AdapterResult } from "../tools/adapter";
+import { knownFieldNames, pickOperation } from "../tools/manifest-helpers";
 import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
@@ -139,10 +140,50 @@ function toStringRecord(value: unknown): Record<string, string> {
   delete fields.id;
   if (fields.mid && !fields.merchantId) fields.merchantId = fields.mid;
   delete fields.mid;
+  if (fields.identification && !fields.merchantId) fields.merchantId = fields.identification;
+  delete fields.identification;
+  if (fields.merchant_id && !fields.merchantId) fields.merchantId = fields.merchant_id;
+  delete fields.merchant_id;
+  if (fields.merchant_name && !fields.name) fields.name = fields.merchant_name;
+  delete fields.merchant_name;
+  if (fields.merchantName && !fields.name) fields.name = fields.merchantName;
+  delete fields.merchantName;
   if (fields.clearingInstitute && !fields.clearingInstituteName) fields.clearingInstituteName = fields.clearingInstitute;
   delete fields.clearingInstitute;
+  if (fields.ciId && !fields.clearingInstituteId) fields.clearingInstituteId = fields.ciId;
+  delete fields.ciId;
+  normalizeClearingInstituteIdentifier(fields);
   if (fields.merchantId && !fields.name) fields.name = fields.merchantId;
   return fields;
+}
+
+function normalizeClearingInstituteIdentifier(fields: Record<string, string>) {
+  const id = fields.clearingInstituteId?.trim();
+  if (!id || /^[a-f0-9]{32}$/i.test(id)) return;
+  if (!fields.clearingInstituteName) fields.clearingInstituteName = id;
+  delete fields.clearingInstituteId;
+}
+
+function assertManifestFields(toolName: string, parentType: EntityType | null, fields: Record<string, string>) {
+  const op = pickOperation(toolName, parentType);
+  if (!op) throw new Error(`Unknown generated operation: ${toolName}`);
+  const known = knownFieldNames(op);
+  const unknown = Object.keys(fields).filter((field) => !known.has(field));
+  if (unknown.length > 0) {
+    const accepted = op.request.map((field) => field.name).sort();
+    throw new Error(`${toolName} received unknown field(s): ${unknown.join(", ")}. Accepted fields: ${accepted.join(", ")}`);
+  }
+}
+
+function assertMerchantAccountCreateContract(fields: Record<string, string>) {
+  const missing = ["name", "state", "merchantId"].filter((field) => !fields[field]);
+  if (!fields.clearingInstituteId && !fields.clearingInstituteName) missing.push("clearingInstituteId or clearingInstituteName");
+  if (missing.length > 0) {
+    throw new Error(
+      `create_merchant_account is missing required field(s): ${missing.join(", ")}. ` +
+        "Use sdk.merchantAccounts.create(parentType, parentId, { name, state: \"LIVE\", merchantId, clearingInstituteId or clearingInstituteName }).",
+    );
+  }
 }
 
 function normalizeMerchantAccountCreateArgs(args: unknown[]): { entityType: EntityType; entityId: string; fields: Record<string, string> } {
@@ -473,6 +514,8 @@ export function buildSdkFacade(
       },
       async create(...args: unknown[]) {
         const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
+        assertManifestFields("create_merchant_account", entityType, fields);
+        assertMerchantAccountCreateContract(fields);
         await confirmAndWrite(
           "manage_merchant_account", "create", "POST", entityId, entityType,
           `Create merchant account on ${entityType} ${entityId}`,
