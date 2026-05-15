@@ -134,7 +134,9 @@ function toStringRecord(value: unknown): Record<string, string> {
       .map(([key, entry]) => [key, String(entry)]),
   );
   if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
+  delete fields.status;
   if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
+  delete fields.id;
   if (fields.mid && !fields.merchantId) fields.merchantId = fields.mid;
   delete fields.mid;
   if (fields.clearingInstitute && !fields.clearingInstituteName) fields.clearingInstituteName = fields.clearingInstitute;

@@ -118,14 +118,14 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
       expect.objectContaining({
         parentType: "merchant",
         parentId: "merchant-1",
-        id: "MID-1",
         merchantId: "MID-1",
         name: "MID one",
-        status: "ACTIVE",
         state: "LIVE",
       }),
       expect.objectContaining({ confirm: true }),
     );
+    expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("id");
+    expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("status");
     expect(result).toMatchObject({
       data: { id: "MID-1", merchantAccountId: "MID-1", name: "MID one" },
     });

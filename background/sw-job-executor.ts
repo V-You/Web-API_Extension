@@ -21,6 +21,7 @@ import { listCardProcessors } from "../src/tools/card-processors";
 import { executeDescribeSettings } from "../src/tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
 import { executeSendTestTransaction, executeSendTestTransactions } from "../src/tools/send-test-transaction";
+import { knownFieldNames, pickOperation } from "../src/tools/manifest-helpers";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
 import { abortOffscreenJob, executeJobInOffscreen, type OffscreenJobExecuteResult } from "./offscreen-job-host";
@@ -86,7 +87,9 @@ function buildSwSdk(
         .map(([key, entry]) => [key, String(entry)]),
     );
     if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
+    delete fields.status;
     if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
+    delete fields.id;
     if (fields.mid && !fields.merchantId) fields.merchantId = fields.mid;
     delete fields.mid;
     if (fields.clearingInstitute && !fields.clearingInstituteName) fields.clearingInstituteName = fields.clearingInstitute;
@@ -119,6 +122,17 @@ function buildSwSdk(
       return { merchantAccountId, fields: toStringRecord(rest) };
     }
     return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
+  }
+
+  function assertManifestFields(toolName: string, parentType: EntityType | null, fields: Record<string, string>) {
+    const op = pickOperation(toolName, parentType);
+    if (!op) throw new Error(`Unknown generated operation: ${toolName}`);
+    const known = knownFieldNames(op);
+    const unknown = Object.keys(fields).filter((field) => !known.has(field));
+    if (unknown.length > 0) {
+      const accepted = op.request.map((field) => field.name).sort();
+      throw new Error(`${toolName} received unknown field(s): ${unknown.join(", ")}. Accepted fields: ${accepted.join(", ")}`);
+    }
   }
 
   function withMerchantAccountCreateAliases(result: unknown, fields: Record<string, string>): unknown {
@@ -398,6 +412,7 @@ function buildSwSdk(
       async create(...args: unknown[]) {
         const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
         await assertWorkflowTarget(entityType, entityId, "merchant account create");
+        assertManifestFields("create_merchant_account", entityType, fields);
         recordWrite("manage_merchant_account", "create", entityId, entityType, { fields });
         return withMerchantAccountCreateAliases(
           assertWriteSucceeded(await executeManageMerchantAccount({ action: "create", entityType, entityId, fields }, creds, env), "merchant account create"),
@@ -406,11 +421,13 @@ function buildSwSdk(
       },
       async edit(...args: unknown[]) {
         const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
+        assertManifestFields("edit_merchant_account", null, fields);
         recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
         return assertWriteSucceeded(await executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env), "merchant account edit");
       },
       async update(...args: unknown[]) {
         const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
+        assertManifestFields("edit_merchant_account", null, fields);
         recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
         return assertWriteSucceeded(await executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env), "merchant account edit");
       },
