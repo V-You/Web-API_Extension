@@ -54,6 +54,12 @@ import type {
   Params_unlock_contact,
 } from "../../src_data/webapi-sdk";
 
+type MerchantAccountCreateResult = AdapterResult & {
+  id?: string;
+  merchantAccountId?: string;
+  name?: string;
+};
+
 // Re-export the generated typed parameter shapes for code-mode script
 // authors and anyone wiring against the sandbox facade (Part-II P2-D3a --
 // ensures `webapi-sdk.d.ts` has a real runtime consumer).
@@ -186,6 +192,31 @@ function assertMerchantAccountCreateContract(fields: Record<string, string>) {
   }
 }
 
+function normalizeMerchantAccountAttachArgs(args: unknown[]): { entityType: EntityType; entityId: string; merchantAccountId: string; subTypes: string; currency: string } {
+  const [first, second, third, fourth, fifth] = args;
+  if (isRecord(first)) {
+    return {
+      entityType: String(first.parentType ?? first.entityType ?? "channel") as EntityType,
+      entityId: String(first.parentId ?? first.entityId ?? ""),
+      merchantAccountId: String(first.merchantAccountId ?? first.id ?? ""),
+      subTypes: normalizeListField(first.subTypes ?? first.subType ?? first.paymentBrand ?? first.paymentBrands),
+      currency: normalizeListField(first.currency ?? first.currencies),
+    };
+  }
+  return {
+    entityType: first as EntityType,
+    entityId: String(second ?? ""),
+    merchantAccountId: String(third ?? ""),
+    subTypes: normalizeListField(fourth),
+    currency: normalizeListField(fifth),
+  };
+}
+
+function normalizeListField(value: unknown): string {
+  if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean).join(",");
+  return String(value ?? "").trim();
+}
+
 function normalizeMerchantAccountCreateArgs(args: unknown[]): { entityType: EntityType; entityId: string; fields: Record<string, string> } {
   const [first, second, third] = args;
   if (isRecord(first)) {
@@ -212,18 +243,28 @@ function normalizeMerchantAccountEditArgs(args: unknown[]): { merchantAccountId:
   return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
 }
 
-function withMerchantAccountCreateAliases(result: AdapterResult, fields: Record<string, string>): AdapterResult {
+function withMerchantAccountCreateAliases(result: AdapterResult, fields: Record<string, string>): MerchantAccountCreateResult {
   const data = isRecord(result.data) ? result.data : {};
   const merchantAccountId = String(data.merchantAccountId ?? data.id ?? fields.merchantAccountId ?? fields.id ?? fields.merchantId ?? "");
   const name = String(data.name ?? fields.name ?? merchantAccountId);
+  const aliases = {
+    ...(merchantAccountId ? { id: merchantAccountId, merchantAccountId } : {}),
+    ...(name ? { name } : {}),
+  };
   return {
     ...result,
+    ...aliases,
     data: {
       ...data,
-      ...(merchantAccountId ? { id: data.id ?? merchantAccountId, merchantAccountId } : {}),
-      ...(name ? { name } : {}),
+      ...aliases,
     },
   };
+}
+
+function assertMerchantAccountAttachContract(merchantAccountId: string) {
+  if (!merchantAccountId.trim()) {
+    throw new Error("merchant account attach failed: merchantAccountId is required. Use the id or merchantAccountId returned by sdk.merchantAccounts.create().");
+  }
 }
 
 /**
@@ -547,6 +588,10 @@ export function buildSdkFacade(
         if (options.planOnlyWrites) return plannedResult("edit_merchant_account", { merchantAccountId, ...fields });
         return runTyped("edit_merchant_account", { merchantAccountId, ...fields });
       },
+      async activate(...args: unknown[]) {
+        const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
+        return this.attach(entityType, entityId, merchantAccountId, subTypes, currency);
+      },
       async delete(merchantAccountId: string) {
         await confirmAndWrite(
           "manage_merchant_account", "delete", "DELETE", merchantAccountId, "merchant_account",
@@ -556,7 +601,9 @@ export function buildSdkFacade(
         if (options.planOnlyWrites) return plannedResult("delete_merchant_account", { merchantAccountId });
         return runTyped("delete_merchant_account", { merchantAccountId });
       },
-      async attach(entityType: EntityType, entityId: string, merchantAccountId: string, subTypes: string, currency: string) {
+      async attach(...args: unknown[]) {
+        const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
+        assertMerchantAccountAttachContract(merchantAccountId);
         // Part-II P2-D3 fix: pass merchantAccountId/subTypes/currency at top level
         // through the adapter, which coerces and form-encodes them. The previous
         // nested-under-`fields` shape short-circuited the internal handler.

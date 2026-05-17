@@ -87,11 +87,17 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("include name, state, merchantId, and either clearingInstituteId or clearingInstituteName");
     expect(prompt).toContain("clearingInstituteId must be a 32-character API UUID");
     expect(prompt).toContain("Do not use mid, identification, paymentBrand, paymentBrands, brands, or config fields");
+    expect(prompt).toContain("do not edit the Merchant Account with subTypes");
+    expect(prompt).toContain("const merchantAccountId = ma.id || ma.merchantAccountId");
+    expect(prompt).toContain("sdk.merchantAccounts.attach(context.entityType, context.entityId, merchantAccountId, \"VISA\", \"EUR\")");
     expect(prompt).toContain("Use clearingInstituteId: processor.id only when id is a 32-character API UUID");
+    expect(prompt).toContain("fuzzy-match against name and ciCode case-insensitively");
+    expect(prompt).toContain("Use the matched processor's exact API UUID as clearingInstituteId");
+    expect(prompt).toContain("Do not invent display names such as Elavon when the available name is ELAVON_CI");
     expect(prompt).toContain("sdk.merchantAccounts.update(merchantAccountId, fields)");
     expect(prompt).toContain("use state: \"LIVE\" rather than status: \"ACTIVE\"");
     expect(prompt).toContain("sdk.cardProcessors.list(context.ids?.pspId)");
-    expect(prompt).toContain("PSP ID is optional");
+    expect(prompt).toContain("the SDK derives the PSP ID from current context when possible");
     expect(prompt).toContain("sdk.cardProcessors.list returns an array");
     expect(prompt).toContain("context.id/context.type");
     expect(prompt).toContain("sdk.transactions.sendTest");
@@ -101,6 +107,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("If transaction testing recipe context is present above");
     expect(prompt).toContain("Return only valid JSON");
     expect(prompt).toContain("The response must parse with JSON.parse");
+    expect(prompt).toContain("Write executable top-level workflow code directly");
     expect(prompt).toContain("Do not use sdk.management or sdk.manage_entity namespaces.");
     expect(prompt).toContain("The BIP glossary maps users to contacts.");
     expect(prompt).toContain("Create contacts with sdk.contacts.create(entityType, entityId, fields).");

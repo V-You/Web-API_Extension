@@ -245,6 +245,39 @@ function buildCompilationError(issues: string[]): string {
   return lines.join("\n");
 }
 
+function shouldAutoInvokeRunWorkflow(source: ts.SourceFile): boolean {
+  const tsModule = getTypeScript();
+  let hasTopLevelRunWorkflow = false;
+  let hasRunWorkflowCall = false;
+
+  for (const statement of source.statements) {
+    if (tsModule.isFunctionDeclaration(statement) && statement.name?.text === "runWorkflow") {
+      hasTopLevelRunWorkflow = true;
+      continue;
+    }
+
+    const visit = (node: ts.Node) => {
+      if (
+        tsModule.isCallExpression(node)
+        && tsModule.isIdentifier(node.expression)
+        && node.expression.text === "runWorkflow"
+      ) {
+        hasRunWorkflowCall = true;
+      }
+      tsModule.forEachChild(node, visit);
+    };
+
+    visit(statement);
+  }
+
+  return hasTopLevelRunWorkflow && !hasRunWorkflowCall;
+}
+
+function appendRunWorkflowCallIfNeeded(script: string, source: ts.SourceFile): string {
+  if (!shouldAutoInvokeRunWorkflow(source)) return script;
+  return `${script.trimEnd()}\n\nawait runWorkflow();\n`;
+}
+
 function collectSandboxIssues(source: ts.SourceFile): string[] {
   const tsModule = getTypeScript();
   const declaredNames = collectDeclaredNames(source);
@@ -333,7 +366,8 @@ export async function compileSandboxScript(script: string): Promise<SandboxCompi
     };
   }
 
-  const transpiled = tsModule.transpileModule(script, transpileOptions);
+  const executableScript = appendRunWorkflowCallIfNeeded(script, source);
+  const transpiled = tsModule.transpileModule(executableScript, transpileOptions);
   const diagnostics = (transpiled.diagnostics ?? [])
     .filter((diagnostic) => diagnostic.category === tsModule.DiagnosticCategory.Error)
     .map((diagnostic) => formatDiagnostic(diagnostic, source));

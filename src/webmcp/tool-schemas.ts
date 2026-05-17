@@ -217,8 +217,8 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
     name: "lookup_clearing_institutes",
     title: "Lookup clearing institutes",
     description:
-      "Search clearing institutes by keyword, get required field mappings for a CI, " +
-      "or list live CIs from the API.",
+      "Search Clearing Institutes by keyword, get required field mappings for a CI, " +
+      "or list/filter live PSP-scoped CIs from the API. Use pspId plus query when the user asks for the API ID/name to use in Merchant Account create.",
     annotations: { readOnlyHint: true },
     inputSchema: {
       type: "object",
@@ -228,9 +228,9 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           enum: ["search", "get_fields", "list_live"],
           description: "The operation to perform.",
         },
-        query: { type: "string", description: "Search keyword (for search action)." },
-        ciCode: { type: "string", description: "Exact CI code (for get_fields)." },
-        pspId: { type: "string", description: "PSP ID (for list_live)." },
+        query: { type: "string", description: "Search/filter keyword. With pspId, returns live API matches including id and exact name." },
+        ciCode: { type: "string", description: "Exact bundled CI code for get_fields. This is not the live API id." },
+        pspId: { type: "string", description: "PSP ID for live API lookup. Needed to return the 32-character clearingInstituteId." },
       },
       required: ["action"],
       additionalProperties: false,

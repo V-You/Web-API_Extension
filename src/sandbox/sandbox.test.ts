@@ -100,6 +100,40 @@ describe("sandbox execution", () => {
     expect(buildSdkFacadeMock).not.toHaveBeenCalled();
   });
 
+  it("auto-invokes a top-level runWorkflow declaration", async () => {
+    const result = await runSandbox({
+      script: `
+async function runWorkflow() {
+  progress(1, 1, "ran");
+  results.push("ran");
+}
+`,
+      creds,
+      env: "uat",
+      timeoutMs: 100,
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.results).toEqual(["ran"]);
+  });
+
+  it("does not double-invoke runWorkflow when the script already calls it", async () => {
+    const result = await runSandbox({
+      script: `
+async function runWorkflow() {
+  results.push("ran");
+}
+await runWorkflow();
+`,
+      creds,
+      env: "uat",
+      timeoutMs: 100,
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.results).toEqual(["ran"]);
+  });
+
   it("reports cancellation when the abort signal trips", async () => {
     const controller = new AbortController();
     const pending = runSandbox({

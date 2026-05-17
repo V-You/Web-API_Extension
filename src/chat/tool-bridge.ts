@@ -292,6 +292,13 @@ function applyContextDefaults(
     return next;
   }
 
+  if (name === "lookup_clearing_institutes") {
+    const packet = contextPacketFor(options.context ?? null);
+    const pspId = packet?.ids.pspId ?? packet?.parentChain?.find((entry) => entry.entityType === "psp")?.entityId;
+    if (!pspId || args.pspId) return args;
+    return { ...args, pspId };
+  }
+
   if (name !== "send_test_transaction") return args;
   const resolved = resolveChannelMerchantFromContext(options.context ?? null);
   if (!resolved) return args;

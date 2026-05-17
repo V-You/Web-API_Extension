@@ -107,6 +107,60 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     expect(params).not.toHaveProperty("fields");
   });
 
+  it("normalizes merchant account attach object args and array subTypes", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.merchantAccounts.attach({
+      parentType: "channel",
+      parentId: "channel-1",
+      merchantAccountId: "ma-456",
+      subTypes: ["VISA"],
+      currency: "EUR",
+    });
+
+    expect(executeTypedToolMock).toHaveBeenCalledWith(
+      "attach_merchant_account",
+      {
+        parentType: "channel",
+        parentId: "channel-1",
+        merchantAccountId: "ma-456",
+        subTypes: "VISA",
+        currency: "EUR",
+      },
+      expect.objectContaining({ confirm: true }),
+    );
+  });
+
+  it("routes merchant account activate alias through attach", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await sdk.merchantAccounts.activate("channel", "channel-1", "ma-456", ["VISA"], "USD");
+
+    expect(executeTypedToolMock).toHaveBeenCalledWith(
+      "attach_merchant_account",
+      expect.objectContaining({
+        parentType: "channel",
+        parentId: "channel-1",
+        merchantAccountId: "ma-456",
+        subTypes: "VISA",
+        currency: "USD",
+      }),
+      expect.objectContaining({ confirm: true }),
+    );
+  });
+
+  it("rejects merchant account attach without an id before recording a write", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await expect(sdk.merchantAccounts.attach("channel", "channel-1", "", "VISA", "EUR")).rejects.toThrow(/merchantAccountId is required/);
+
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
+  });
+
   it("accepts merchant account create shorthand with merchant parent id", async () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);
@@ -128,8 +182,31 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("id");
     expect(executeTypedToolMock.mock.calls[0][1]).not.toHaveProperty("status");
     expect(result).toMatchObject({
+      id: "MID-1",
+      merchantAccountId: "MID-1",
+      name: "MID one",
       data: { id: "MID-1", merchantAccountId: "MID-1", name: "MID one" },
     });
+  });
+
+  it("returns top-level merchant account aliases for follow-up attach calls", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    const ma = await sdk.merchantAccounts.create("channel", "channel-1", {
+      clearingInstituteId: "8a8294175e7a703e015e802ca88315ca",
+      merchantId: "MID-123",
+      name: "MID-123",
+      state: "LIVE",
+    });
+
+    await sdk.merchantAccounts.attach("channel", "channel-1", (ma as unknown as { id: string }).id, "VISA", "EUR");
+
+    expect(executeTypedToolMock).toHaveBeenLastCalledWith(
+      "attach_merchant_account",
+      expect.objectContaining({ merchantAccountId: "MID-123", subTypes: "VISA", currency: "EUR" }),
+      expect.objectContaining({ confirm: true }),
+    );
   });
 
   it("normalizes merchant account mid shorthand to merchantId and name", async () => {

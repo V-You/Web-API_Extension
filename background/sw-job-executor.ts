@@ -164,19 +164,54 @@ function buildSwSdk(
     }
   }
 
+  function normalizeListField(value: unknown): string {
+    if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean).join(",");
+    return String(value ?? "").trim();
+  }
+
+  function normalizeMerchantAccountAttachArgs(args: unknown[]): { entityType: EntityType; entityId: string; merchantAccountId: string; subTypes: string; currency: string } {
+    const [first, second, third, fourth, fifth] = args;
+    if (isRecord(first)) {
+      return {
+        entityType: String(first.parentType ?? first.entityType ?? "channel") as EntityType,
+        entityId: String(first.parentId ?? first.entityId ?? ""),
+        merchantAccountId: String(first.merchantAccountId ?? first.id ?? ""),
+        subTypes: normalizeListField(first.subTypes ?? first.subType ?? first.paymentBrand ?? first.paymentBrands),
+        currency: normalizeListField(first.currency ?? first.currencies),
+      };
+    }
+    return {
+      entityType: first as EntityType,
+      entityId: String(second ?? ""),
+      merchantAccountId: String(third ?? ""),
+      subTypes: normalizeListField(fourth),
+      currency: normalizeListField(fifth),
+    };
+  }
+
   function withMerchantAccountCreateAliases(result: unknown, fields: Record<string, string>): unknown {
     if (!isRecord(result)) return result;
     const data = isRecord(result.data) ? result.data : {};
     const merchantAccountId = String(data.merchantAccountId ?? data.id ?? fields.merchantAccountId ?? fields.id ?? fields.merchantId ?? "");
     const name = String(data.name ?? fields.name ?? merchantAccountId);
+    const aliases = {
+      ...(merchantAccountId ? { id: merchantAccountId, merchantAccountId } : {}),
+      ...(name ? { name } : {}),
+    };
     return {
       ...result,
+      ...aliases,
       data: {
         ...data,
-        ...(merchantAccountId ? { id: data.id ?? merchantAccountId, merchantAccountId } : {}),
-        ...(name ? { name } : {}),
+        ...aliases,
       },
     };
+  }
+
+  function assertMerchantAccountAttachContract(merchantAccountId: string) {
+    if (!merchantAccountId.trim()) {
+      throw new Error("merchant account attach failed: merchantAccountId is required. Use the id or merchantAccountId returned by sdk.merchantAccounts.create().");
+    }
   }
 
   function unwrapApiData(result: unknown): unknown {
@@ -250,6 +285,19 @@ function buildSwSdk(
     return null;
   }
 
+  function extractParentId(value: unknown, parentType: EntityType): string | null {
+    if (!isRecord(value)) return null;
+    const field = `${parentType}Id`;
+    const direct = value[field];
+    if (typeof direct === "string" && direct.trim()) return direct.trim();
+    if (isRecord(value._parent) && value._parent.type === parentType && typeof value._parent.id === "string") {
+      return value._parent.id.trim() || null;
+    }
+    if (isRecord(value.data)) return extractParentId(value.data, parentType);
+    if (isRecord(value.entity)) return extractParentId(value.entity, parentType);
+    return null;
+  }
+
   async function resolveTransactionMerchantId(params: Record<string, unknown>, channelId: string): Promise<string> {
     const supplied = String(params.merchantId ?? "").trim();
     if (supplied) return supplied;
@@ -284,6 +332,32 @@ function buildSwSdk(
     if (!channelId) return null;
     const entity = await executeManageEntity({ action: "get", entityType: "channel", entityId: channelId }, creds, env);
     return extractMerchantId(entity);
+  }
+
+  async function currentPspId(): Promise<string | null> {
+    const fromIds = runtimeContext?.ids?.pspId?.trim();
+    if (fromIds) return fromIds;
+    if (runtimeContext?.entityType === "psp" && runtimeContext.entityId) return runtimeContext.entityId;
+
+    const divisionFromIds = runtimeContext?.ids?.divisionId?.trim();
+    if (divisionFromIds) {
+      const division = await executeManageEntity({ action: "get", entityType: "division", entityId: divisionFromIds }, creds, env);
+      const pspId = extractParentId(division, "psp");
+      if (pspId) return pspId;
+    }
+
+    let merchantId = runtimeContext?.ids?.merchantId?.trim() ?? null;
+    if (!merchantId && runtimeContext?.entityType === "merchant" && runtimeContext.entityId) merchantId = runtimeContext.entityId;
+    if (!merchantId) merchantId = await currentMerchantId();
+    if (!merchantId) return null;
+
+    const merchant = await executeManageEntity({ action: "get", entityType: "merchant", entityId: merchantId }, creds, env);
+    const pspFromMerchant = extractParentId(merchant, "psp");
+    if (pspFromMerchant) return pspFromMerchant;
+    const divisionId = extractParentId(merchant, "division");
+    if (!divisionId) return null;
+    const division = await executeManageEntity({ action: "get", entityType: "division", entityId: divisionId }, creds, env);
+    return extractParentId(division, "psp");
   }
 
   async function assertWorkflowTarget(entityType: EntityType, entityId: string, action: string): Promise<void> {
@@ -461,11 +535,17 @@ function buildSwSdk(
         recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
         return assertWriteSucceeded(await executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env), "merchant account edit");
       },
+      async activate(...args: unknown[]) {
+        const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
+        return this.attach(entityType, entityId, merchantAccountId, subTypes, currency);
+      },
       async delete(merchantAccountId: string) {
         recordWrite("manage_merchant_account", "delete", merchantAccountId, "merchant_account", {});
         return assertWriteSucceeded(await executeManageMerchantAccount({ action: "delete", merchantAccountId }, creds, env), "merchant account delete");
       },
-      async attach(entityType: EntityType, entityId: string, merchantAccountId: string, subTypes: string, currency: string) {
+      async attach(...args: unknown[]) {
+        const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
+        assertMerchantAccountAttachContract(merchantAccountId);
         await assertWorkflowTarget(entityType, entityId, "merchant account attach");
         recordWrite("manage_merchant_account", "attach", entityId, entityType, { merchantAccountId, subTypes, currency });
         return assertWriteSucceeded(await executeManageMerchantAccount({ action: "attach", entityType, entityId, merchantAccountId, subTypes, currency }, creds, env), "merchant account attach");
@@ -491,10 +571,10 @@ function buildSwSdk(
     },
     cardProcessors: {
       async list(pspId?: string) {
-        return listCardProcessors(pspId, creds, env);
+        return listCardProcessors(pspId || await currentPspId() || undefined, creds, env);
       },
       async listLive(pspId?: string) {
-        return listCardProcessors(pspId, creds, env);
+        return listCardProcessors(pspId || await currentPspId() || undefined, creds, env);
       },
       async search(query: string) {
         return executeLookupClearingInstitutes({ action: "search", query }, creds, env);

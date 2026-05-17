@@ -38,4 +38,23 @@ describe("card processor helpers", () => {
       },
     ]);
   });
+
+  it("normalizes live API clearingInstitute and internationalCode fields", () => {
+    const processors = normalizeCardProcessors({
+      data: {
+        clearingInstitutes: [
+          { id: "8a8294175e7a703e015e802ca88315ca", clearingInstitute: "BARCLAYS_CI", internationalCode: "BARCLAYS" },
+        ],
+      },
+    });
+
+    expect(processors).toEqual([
+      {
+        id: "8a8294175e7a703e015e802ca88315ca",
+        ciCode: "BARCLAYS",
+        name: "BARCLAYS_CI",
+        requiredFields: [],
+      },
+    ]);
+  });
 });
