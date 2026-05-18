@@ -274,28 +274,37 @@ function buildSwSdk(
   }
 
   function extractMerchantId(value: unknown): string | null {
-    if (!isRecord(value)) return null;
-    const direct = value.merchantId ?? value.sender ?? value.parentId;
-    if (typeof direct === "string" && direct.trim()) return direct.trim();
-    if (isRecord(value._parent) && value._parent.type === "merchant" && typeof value._parent.id === "string") {
-      return value._parent.id.trim() || null;
+    for (const record of unwrapEntityRecords(value)) {
+      const direct = record.merchantId ?? record.sender ?? record.parentId;
+      if (typeof direct === "string" && direct.trim()) return direct.trim();
+      if (isRecord(direct) && typeof direct.id === "string" && direct.id.trim()) return direct.id.trim();
+      if (isRecord(record._parent) && record._parent.type === "merchant" && typeof record._parent.id === "string") {
+        return record._parent.id.trim() || null;
+      }
     }
-    if (isRecord(value.data)) return extractMerchantId(value.data);
-    if (isRecord(value.entity)) return extractMerchantId(value.entity);
     return null;
   }
 
   function extractParentId(value: unknown, parentType: EntityType): string | null {
-    if (!isRecord(value)) return null;
     const field = `${parentType}Id`;
-    const direct = value[field];
-    if (typeof direct === "string" && direct.trim()) return direct.trim();
-    if (isRecord(value._parent) && value._parent.type === parentType && typeof value._parent.id === "string") {
-      return value._parent.id.trim() || null;
+    for (const record of unwrapEntityRecords(value)) {
+      const direct = record[field];
+      if (typeof direct === "string" && direct.trim()) return direct.trim();
+      if (isRecord(record._parent) && record._parent.type === parentType && typeof record._parent.id === "string") {
+        return record._parent.id.trim() || null;
+      }
     }
-    if (isRecord(value.data)) return extractParentId(value.data, parentType);
-    if (isRecord(value.entity)) return extractParentId(value.entity, parentType);
     return null;
+  }
+
+  function unwrapEntityRecords(value: unknown): Record<string, unknown>[] {
+    if (!isRecord(value)) return [];
+    const records: Record<string, unknown>[] = [value];
+    for (const key of ["data", "entity", "channel", "channelInfo", "merchant", "merchantInfo", "division", "divisionInfo"]) {
+      const child = value[key];
+      if (isRecord(child)) records.push(...unwrapEntityRecords(child));
+    }
+    return records;
   }
 
   async function resolveTransactionMerchantId(params: Record<string, unknown>, channelId: string): Promise<string> {
@@ -358,6 +367,44 @@ function buildSwSdk(
     if (!divisionId) return null;
     const division = await executeManageEntity({ action: "get", entityType: "division", entityId: divisionId }, creds, env);
     return extractParentId(division, "psp");
+  }
+
+  async function pspIdForLiveCardProcessors(supplied?: string): Promise<string | undefined> {
+    const trimmed = supplied?.trim();
+    if (trimmed) return trimmed;
+    const derived = await currentPspId();
+    if (derived) return derived;
+    if (runtimeContext?.entityId) {
+      throw new Error("Could not derive PSP ID for live Clearing Institute lookup from the current workflow context. Use lookup_clearing_institutes with a PSP ID, or provide an exact clearingInstituteId from the live PSP list.");
+    }
+    return undefined;
+  }
+
+  async function resolveMerchantAccountClearingInstitute(fields: Record<string, string>): Promise<Record<string, string>> {
+    if (fields.clearingInstituteId && /^[a-f0-9]{32}$/i.test(fields.clearingInstituteId)) return fields;
+    const query = fields.clearingInstituteName?.trim();
+    if (!query) return fields;
+    const pspId = await currentPspId();
+    if (!pspId) return fields;
+
+    const lookup = await executeLookupClearingInstitutes({ action: "search", query, pspId }, creds, env);
+    if (!isRecord(lookup)) return fields;
+    const lookupRecord = lookup as Record<string, unknown>;
+    const recommended = isRecord(lookupRecord.recommended) ? lookupRecord.recommended : null;
+    const recommendedId = stringValue(recommended?.id);
+    const recommendedName = stringValue(recommended?.name);
+
+    if (recommendedId && /^[a-f0-9]{32}$/i.test(recommendedId)) {
+      const resolved: Record<string, string> = { ...fields, clearingInstituteId: recommendedId };
+      delete resolved.clearingInstituteName;
+      return resolved;
+    }
+    if (recommendedName) return { ...fields, clearingInstituteName: recommendedName };
+
+    if (lookupRecord.matchCount === 0) {
+      throw new Error(`Unable to resolve Clearing Institute "${query}" in live PSP ${pspId}. Use sdk.cardProcessors.list(context.ids?.pspId) and select one of the returned exact names or IDs.`);
+    }
+    return fields;
   }
 
   async function assertWorkflowTarget(entityType: EntityType, entityId: string, action: string): Promise<void> {
@@ -513,7 +560,8 @@ function buildSwSdk(
         return executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env);
       },
       async create(...args: unknown[]) {
-        const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
+        const { entityType, entityId, fields: rawFields } = normalizeMerchantAccountCreateArgs(args);
+        const fields = await resolveMerchantAccountClearingInstitute(rawFields);
         await assertWorkflowTarget(entityType, entityId, "merchant account create");
         assertManifestFields("create_merchant_account", entityType, fields);
         assertMerchantAccountCreateContract(fields);
@@ -571,10 +619,10 @@ function buildSwSdk(
     },
     cardProcessors: {
       async list(pspId?: string) {
-        return listCardProcessors(pspId || await currentPspId() || undefined, creds, env);
+        return listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env);
       },
       async listLive(pspId?: string) {
-        return listCardProcessors(pspId || await currentPspId() || undefined, creds, env);
+        return listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env);
       },
       async search(query: string) {
         return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
