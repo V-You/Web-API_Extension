@@ -155,7 +155,17 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);
 
-    await expect(sdk.merchantAccounts.attach("channel", "channel-1", "", "VISA", "EUR")).rejects.toThrow(/merchantAccountId is required/);
+    await expect(sdk.merchantAccounts.attach("channel", "channel-1", "", "VISA", "EUR")).rejects.toThrow(/merchantAccountId/);
+
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("rejects merchant account attach without currency before recording a write", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await expect(sdk.merchantAccounts.attach("channel", "channel-1", "ma-456", "VISA", "")).rejects.toThrow(/currency/);
 
     expect(executeTypedToolMock).not.toHaveBeenCalled();
     expect(writes).toHaveLength(0);

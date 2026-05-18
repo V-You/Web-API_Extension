@@ -208,9 +208,13 @@ function buildSwSdk(
     };
   }
 
-  function assertMerchantAccountAttachContract(merchantAccountId: string) {
-    if (!merchantAccountId.trim()) {
-      throw new Error("merchant account attach failed: merchantAccountId is required. Use the id or merchantAccountId returned by sdk.merchantAccounts.create().");
+  function assertMerchantAccountAttachFields(merchantAccountId: string, subTypes: string, currency: string) {
+    const missing: string[] = [];
+    if (!merchantAccountId.trim()) missing.push("merchantAccountId");
+    if (!subTypes.trim()) missing.push("subTypes");
+    if (!currency.trim()) missing.push("currency");
+    if (missing.length > 0) {
+      throw new Error(`merchant account attach failed: Missing required field(s): ${missing.join(", ")}. Use sdk.merchantAccounts.attach(entityType, entityId, merchantAccountId, "VISA", "EUR") or attach once per currency.`);
     }
   }
 
@@ -593,7 +597,7 @@ function buildSwSdk(
       },
       async attach(...args: unknown[]) {
         const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
-        assertMerchantAccountAttachContract(merchantAccountId);
+        assertMerchantAccountAttachFields(merchantAccountId, subTypes, currency);
         await assertWorkflowTarget(entityType, entityId, "merchant account attach");
         recordWrite("manage_merchant_account", "attach", entityId, entityType, { merchantAccountId, subTypes, currency });
         return assertWriteSucceeded(await executeManageMerchantAccount({ action: "attach", entityType, entityId, merchantAccountId, subTypes, currency }, creds, env), "merchant account attach");

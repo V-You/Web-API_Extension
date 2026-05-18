@@ -261,9 +261,13 @@ function withMerchantAccountCreateAliases(result: AdapterResult, fields: Record<
   };
 }
 
-function assertMerchantAccountAttachContract(merchantAccountId: string) {
-  if (!merchantAccountId.trim()) {
-    throw new Error("merchant account attach failed: merchantAccountId is required. Use the id or merchantAccountId returned by sdk.merchantAccounts.create().");
+function assertMerchantAccountAttachFields(merchantAccountId: string, subTypes: string, currency: string) {
+  const missing: string[] = [];
+  if (!merchantAccountId.trim()) missing.push("merchantAccountId");
+  if (!subTypes.trim()) missing.push("subTypes");
+  if (!currency.trim()) missing.push("currency");
+  if (missing.length > 0) {
+    throw new Error(`merchant account attach failed: Missing required field(s): ${missing.join(", ")}. Use sdk.merchantAccounts.attach(entityType, entityId, merchantAccountId, "VISA", "EUR") or attach once per currency.`);
   }
 }
 
@@ -603,7 +607,7 @@ export function buildSdkFacade(
       },
       async attach(...args: unknown[]) {
         const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
-        assertMerchantAccountAttachContract(merchantAccountId);
+        assertMerchantAccountAttachFields(merchantAccountId, subTypes, currency);
         // Part-II P2-D3 fix: pass merchantAccountId/subTypes/currency at top level
         // through the adapter, which coerces and form-encodes them. The previous
         // nested-under-`fields` shape short-circuited the internal handler.
