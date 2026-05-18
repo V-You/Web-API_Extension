@@ -83,6 +83,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Do not use import, export, require, fetch");
     expect(prompt).toContain("sdk.settings.edit(entityType, entityId, settings)");
     expect(prompt).toContain("sdk.config.update(entityType, entityId, settings)");
+    expect(prompt).toContain("Use native typed values, for example active: true and timeframe: 10");
     expect(prompt).toContain("sdk.merchantAccounts.create(parentType, parentId, fields)");
     expect(prompt).toContain("include name, state, merchantId, and either clearingInstituteId or clearingInstituteName");
     expect(prompt).toContain("clearingInstituteId must be a 32-character API UUID");

@@ -22,6 +22,25 @@ describe("settings proxy", () => {
     ]);
   });
 
+  it("coerces string primitives for known typed flat RiRo keys", () => {
+    const result = flattenSettings({
+      "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:active": "true",
+      "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:timeframe": "10",
+    });
+
+    expect(result).toMatchObject({ ok: true, errors: [] });
+    expect(result.settings).toEqual([
+      expect.objectContaining({
+        flatKey: "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:active",
+        value: "true",
+      }),
+      expect.objectContaining({
+        flatKey: "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:timeframe",
+        value: "10",
+      }),
+    ]);
+  });
+
   it("rejects hallucinated setting paths", () => {
     const result = flattenSettings({ "ib.dupeCheck.active": "true" });
 

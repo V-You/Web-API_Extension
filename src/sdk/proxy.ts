@@ -53,9 +53,10 @@ function walkObject(
   for (const [key, value] of Object.entries(obj)) {
     const flatMeta = getByKey(key);
     if (flatMeta) {
-      const stringValue = valueToString(value);
+      const typedValue = coerceForMeta(flatMeta, value);
+      const stringValue = valueToString(typedValue);
       if (flatMeta.tier === "A" && flatMeta.schema) {
-        const parsed = flatMeta.schema.safeParse(value);
+        const parsed = flatMeta.schema.safeParse(typedValue);
         if (!parsed.success) {
           const issues = parsed.error.issues.map((issue) => issue.message).join("; ");
           errors.push(`Validation failed for ${flatMeta.sdkPath}: ${issues}`);
@@ -92,10 +93,11 @@ function walkObject(
     } else if (child.setting) {
       // Leaf node -- validate and emit
       const meta = child.setting;
-      const stringValue = valueToString(value);
+      const typedValue = coerceForMeta(meta, value);
+      const stringValue = valueToString(typedValue);
 
       if (meta.tier === "A" && meta.schema) {
-        const parsed = meta.schema.safeParse(value);
+        const parsed = meta.schema.safeParse(typedValue);
         if (!parsed.success) {
           const issues = parsed.error.issues.map((i) => i.message).join("; ");
           errors.push(`Validation failed for ${sdkPath}: ${issues}`);
@@ -113,6 +115,28 @@ function walkObject(
         `${sdkPath} is not a leaf setting and has no further children matching the provided value.`
       );
     }
+  }
+}
+
+function coerceForMeta(meta: { riroType: string }, value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  switch (meta.riroType.toLowerCase()) {
+    case "boolean":
+      if (/^(true|1|yes)$/i.test(trimmed)) return true;
+      if (/^(false|0|no)$/i.test(trimmed)) return false;
+      return value;
+    case "integer":
+    case "number": {
+      if (!trimmed) return value;
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : value;
+    }
+    case "stringlist":
+    case "list":
+      return trimmed ? trimmed.split(",").map((entry) => entry.trim()).filter(Boolean) : [];
+    default:
+      return value;
   }
 }
 
