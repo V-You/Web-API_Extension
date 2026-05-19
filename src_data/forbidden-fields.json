@@ -1,0 +1,24 @@
+{
+  "$schema": "Data-driven deny list for invented fields the model tends to send. Keyed by tool name (matches operation manifest tool names). Each forbidden field has a 'reason' explaining why it is rejected and a 'canonical' field name to point the model at the correct shape.",
+  "version": 1,
+  "operations": {
+    "create_merchant_account": {
+      "paymentBrand": {
+        "reason": "create_merchant_account does not accept paymentBrand. Payment brands are attached later via attach_merchant_account.",
+        "canonical": "subTypes (on attach_merchant_account)"
+      },
+      "paymentBrands": {
+        "reason": "create_merchant_account does not accept paymentBrands. Payment brands are attached later via attach_merchant_account.",
+        "canonical": "subTypes (on attach_merchant_account)"
+      },
+      "brands": {
+        "reason": "create_merchant_account does not accept brands. Payment brands are attached later via attach_merchant_account.",
+        "canonical": "subTypes (on attach_merchant_account)"
+      },
+      "config": {
+        "reason": "create_merchant_account does not accept a config object. Settings are managed via settings.edit after create.",
+        "canonical": "sdk.settings.edit(...)"
+      }
+    }
+  }
+}

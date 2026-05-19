@@ -20,7 +20,9 @@
     "verify:tokens": "node tools-cli/token-benchmark.mjs",
     "verify:security": "node tools-cli/security-verify.mjs",
     "generate:manifest": "node tools-cli/generate-manifest.mjs",
-    "generate:manifest:check": "node tools-cli/generate-manifest.mjs --check"
+    "generate:manifest:check": "node tools-cli/generate-manifest.mjs --check",
+    "generate:sdk-reference": "node tools-cli/generate-sdk-reference.mjs",
+    "generate:sdk-reference:check": "node tools-cli/generate-sdk-reference.mjs --check"
   },
   "dependencies": {
     "lucide-react": "^1.8.0",

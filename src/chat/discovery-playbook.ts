@@ -1,5 +1,9 @@
 import playbookData from "../../base_data/chat_discovery_playbook.json";
 import { renderConfigTestRecipePrompt, type MatchedConfigTestRecipe } from "./config-test-recipes";
+// PRD 2026-05-18 D15: generated authoritative SDK surface. Regenerated via
+// `npm run generate:sdk-reference` from src/sandbox/sdk-facade.ts so the
+// prompt enumerates every facade method, not a hand-maintained subset.
+import { WORKFLOW_SDK_REFERENCE } from "../../src_data/workflow-sdk-reference";
 
 interface DiscoveryPlaybookStep {
   trigger: string;
@@ -118,6 +122,7 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     context,
     `User request: ${options.userRequest}`,
     configTestRecipePrompt,
+    WORKFLOW_SDK_REFERENCE,
     "Return only valid JSON with this exact shape:",
     "{\"label\":\"short job label\",\"totalCalls\":1,\"script\":\"TypeScript workflow source\"}",
     "The response must parse with JSON.parse. Escape script newlines as \\n and quotes as \\\" inside the script string. Do not use raw multiline strings, backticks, comments outside JSON, or Markdown fences.",

@@ -31,13 +31,20 @@ export const ENV_DEFAULTS: Record<Environment, { baseUrl: string; label: string 
 /** Post-write status model per PRD section 13.1. */
 export type WriteStatus = "accepted" | "pending_propagation" | "likely_propagated" | "verified";
 
-/** Job lifecycle states per PRD section 8.3. */
+/**
+ * Job lifecycle states per PRD section 8.3.
+ *
+ * "partial" was added by PRD 2026-05-18 D16: when a workflow script ran to
+ * completion without throwing but some SDK calls failed (e.g., per-call
+ * try/catch wrappers), the Job is neither "completed" nor "failed".
+ */
 export type JobState =
   | "running"
   | "paused"
   | "resumed"
   | "cancelled"
   | "failed"
+  | "partial"
   | "completed";
 
 /**

@@ -23,8 +23,10 @@ import type { EntityType } from "../lib/entity-types";
 import type { ApiCredentials, Environment } from "../lib/types";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { recordWrite } from "../bridge/write-status";
+import { wrapSdkWithGuard } from "./sdk-guard";
 import { executeTypedTool, type AdapterResult } from "../tools/adapter";
 import { knownFieldNames, pickOperation } from "../tools/manifest-helpers";
+import { assertNoForbiddenFields } from "../tools/forbidden-fields";
 import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
@@ -171,6 +173,7 @@ function normalizeClearingInstituteIdentifier(fields: Record<string, string>) {
 }
 
 function assertManifestFields(toolName: string, parentType: EntityType | null, fields: Record<string, string>) {
+  assertNoForbiddenFields(toolName, fields);
   const op = pickOperation(toolName, parentType);
   if (!op) throw new Error(`Unknown generated operation: ${toolName}`);
   const known = knownFieldNames(op);
@@ -329,7 +332,7 @@ export function buildSdkFacade(
     return assertWriteSucceeded(await executeTypedTool(toolName, params, { creds, env, confirm: true }), toolName);
   }
 
-  return {
+  const facade = {
     // -- Settings (wrapped to intercept writes) --
     config: {
       get: virtualSdk.config.get.bind(virtualSdk.config),
@@ -732,6 +735,12 @@ export function buildSdkFacade(
       },
     },
   };
+
+  // PRD 2026-05-18 D14: reject unknown SDK members at runtime with a
+  // structured suggestion instead of letting them silently become
+  // `undefined`. `config` is the Virtual Settings SDK proxy and owns its
+  // own access semantics, so we pass it through untouched.
+  return wrapSdkWithGuard(facade, { passthroughNamespaces: ["config"] });
 }
 
 /** Type of the sdk object injected into sandbox scripts. */

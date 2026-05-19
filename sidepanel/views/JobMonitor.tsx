@@ -24,6 +24,7 @@ const STATE_BADGE: Record<string, BadgeVariant> = {
   resumed: "info",
   paused: "write",
   completed: "status-ok",
+  partial: "write",
   failed: "status-fail",
   cancelled: "neutral",
 };
@@ -121,7 +122,7 @@ function ActiveJobCard({ job }: { job: JobRecord }) {
 
       <ProgressBar
         value={pct}
-        variant={job.state === "failed" ? "failed" : job.state === "running" ? "default" : "paused"}
+        variant={job.state === "failed" ? "failed" : job.state === "partial" ? "paused" : job.state === "running" ? "default" : "paused"}
         aria-label={progressText}
       />
 
@@ -259,7 +260,12 @@ function JobPreview({ job }: { job: JobRecord }) {
       throttleRate: job.throttleRate,
       checkpoint: job.checkpoint,
       workflowCompleted: job.state === "completed",
-      note: job.state === "failed" ? "SDK calls completed before the workflow script failed; this is not a successful workflow completion." : undefined,
+      note:
+        job.state === "failed"
+          ? "SDK calls completed before the workflow script failed; this is not a successful workflow completion."
+          : job.state === "partial"
+            ? `Workflow ran to completion but ${job.summary?.failed ?? 0}/${job.summary?.totalRecords ?? 0} recorded calls failed. Inspect results to redraft.`
+            : undefined,
     },
     error: job.error,
     context: {
@@ -328,6 +334,11 @@ function formatDuration(ms: number): string {
 function formatJobProgress(job: JobRecord, pct: number): string {
   const base = `${job.completedCalls} / ${job.totalCalls} SDK call(s)`;
   if (job.state === "failed") return `${base} completed before failure`;
+  if (job.state === "partial") {
+    const ok = job.summary?.succeeded ?? 0;
+    const bad = job.summary?.failed ?? 0;
+    return `${base} (${ok} ok / ${bad} failed)`;
+  }
   return `${base} (${pct}%)`;
 }
 

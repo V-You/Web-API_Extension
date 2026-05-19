@@ -10,6 +10,8 @@
  */
 
 import { createJob, updateJob, getJob, type JobContextSnapshot, type JobRecord, type JobProgress, type JobSource } from "../src/jobs/job-store";
+import { computeJobOutcome } from "../src/jobs/job-outcome";
+import { wrapSdkWithGuard } from "../src/sandbox/sdk-guard";
 import { appendAuditEntry } from "../src/lib/api-client";
 import { compileSandboxScript, type WriteRecord, type LogEntry } from "../src/sandbox";
 import { executeManageEntity } from "../src/tools/manage-entity";
@@ -22,6 +24,8 @@ import { executeDescribeSettings } from "../src/tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
 import { executeSendTestTransaction, executeSendTestTransactions } from "../src/tools/send-test-transaction";
 import { knownFieldNames, pickOperation } from "../src/tools/manifest-helpers";
+import { assertNoForbiddenFields } from "../src/tools/forbidden-fields";
+import { bumpWorkflowCounter } from "../src/lib/workflow-counters";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
 import { abortOffscreenJob, executeJobInOffscreen, type OffscreenJobExecuteResult } from "./offscreen-job-host";
@@ -143,6 +147,7 @@ function buildSwSdk(
   }
 
   function assertManifestFields(toolName: string, parentType: EntityType | null, fields: Record<string, string>) {
+    assertNoForbiddenFields(toolName, fields);
     const op = pickOperation(toolName, parentType);
     if (!op) throw new Error(`Unknown generated operation: ${toolName}`);
     const known = knownFieldNames(op);
@@ -440,7 +445,7 @@ function buildSwSdk(
     });
   }
 
-  return {
+  const facade = {
     config: {
       get: virtualSdk.config.get.bind(virtualSdk.config),
       batchGet: virtualSdk.config.batchGet.bind(virtualSdk.config),
@@ -692,6 +697,11 @@ function buildSwSdk(
       },
     },
   };
+
+  // PRD 2026-05-18 D14: parity with the sandbox facade -- unknown SDK
+  // members raise a structured suggestion instead of silently being
+  // undefined.
+  return wrapSdkWithGuard(facade, { passthroughNamespaces: ["config"] });
 }
 
 // -- Job execution --------------------------------------------------------
@@ -968,14 +978,28 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
 
     if (activeJobId !== jobId) return; // paused/cancelled while awaiting
 
+    const mergedResults = [...job.results, ...results];
+    const outcome = computeJobOutcome({
+      results: mergedResults,
+      completedSdkCalls: activeSandboxRuntime?.completedSdkCalls ?? job.completedCalls,
+      totalCalls: job.totalCalls,
+    });
+
     await updateJob(jobId, {
-      state: "completed",
+      state: outcome.state,
       completedAt: new Date().toISOString(),
-      results: [...job.results, ...results],
+      results: mergedResults,
       logs: [...job.logs, ...logs],
       writes: [...job.writes, ...writes],
       elapsedMs: job.elapsedMs + segmentElapsed,
+      summary: outcome.summary,
+      error: outcome.state === "failed"
+        ? `Workflow ran to completion but ${outcome.summary.failed}/${outcome.summary.totalRecords} recorded calls failed.`
+        : undefined,
     });
+    if (outcome.state === "failed" || outcome.state === "partial") {
+      void bumpWorkflowCounter("job_live_write_failed", outcome.state);
+    }
   } catch (err) {
     const partial = (err as Error & { result?: Partial<OffscreenJobExecuteResult> }).result;
     if (partial) {
@@ -1007,15 +1031,23 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
         });
       }
     } else {
+      const mergedResults = [...job.results, ...results];
+      const outcome = computeJobOutcome({
+        results: mergedResults,
+        completedSdkCalls: activeSandboxRuntime?.completedSdkCalls ?? job.completedCalls,
+        totalCalls: job.totalCalls,
+      });
       await updateJob(jobId, {
         state: "failed",
         completedAt: new Date().toISOString(),
-        results: [...job.results, ...results],
+        results: mergedResults,
         logs: [...job.logs, ...logs],
         writes: [...job.writes, ...writes],
         elapsedMs: job.elapsedMs + segmentElapsed,
+        summary: outcome.summary,
         error: err instanceof Error ? err.message : String(err),
       });
+      void bumpWorkflowCounter("job_live_write_failed", "throw");
     }
   }
 

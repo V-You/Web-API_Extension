@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-05-18",
+  "counts": {
+    "sandboxMethods": 44,
+    "swJobMethods": 44,
+    "facadeUnion": 44,
+    "facadeOverlap": 44,
+    "generatedMethods": 35,
+    "promptMentions": 44,
+    "promptUnknown": 0,
+    "facadeUnseenByPrompt": 0
+  },
+  "scores": {
+    "facadeParityPct": 100,
+    "promptCoveragePct": 100,
+    "promptHonestyPct": 100
+  }
+}

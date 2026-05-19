@@ -33,7 +33,7 @@
 **Details:**
 
 - Initial PRD = file `md/2026-03-20_PRD_v1.md`
-- Further PRD files followed, check files in `md/`
+- Further PRD are in `md/`
 
 # General
 

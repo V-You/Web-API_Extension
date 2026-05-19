@@ -14,6 +14,15 @@
 import type { Environment, JobState } from "../lib/types";
 import type { WriteRecord } from "../sandbox/sdk-facade";
 import type { LogEntry } from "../sandbox/sandbox";
+import type { JobOutcomeSummary } from "./job-outcome";
+
+export type { JobOutcomeSummary } from "./job-outcome";
+
+function isJobOutcomeSummary(value: unknown): value is JobOutcomeSummary {
+  if (!value || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  return typeof r.succeeded === "number" && typeof r.failed === "number" && typeof r.totalRecords === "number";
+}
 
 export type JobSource = "webmcp" | "chat";
 
@@ -60,6 +69,8 @@ export interface JobRecord {
   writes: WriteRecord[];
   /** Error message (if state is "failed"). */
   error?: string;
+  /** Outcome summary computed by computeJobOutcome (PRD 2026-05-18 D16). */
+  summary?: JobOutcomeSummary;
   /** Environment this job runs against. */
   env: Environment;
   /** Originating path for provenance and audit. */
@@ -122,6 +133,7 @@ function normalizeJob(raw: unknown): JobRecord {
     logs: Array.isArray(job.logs) ? job.logs : [],
     writes: Array.isArray(job.writes) ? job.writes : [],
     error: job.error ? String(job.error) : undefined,
+    summary: isJobOutcomeSummary(job.summary) ? job.summary : undefined,
     env: (job.env ?? "uat") as Environment,
     source: job.source === "chat" ? "chat" : job.source === "webmcp" ? "webmcp" : undefined,
     chatStartedAuditAt: job.chatStartedAuditAt ? String(job.chatStartedAuditAt) : undefined,

@@ -36,6 +36,8 @@ import { contextPacketFor, getActiveChatContext, resolveChannelMerchantFromConte
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
 import { parseWorkflowDraft, WorkflowDraftParseError } from "../../src/chat/workflow-draft";
+import { staticWorkflowPreflight, type StaticPreflightResult } from "../../src/chat/workflow-static-preflight";
+import { bumpWorkflowCounter } from "../../src/lib/workflow-counters";
 import { startJob } from "../../src/jobs/job-runner";
 import { estimateRuntime, type JobContextSnapshot } from "../../src/jobs/job-store";
 import { useJobs } from "../../src/jobs/use-jobs";
@@ -75,6 +77,8 @@ interface WorkflowReviewState {
   section?: string;
   contextSnapshot?: JobContextSnapshot;
   configTestRecipes?: Array<{ id: string; version: number; label: string; archetype: string; matchedSignals: string[] }>;
+  /** Static preflight blocker shown inline on the review card (PRD 2026-05-18 D12). */
+  preflightBlocker?: string;
 }
 
 interface ApiReadPreflight {
@@ -146,13 +150,18 @@ function findFieldPaths(value: unknown, field: string, path = "$", matches: stri
   return matches;
 }
 
-function formatJobStateNotice(job: { label: string; id: string; state: string; error?: string; completedCalls: number; totalCalls: number; results: unknown[]; writes: unknown[] }): string {
+function formatJobStateNotice(job: { label: string; id: string; state: string; error?: string; completedCalls: number; totalCalls: number; results: unknown[]; writes: unknown[]; summary?: { succeeded: number; failed: number; totalRecords: number } }): string {
   const { label, id: jobId, state, error } = job;
   if (state === "completed") {
     if (job.results.some(resultContainsFailure)) {
       return `Job ${label} (${jobId}) completed with reported failures in its result payload. It ran ${job.completedCalls}/${job.totalCalls} calls, produced ${job.results.length} result(s), and recorded ${job.writes.length} write(s). Open the Jobs tab to inspect details.`;
     }
     return `Job ${label} (${jobId}) completed with ${job.completedCalls}/${job.totalCalls} calls, ${job.results.length} result(s), and ${job.writes.length} recorded write(s). Open the Jobs tab to preview details.`;
+  }
+  if (state === "partial") {
+    const ok = job.summary?.succeeded ?? 0;
+    const bad = job.summary?.failed ?? 0;
+    return `Job ${label} (${jobId}) finished with mixed outcomes: ${ok} succeeded, ${bad} failed out of ${job.summary?.totalRecords ?? job.results.length} recorded call(s). Open the Jobs tab to inspect failures and consider redrafting.`;
   }
   if (state === "paused") {
     return `Job ${label} (${jobId}) paused. Open the Jobs tab to preview details or resume it.`;
@@ -751,8 +760,8 @@ export function ChatPage() {
     ].filter(Boolean).join("\n\n");
   }
 
-  async function handleDraftJob() {
-    const trimmed = input.trim();
+  async function handleDraftJob(overridePrompt?: string) {
+    const trimmed = (overridePrompt ?? input).trim();
     if (!trimmed || busy || automationBusy) return;
     if (!automationModeEnabled) {
       setError("Enable automation mode before drafting a Job.");
@@ -836,6 +845,53 @@ export function ChatPage() {
         }
         throw parseError;
       }
+
+      // PRD 2026-05-18 D12 / D13: static preflight + one redraft attempt before review card.
+      void bumpWorkflowCounter("draft_created");
+      let preflight: StaticPreflightResult = staticWorkflowPreflight(draft.script);
+      let redraftBlocker: string | undefined;
+      if (!preflight.ok) {
+        try {
+          const redraftPrompt = `${draftPrompt}\n\nThe previous draft was rejected by static preflight:\n${preflight.message}\n\nProduce a corrected draft that removes the forbidden fields and uses the canonical fields named above. Output the same workflow draft envelope.`;
+          const redraftResult = await runGeminiTurn({
+            apiKey: savedSettings.apiKey,
+            model: savedSettings.model,
+            history: [],
+            userText: redraftPrompt,
+            systemPrompt: buildChatSystemPrompt({
+              writeToolsEnabled: true,
+              accessTokenControlEnabled,
+              automationModeEnabled: true,
+              draftJobTurn: true,
+              modelName: savedSettings.model,
+            }),
+            tools: [],
+            executeTool: async () => {
+              throw new Error("Tools are not available while drafting a reviewed Job.");
+            },
+          });
+          const redrafted = parseWorkflowDraft(redraftResult.assistantText);
+          const redraftPreflight = staticWorkflowPreflight(redrafted.script);
+          if (redraftPreflight.ok) {
+            draft = redrafted;
+            preflight = redraftPreflight;
+            void bumpWorkflowCounter("preflight_fail_recovered");
+          } else {
+            // Per D12 retry budget = 1: keep redrafted draft, surface inline blocker.
+            draft = redrafted;
+            preflight = redraftPreflight;
+            redraftBlocker = redraftPreflight.message;
+            void bumpWorkflowCounter("preflight_fail_unrecovered");
+          }
+        } catch {
+          // Redraft itself failed (parse or network): keep original draft and surface its blocker.
+          redraftBlocker = preflight.message;
+          void bumpWorkflowCounter("preflight_fail_unrecovered");
+        }
+      } else {
+        void bumpWorkflowCounter("preflight_pass_first_try");
+      }
+
       setWorkflowReview({
         label: draft.label,
         script: draft.script,
@@ -849,13 +905,16 @@ export function ChatPage() {
         section: detectedContext?.section,
         contextSnapshot: jobContextSnapshot,
         configTestRecipes: summarizeConfigTestRecipes(configTestRecipes),
+        preflightBlocker: redraftBlocker,
       });
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          text: "I drafted a workflow for review. Open the review card below to inspect and start it.",
+          text: redraftBlocker
+            ? "I drafted a workflow but preflight still flags issues after one auto-redraft. Open the review card to inspect the blockers."
+            : "I drafted a workflow for review. Open the review card below to inspect and start it.",
         },
       ]);
     } catch (draftError) {
@@ -897,6 +956,7 @@ export function ChatPage() {
 
       watchedJobIds.current.add(job.id);
       announcedJobStates.current.set(job.id, job.state);
+      void bumpWorkflowCounter("job_started");
 
       setWorkflowReview(null);
       setMessages((current) => [
@@ -1262,6 +1322,12 @@ export function ChatPage() {
           error={workflowReviewError}
           busy={automationBusy}
           onStart={() => void handleStartReviewedJob()}
+          onRedraft={() => {
+            const originalPrompt = workflowReview.prompt;
+            setWorkflowReview(null);
+            setWorkflowReviewError(null);
+            void handleDraftJob(originalPrompt);
+          }}
           onCancel={() => {
             setWorkflowReview(null);
             setWorkflowReviewError(null);
@@ -1360,12 +1426,14 @@ function WorkflowReviewDialog({
   error,
   busy,
   onStart,
+  onRedraft,
   onCancel,
 }: {
   draft: WorkflowReviewState;
   error: string | null;
   busy: boolean;
   onStart: () => void;
+  onRedraft: () => void;
   onCancel: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1403,6 +1471,19 @@ function WorkflowReviewDialog({
         </div>
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-xs">
+          {draft.preflightBlocker && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+              <div className="font-semibold">Preflight still flags issues after one auto-redraft</div>
+              <pre className="mt-1 whitespace-pre-wrap font-mono text-2xs">{draft.preflightBlocker}</pre>
+              <button
+                onClick={onRedraft}
+                disabled={busy}
+                className="mt-2 rounded-md border border-amber-300 bg-white px-2 py-1 text-2xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                Draft corrected workflow
+              </button>
+            </div>
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
               <div className="font-medium text-slate-600">Label</div>
