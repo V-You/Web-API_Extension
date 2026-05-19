@@ -26,10 +26,177 @@ const FORBIDDEN_BY_OP: ForbiddenByOp = (forbiddenFieldsData as { operations: For
 
 // SDK call patterns that map to operation manifest tool names.
 // Each entry pairs a textual call prefix with the manifest tool name whose
-// deny list applies inside that call's argument span.
+// deny list applies inside that call's argument span. PRD 2026-05-18 Phase 3
+// expands the prefix list so forbidden fields are caught on every write surface
+// the deny list covers, not only MA create.
 const CALL_PATTERNS: Array<{ prefix: string; tool: string }> = [
   { prefix: "sdk.merchantAccounts.create", tool: "create_merchant_account" },
+  { prefix: "sdk.merchantAccounts.edit", tool: "edit_merchant_account" },
+  { prefix: "sdk.merchantAccounts.update", tool: "edit_merchant_account" },
+  { prefix: "sdk.entities.create", tool: "create_entity" },
+  { prefix: "sdk.entities.edit", tool: "edit_entity" },
+  { prefix: "sdk.contacts.create", tool: "create_contact" },
+  { prefix: "sdk.contacts.edit", tool: "edit_contact" },
 ];
+
+// PRD 2026-05-18 Phase 3 contract checks beyond forbidden-fields. Each entry
+// runs after forbidden-field scanning and produces a structural blocker for
+// the literal-arg case. Dynamic-arg cases are still caught at the SDK
+// boundary by the live-contract overlay (assertLiveContract) on first call,
+// which runs before any API transport.
+const CONTRACT_CHECKS: ReadonlyArray<ContractCheck> = [
+  // Exit criterion: missing currency on MA attach is blocked before any write.
+  {
+    prefix: "sdk.merchantAccounts.attach",
+    tool: "attach_merchant_account",
+    inspect(argText) {
+      // Positional form: attach(entityType, entityId, merchantAccountId, subTypes, currency).
+      // We can only inspect the literal positional case; object-form goes through
+      // the live-contract overlay at runtime.
+      const parts = splitTopLevelArgs(argText);
+      if (parts.length >= 5) {
+        const currency = parts[4].trim();
+        if (currency === '""' || currency === "''" || currency === "``") {
+          return [{
+            field: "currency",
+            reason: "attach_merchant_account requires a non-empty currency. Use sdk.merchantAccounts.attach(entityType, entityId, merchantAccountId, \"VISA\", \"EUR\").",
+            canonical: "currency",
+          }];
+        }
+        const subTypes = parts[3].trim();
+        if (subTypes === '""' || subTypes === "''" || subTypes === "``" || subTypes === "[]") {
+          return [{
+            field: "subTypes",
+            reason: "attach_merchant_account requires at least one payment brand in subTypes. Use sdk.merchantAccounts.attach(entityType, entityId, merchantAccountId, \"VISA\", \"EUR\") or attach once per brand.",
+            canonical: "subTypes",
+          }];
+        }
+      }
+      return [];
+    },
+  },
+  // Exit criterion: unresolved CI label is blocked before any MA create. We
+  // catch the literal "clearingInstituteId: \"ACCEPTANCE\"" pattern (a CI code
+  // or label) where the value is clearly not a 32-char UUID. Dynamic values
+  // still pass through resolveMerchantAccountClearingInstitute at runtime.
+  {
+    prefix: "sdk.merchantAccounts.create",
+    tool: "create_merchant_account",
+    inspect(argText) {
+      const literal = matchStringPropertyLiteral(argText, "clearingInstituteId");
+      if (literal === null) return [];
+      const trimmed = literal.trim();
+      if (trimmed && !/^[a-f0-9]{32}$/i.test(trimmed)) {
+        return [{
+          field: "clearingInstituteId",
+          reason: `clearingInstituteId must be a 32-character API UUID, got ${JSON.stringify(literal)}. Use clearingInstituteName for CI codes or labels, or look up the UUID with sdk.cardProcessors.list().`,
+          canonical: "clearingInstituteName",
+        }];
+      }
+      return [];
+    },
+  },
+  // Exit criterion: invalid setting types are coerced or blocked. We flag
+  // literal string values on the known typed duplicate-check RiRo keys, which
+  // is the highest-frequency settings-type bug the model emits. Other typed
+  // keys are validated by the RiRo proxy at write time.
+  {
+    prefix: "sdk.settings.edit",
+    tool: "edit_settings",
+    inspect: inspectDoublicationKeys,
+  },
+  {
+    prefix: "sdk.settings.batchEdit",
+    tool: "batch_edit_settings",
+    inspect: inspectDoublicationKeys,
+  },
+  {
+    prefix: "sdk.config.update",
+    tool: "edit_settings",
+    inspect: inspectDoublicationKeys,
+  },
+];
+
+interface ContractCheckHit {
+  field: string;
+  reason: string;
+  canonical?: string;
+}
+
+interface ContractCheck {
+  prefix: string;
+  tool: string;
+  inspect: (argText: string) => ContractCheckHit[];
+}
+
+/**
+ * Split a parenthesised arg span on top-level commas, ignoring commas inside
+ * nested brackets, braces, parens, and string literals.
+ */
+function splitTopLevelArgs(argText: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let stringChar: string | null = null;
+  let start = 0;
+  for (let i = 0; i < argText.length; i += 1) {
+    const ch = argText[i];
+    if (stringChar) {
+      if (ch === "\\") { i += 1; continue; }
+      if (ch === stringChar) stringChar = null;
+      continue;
+    }
+    if (ch === "\"" || ch === "'" || ch === "`") { stringChar = ch; continue; }
+    if (ch === "(" || ch === "[" || ch === "{") depth += 1;
+    else if (ch === ")" || ch === "]" || ch === "}") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      parts.push(argText.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (start < argText.length) parts.push(argText.slice(start));
+  return parts;
+}
+
+/**
+ * Return the literal string value assigned to `field` inside the arg text, or
+ * null when the value is non-literal (variable, expression, missing).
+ * Matches `field: "value"`, `'field': "value"`, and `"field": "value"` shapes.
+ */
+function matchStringPropertyLiteral(argText: string, field: string): string | null {
+  // Optional surrounding quote on the key handles `"doublication:timeframe":`,
+  // which RiRo settings use because the key contains colons and slashes.
+  const re = new RegExp(`(^|[^A-Za-z0-9_$])["'\`]?${field}["'\`]?\\s*:\\s*(['"\`])((?:\\\\.|(?!\\2).)*)\\2`);
+  const m = re.exec(argText);
+  return m ? m[3] : null;
+}
+
+const DOUBLICATION_TYPED_KEYS = [
+  "doublication:active",
+  "doublication:timeframe",
+];
+
+function inspectDoublicationKeys(argText: string): ContractCheckHit[] {
+  const hits: ContractCheckHit[] = [];
+  for (const key of DOUBLICATION_TYPED_KEYS) {
+    const literal = matchStringPropertyLiteral(argText, key.replace(/[^a-z0-9]/gi, "\\$&"));
+    if (literal === null) continue;
+    const trimmed = literal.trim();
+    if (key === "doublication:active" && (trimmed === "true" || trimmed === "false")) {
+      hits.push({
+        field: key,
+        reason: `${key} expects a boolean (true / false), not a string. Use ${trimmed} without quotes.`,
+        canonical: key,
+      });
+    } else if (key === "doublication:timeframe" && /^[0-9]+$/.test(trimmed)) {
+      hits.push({
+        field: key,
+        reason: `${key} expects a number, not a string. Use ${trimmed} without quotes.`,
+        canonical: key,
+      });
+    }
+  }
+  return hits;
+}
 
 export interface StaticPreflightHit {
   tool: string;
@@ -111,6 +278,27 @@ export function staticWorkflowPreflight(script: string): StaticPreflightResult {
           reason: hit.rule.reason,
           canonical: hit.rule.canonical,
           callPrefix: pattern.prefix,
+        });
+      }
+      cursor = found.endIdx;
+    }
+  }
+
+  // PRD 2026-05-18 Phase 3: contract checks beyond the forbidden-fields deny
+  // list (MA attach missing currency, MA create with a non-UUID CI label,
+  // typed RiRo settings keys with stringified values).
+  for (const check of CONTRACT_CHECKS) {
+    let cursor = 0;
+    while (cursor < script.length) {
+      const found = findCallArgSpan(script, check.prefix, cursor);
+      if (!found) break;
+      for (const hit of check.inspect(found.argText)) {
+        hits.push({
+          tool: check.tool,
+          field: hit.field,
+          reason: hit.reason,
+          canonical: hit.canonical,
+          callPrefix: check.prefix,
         });
       }
       cursor = found.endIdx;

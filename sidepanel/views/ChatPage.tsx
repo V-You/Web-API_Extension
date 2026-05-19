@@ -931,6 +931,15 @@ export function ChatPage() {
     setAutomationBusy(true);
     setWorkflowReviewError(null);
     try {
+      // PRD 2026-05-18 Phase 3: re-run static preflight at Start time as a
+      // last-line gate. The draft loop already runs preflight (with one
+      // redraft), but if the user edits or replays a draft the contract
+      // checks should still block Start. Blockers surface as a review error.
+      const startPreflight = staticWorkflowPreflight(workflowReview.script);
+      if (!startPreflight.ok) {
+        throw new Error(`Preflight blocked Start:\n${startPreflight.message ?? "Contract violations detected."}`);
+      }
+
       const activeEnv = await getActiveEnv();
       if (!activeEnv) throw new Error("No active environment. Unlock or select a connection, then re-approve.");
       if (activeEnv !== workflowReview.env) {

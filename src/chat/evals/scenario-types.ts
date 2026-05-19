@@ -22,6 +22,29 @@ export interface ChatScenarioFixture {
   forbidden?: string[];
 }
 
+/**
+ * PRD 2026-05-18 Phase 5 fixture: pairs a freeform user prompt with the
+ * workflow script we expect the model to draft, plus the static-preflight
+ * outcome we expect for that script. These fixtures replay prompts that
+ * previously failed and document the expected behavior of the contract
+ * pipeline (preflight gate + describe_operation overlay + runtime contracts).
+ */
+export interface WorkflowPreflightScenario {
+  id: string;
+  /** Original prompt that previously produced an unsafe draft. */
+  prompt: string;
+  /** The workflow script under test (a draft a model might emit). */
+  workflowScript: string;
+  /** Expected static-preflight outcome. */
+  expectedPreflight: "ok" | "blocked";
+  /** When blocked, substrings the preflight message must contain. */
+  expectedMessageIncludes?: string[];
+  /** Optional list of tool names that must NEVER appear in expected calls. */
+  forbiddenTools?: string[];
+  /** Human-readable note on why this fixture exists. */
+  note: string;
+}
+
 export interface ObservedToolTrace {
   tool: string;
   args: Record<string, unknown>;

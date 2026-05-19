@@ -65,3 +65,65 @@ describe("staticWorkflowPreflight (PRD 2026-05-18 Phase 0)", () => {
     expect(result.hits[0].field).toBe("paymentBrand");
   });
 });
+
+describe("staticWorkflowPreflight (PRD 2026-05-18 Phase 3 contract checks)", () => {
+  it("flags missing currency on MA attach in positional form", () => {
+    const script = `await sdk.merchantAccounts.attach("channel", "c1", "ma1", "VISA", "");`;
+    const result = staticWorkflowPreflight(script);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0].field).toBe("currency");
+    expect(result.message).toMatch(/currency/);
+  });
+
+  it("flags empty subTypes on MA attach in positional form", () => {
+    const script = `await sdk.merchantAccounts.attach("channel", "c1", "ma1", "", "EUR");`;
+    const result = staticWorkflowPreflight(script);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0].field).toBe("subTypes");
+  });
+
+  it("passes a valid positional MA attach call", () => {
+    const script = `await sdk.merchantAccounts.attach("channel", "c1", "ma1", "VISA", "EUR");`;
+    expect(staticWorkflowPreflight(script).ok).toBe(true);
+  });
+
+  it("flags clearingInstituteId with a non-UUID label literal on MA create", () => {
+    const script = `await sdk.merchantAccounts.create("channel", "c1", { name: "MID", state: "LIVE", merchantId: "m", clearingInstituteId: "ACCEPTANCE" });`;
+    const result = staticWorkflowPreflight(script);
+    expect(result.ok).toBe(false);
+    const hit = result.hits.find((h) => h.field === "clearingInstituteId");
+    expect(hit).toBeDefined();
+    expect(hit?.reason).toMatch(/UUID/);
+  });
+
+  it("accepts clearingInstituteId with a valid 32-char UUID literal", () => {
+    const script = `await sdk.merchantAccounts.create("channel", "c1", { name: "MID", state: "LIVE", merchantId: "m", clearingInstituteId: "8a8294175e7a703e015e802ca88315ca" });`;
+    expect(staticWorkflowPreflight(script).ok).toBe(true);
+  });
+
+  it("flags stringified boolean on doublication:active in settings.edit", () => {
+    const script = `await sdk.settings.edit("channel", "c1", { "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:active": "true" });`;
+    const result = staticWorkflowPreflight(script);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0].field).toBe("doublication:active");
+    expect(result.hits[0].reason).toMatch(/boolean/);
+  });
+
+  it("flags stringified number on doublication:timeframe in config.update", () => {
+    const script = `await sdk.config.update("channel", "c1", { "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:timeframe": "10" });`;
+    const result = staticWorkflowPreflight(script);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0].field).toBe("doublication:timeframe");
+    expect(result.hits[0].reason).toMatch(/number/);
+  });
+
+  it("accepts native typed values on duplicate-check keys", () => {
+    const script = `await sdk.settings.edit("channel", "c1", { "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:active": true, "*/type:entity/module:ctpe/processing:risk/risk:doublication/doublication:timeframe": 10 });`;
+    expect(staticWorkflowPreflight(script).ok).toBe(true);
+  });
+
+  it("does not flag MA attach when arguments are non-literal expressions", () => {
+    const script = `await sdk.merchantAccounts.attach(ctx.entityType, ctx.entityId, ma.id, brand, currency);`;
+    expect(staticWorkflowPreflight(script).ok).toBe(true);
+  });
+});

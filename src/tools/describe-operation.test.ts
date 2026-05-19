@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { describeOperation, listManifestTools } from "./describe-operation";
+import { buildChatWorkflowDraftPrompt } from "../chat/discovery-playbook";
 
 describe("describe_operation", () => {
   it("returns the create_contact manifest entries grouped by parent level", () => {
@@ -96,5 +97,62 @@ describe("describe_operation", () => {
     expect(tools).toContain("create_contact");
     expect(tools).toContain("create_division");
     expect(tools).toContain("attach_merchant_account");
+  });
+
+  // PRD 2026-05-18 Phase 4: live-contract overlay must surface on tools that
+  // have one, and the overlay shape must stay aligned with the prompt
+  // guidance shipped via buildChatWorkflowDraftPrompt so model self-correction
+  // (describe_operation) and model drafting (prompt) cannot drift.
+  describe("liveContract overlay (Phase 4)", () => {
+    it("returns no overlay for tools without a live contract", () => {
+      const res = describeOperation({ toolName: "create_contact" });
+      if (!res.ok) throw new Error("expected ok");
+      expect(res.liveContract).toBeUndefined();
+    });
+
+    it("surfaces attach_merchant_account overlay with subTypes and currency", () => {
+      const res = describeOperation({ toolName: "attach_merchant_account" });
+      if (!res.ok) throw new Error("expected ok");
+      expect(res.liveContract).toBeDefined();
+      expect(res.liveContract!.requiredFields).toEqual(
+        expect.arrayContaining(["merchantAccountId", "subTypes", "currency"]),
+      );
+      expect(res.liveContract!.errorHint).toMatch(/VISA.*EUR/);
+    });
+
+    it("surfaces create_merchant_account overlay with UUID format for clearingInstituteId", () => {
+      const res = describeOperation({ toolName: "create_merchant_account" });
+      if (!res.ok) throw new Error("expected ok");
+      const overlay = res.liveContract!;
+      expect(overlay.requiredFields).toEqual(expect.arrayContaining(["name", "state", "merchantId"]));
+      expect(overlay.requiredOneOf?.[0]?.fields).toEqual(
+        expect.arrayContaining(["clearingInstituteId", "clearingInstituteName"]),
+      );
+      const fmt = overlay.identifierFormats?.find((f) => f.field === "clearingInstituteId");
+      expect(fmt).toBeDefined();
+      expect(fmt!.pattern).toBe("^[a-f0-9]{32}$");
+      expect(fmt!.description).toMatch(/UUID/);
+    });
+
+    it("workflow draft prompt mentions every live-required field for overlay tools (no drift)", () => {
+      const prompt = buildChatWorkflowDraftPrompt({
+        userRequest: "noop",
+        env: "uat",
+        entityType: "channel",
+        entityId: "c1",
+      });
+      for (const tool of ["create_merchant_account", "attach_merchant_account"]) {
+        const res = describeOperation({ toolName: tool });
+        if (!res.ok) throw new Error(`overlay tool ${tool} missing from manifest`);
+        for (const field of res.liveContract!.requiredFields) {
+          expect(prompt, `${tool}: required field "${field}" missing from draft prompt`).toContain(field);
+        }
+        for (const group of res.liveContract!.requiredOneOf ?? []) {
+          for (const field of group.fields) {
+            expect(prompt, `${tool}: requiredOneOf field "${field}" missing from draft prompt`).toContain(field);
+          }
+        }
+      }
+    });
   });
 });
