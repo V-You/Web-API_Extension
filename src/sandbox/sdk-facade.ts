@@ -27,6 +27,7 @@ import { wrapSdkWithGuard } from "./sdk-guard";
 import { executeTypedTool, type AdapterResult } from "../tools/adapter";
 import { knownFieldNames, pickOperation } from "../tools/manifest-helpers";
 import { assertNoForbiddenFields } from "../tools/forbidden-fields";
+import { assertLiveContract } from "../tools/live-contracts";
 import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
@@ -185,14 +186,8 @@ function assertManifestFields(toolName: string, parentType: EntityType | null, f
 }
 
 function assertMerchantAccountCreateContract(fields: Record<string, string>) {
-  const missing = ["name", "state", "merchantId"].filter((field) => !fields[field]);
-  if (!fields.clearingInstituteId && !fields.clearingInstituteName) missing.push("clearingInstituteId or clearingInstituteName");
-  if (missing.length > 0) {
-    throw new Error(
-      `create_merchant_account is missing required field(s): ${missing.join(", ")}. ` +
-        "Use sdk.merchantAccounts.create(parentType, parentId, { name, state: \"LIVE\", merchantId, clearingInstituteId or clearingInstituteName }).",
-    );
-  }
+  // PRD 2026-05-18 Phase 1 / D1: required-field check moved to the live-contract overlay.
+  assertLiveContract("create_merchant_account", fields);
 }
 
 function normalizeMerchantAccountAttachArgs(args: unknown[]): { entityType: EntityType; entityId: string; merchantAccountId: string; subTypes: string; currency: string } {
@@ -265,13 +260,8 @@ function withMerchantAccountCreateAliases(result: AdapterResult, fields: Record<
 }
 
 function assertMerchantAccountAttachFields(merchantAccountId: string, subTypes: string, currency: string) {
-  const missing: string[] = [];
-  if (!merchantAccountId.trim()) missing.push("merchantAccountId");
-  if (!subTypes.trim()) missing.push("subTypes");
-  if (!currency.trim()) missing.push("currency");
-  if (missing.length > 0) {
-    throw new Error(`merchant account attach failed: Missing required field(s): ${missing.join(", ")}. Use sdk.merchantAccounts.attach(entityType, entityId, merchantAccountId, "VISA", "EUR") or attach once per currency.`);
-  }
+  // PRD 2026-05-18 Phase 1 / D1: required-field check moved to the live-contract overlay.
+  assertLiveContract("attach_merchant_account", { merchantAccountId, subTypes, currency });
 }
 
 /**

@@ -25,6 +25,7 @@ import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audi
 import { executeSendTestTransaction, executeSendTestTransactions } from "../src/tools/send-test-transaction";
 import { knownFieldNames, pickOperation } from "../src/tools/manifest-helpers";
 import { assertNoForbiddenFields } from "../src/tools/forbidden-fields";
+import { assertLiveContract } from "../src/tools/live-contracts";
 import { bumpWorkflowCounter } from "../src/lib/workflow-counters";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
@@ -159,14 +160,8 @@ function buildSwSdk(
   }
 
   function assertMerchantAccountCreateContract(fields: Record<string, string>) {
-    const missing = ["name", "state", "merchantId"].filter((field) => !fields[field]);
-    if (!fields.clearingInstituteId && !fields.clearingInstituteName) missing.push("clearingInstituteId or clearingInstituteName");
-    if (missing.length > 0) {
-      throw new Error(
-        `create_merchant_account is missing required field(s): ${missing.join(", ")}. ` +
-          "Use sdk.merchantAccounts.create(parentType, parentId, { name, state: \"LIVE\", merchantId, clearingInstituteId or clearingInstituteName }).",
-      );
-    }
+    // PRD 2026-05-18 Phase 1 / D1: required-field check moved to the live-contract overlay.
+    assertLiveContract("create_merchant_account", fields);
   }
 
   function normalizeListField(value: unknown): string {
@@ -214,13 +209,8 @@ function buildSwSdk(
   }
 
   function assertMerchantAccountAttachFields(merchantAccountId: string, subTypes: string, currency: string) {
-    const missing: string[] = [];
-    if (!merchantAccountId.trim()) missing.push("merchantAccountId");
-    if (!subTypes.trim()) missing.push("subTypes");
-    if (!currency.trim()) missing.push("currency");
-    if (missing.length > 0) {
-      throw new Error(`merchant account attach failed: Missing required field(s): ${missing.join(", ")}. Use sdk.merchantAccounts.attach(entityType, entityId, merchantAccountId, "VISA", "EUR") or attach once per currency.`);
-    }
+    // PRD 2026-05-18 Phase 1 / D1: required-field check moved to the live-contract overlay.
+    assertLiveContract("attach_merchant_account", { merchantAccountId, subTypes, currency });
   }
 
   function unwrapApiData(result: unknown): unknown {

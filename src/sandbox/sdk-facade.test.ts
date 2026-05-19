@@ -298,6 +298,19 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     expect(executeTypedToolMock).not.toHaveBeenCalled();
   });
 
+  // PRD 2026-05-18 Phase 1 / D1: MA attach live-contract overlay is enforced
+  // before any API call from the facade.
+  it("rejects merchant account attach with a missing currency via the live-contract overlay", async () => {
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    await expect(
+      sdk.merchantAccounts.attach("channel", "channel-1", "ma-1", "VISA", ""),
+    ).rejects.toThrow(/attach_merchant_account is missing required field\(s\): currency/);
+
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+  });
+
   it("accepts merchant account update as an alias for edit", async () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);

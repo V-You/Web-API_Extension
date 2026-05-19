@@ -34,6 +34,50 @@ export async function assertSendTestTransactionAllowed(options: SendTestTransact
   }
 }
 
+/**
+ * Allow-list for the handwritten send_test_transaction(s) handlers (PRD 2026-05-18
+ * Phase 2). Any other field is rejected before transport so invented properties
+ * cannot silently round-trip through `buildTestTransactionBody` (which would
+ * just drop them on the floor) and lead to false-positive completions.
+ *
+ * Keep this list in sync with `buildTestTransactionBody` and the public
+ * `params.*` reads inside `executeSendTestTransaction(s)`.
+ */
+export const KNOWN_SEND_TEST_TRANSACTION_PARAMS = new Set([
+  // Routing + token selection
+  "channelId",
+  "merchantId",
+  "tokenMode",
+  "transactionTokenId",
+  "contextProvenance",
+  // Body fields consumed by buildTestTransactionBody
+  "amount",
+  "currency",
+  "paymentBrand",
+  "paymentType",
+  "cardNumber",
+  "cardHolder",
+  "cardExpiryMonth",
+  "cardExpiryYear",
+  "cardCvv",
+  "merchantTransactionId",
+  "orderId",
+  // Batch-only controls
+  "count",
+  "total",
+  "pauseAfter",
+  "pauseMs",
+  "pauseMilliseconds",
+  "sequence",
+]);
+
+export function assertKnownSendTestTransactionParams(toolName: string, params: Record<string, unknown>): void {
+  const unknown = Object.keys(params).filter((key) => !KNOWN_SEND_TEST_TRANSACTION_PARAMS.has(key));
+  if (unknown.length === 0) return;
+  const accepted = Array.from(KNOWN_SEND_TEST_TRANSACTION_PARAMS).sort();
+  throw new Error(`${toolName} received unknown field(s): ${unknown.join(", ")}. Accepted fields: ${accepted.join(", ")}`);
+}
+
 export async function executeSendTestTransaction(
   params: Record<string, unknown>,
   creds: ApiCredentials,
@@ -43,6 +87,8 @@ export async function executeSendTestTransaction(
   if (env !== "uat") {
     throw new Error("Test transactions are only enabled for UAT. Switch the active environment to UAT before sending a test transaction.");
   }
+
+  assertKnownSendTestTransactionParams("send_test_transaction", params);
 
   const channelId = String(params.channelId ?? "").trim();
   if (!channelId) throw new Error("channelId is required.");
@@ -117,6 +163,8 @@ export async function executeSendTestTransactions(
   if (env !== "uat") {
     throw new Error("Test transactions are only enabled for UAT. Switch the active environment to UAT before sending test transactions.");
   }
+
+  assertKnownSendTestTransactionParams("send_test_transactions", params);
 
   const channelId = String(params.channelId ?? "").trim();
   if (!channelId) throw new Error("channelId is required.");
