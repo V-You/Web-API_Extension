@@ -5,6 +5,8 @@
 
 export const WORKFLOW_SDK_REFERENCE = `Authoritative workflow SDK reference (generated from src/sandbox/sdk-facade.ts).
 Do not call namespaces or methods that are not listed here. If you need a capability that is missing, return a workflow draft that throws a clear error explaining the missing SDK surface instead of inventing a method.
+Transaction helper params are flat objects. For card data, use top-level fields cardNumber, cardHolder, cardExpiryMonth, cardExpiryYear, and cardCvv. Do not pass a nested card object such as card: { holder: ... }.
+sdk.entities.listChildren(parentType, parentId, childType) returns an array, so array methods such as map/filter/slice are valid. Channel rows expose a stable id field; the SDK aliases API channel rows where the entity ID is named channel.
 
 sdk.config:
   - sdk.config.update(entityType, entityId, settings)

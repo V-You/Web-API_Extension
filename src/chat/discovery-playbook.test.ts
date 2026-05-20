@@ -81,6 +81,9 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Known context IDs available in the script as context.ids: merchantId=m1, channelId=c1.");
     expect(prompt).toContain("Use context.ids.channelId and context.ids.merchantId when present");
     expect(prompt).toContain("Do not use import, export, require, fetch");
+    expect(prompt).toContain("sdk.entities.listChildren(parentType, parentId, childType)");
+    expect(prompt).toContain("It returns an array; use map/filter/slice directly");
+    expect(prompt).toContain("the SDK aliases the API's channel field to id");
     expect(prompt).toContain("sdk.settings.edit(entityType, entityId, settings)");
     expect(prompt).toContain("sdk.config.update(entityType, entityId, settings)");
     expect(prompt).toContain("Use native typed values, for example active: true and timeframe: 10");
@@ -103,6 +106,9 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("context.id/context.type");
     expect(prompt).toContain("sdk.transactions.sendTest");
     expect(prompt).toContain("merchantId is optional when the current context is a Channel");
+    expect(prompt).toContain("transaction parameters must be a flat object");
+    expect(prompt).toContain("cardNumber, cardHolder, cardExpiryMonth, cardExpiryYear, and cardCvv");
+    expect(prompt).toContain("Do not use a nested card object");
     expect(prompt).toContain("Do not throw your own error for a missing parent Merchant");
     expect(prompt).toContain("Prefer transaction.status for summaries");
     expect(prompt).toContain("If transaction testing recipe context is present above");

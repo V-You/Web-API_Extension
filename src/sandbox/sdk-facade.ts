@@ -20,6 +20,7 @@
 
 import { createSdk, type SdkContext } from "../sdk/sdk";
 import type { EntityType } from "../lib/entity-types";
+import { extractEntityCollection } from "../lib/api-shapes";
 import type { ApiCredentials, Environment } from "../lib/types";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { recordWrite } from "../bridge/write-status";
@@ -134,6 +135,25 @@ function assertWriteSucceeded<T>(result: T, description: string): T {
   if (result.ok === false) throw new Error(`${description} failed: ${writeFailureMessage(result)}`);
   if (typeof result.error === "string" && result.error.trim()) throw new Error(`${description} failed: ${result.error.trim()}`);
   return result;
+}
+
+function normalizeEntityListResult(result: unknown, childType: EntityType): Record<string, unknown>[] {
+  if (isRecord(result)) {
+    if (result.ok === false) throw new Error(`list ${childType} failed: ${writeFailureMessage(result)}`);
+    if (typeof result.error === "string" && result.error.trim()) throw new Error(`list ${childType} failed: ${result.error.trim()}`);
+  }
+
+  const data = isRecord(result) && "data" in result ? result.data : result;
+  return extractEntityCollection(childType, data).map((item) => {
+    const normalized = { ...item };
+    const entityId = typeof normalized._entityId === "string" && normalized._entityId.trim()
+      ? normalized._entityId
+      : childType === "channel" && typeof normalized.channel === "string" && normalized.channel.trim()
+        ? normalized.channel
+        : null;
+    if (entityId && typeof normalized.id !== "string") normalized.id = entityId;
+    return normalized;
+  });
 }
 
 function toStringRecord(value: unknown): Record<string, string> {
@@ -410,7 +430,10 @@ export function buildSdkFacade(
         return executeManageEntity({ action: "search", namePath }, creds, env);
       },
       async listChildren(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel") {
-        return executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env);
+        return normalizeEntityListResult(
+          await executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env),
+          childType,
+        );
       },
       async create(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel", fields: Record<string, string>) {
         await confirmAndWrite(

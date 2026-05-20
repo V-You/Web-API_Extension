@@ -11,6 +11,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const {
   executeTypedToolMock,
+  executeManageEntityMock,
   executeManageContactMock,
   executeManageMerchantAccountMock,
   executeLookupClearingInstitutesMock,
@@ -21,6 +22,7 @@ const {
   recordWriteMock,
 } = vi.hoisted(() => ({
   executeTypedToolMock: vi.fn(),
+  executeManageEntityMock: vi.fn(),
   executeManageContactMock: vi.fn(),
   executeManageMerchantAccountMock: vi.fn(),
   executeLookupClearingInstitutesMock: vi.fn(),
@@ -34,6 +36,9 @@ const {
 vi.mock("../tools/adapter", () => ({
   executeTypedTool: executeTypedToolMock,
   isReadOnlyTool: () => false,
+}));
+vi.mock("../tools/manage-entity", () => ({
+  executeManageEntity: executeManageEntityMock,
 }));
 vi.mock("../tools/manage-contact", () => ({
   executeManageContact: executeManageContactMock,
@@ -67,6 +72,8 @@ const env: Environment = "test" as Environment;
 beforeEach(() => {
   executeTypedToolMock.mockReset();
   executeTypedToolMock.mockResolvedValue({ ok: true, status: 200, data: {} });
+  executeManageEntityMock.mockReset();
+  executeManageEntityMock.mockResolvedValue({ ok: true, status: 200, data: [] });
   executeManageContactMock.mockReset();
   executeManageContactMock.mockResolvedValue({ ok: true, status: 200, data: {} });
   executeManageMerchantAccountMock.mockReset();
@@ -380,6 +387,44 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
       { parentType: "psp", parentId: "psp-1", name: "new-div", state: "LIVE" },
       expect.objectContaining({ confirm: true }),
     );
+  });
+
+  it("returns an array from entities.listChildren and aliases channel IDs", async () => {
+    executeManageEntityMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: [
+        { channel: "channel-1", name: "First" },
+        { id: "channel-2", name: "Second" },
+      ],
+    });
+    const writes: WriteRecord[] = [];
+    const sdk = buildSdkFacade(creds, env, writes);
+
+    const channels = await sdk.entities.listChildren("merchant", "merchant-1", "channel");
+
+    expect(Array.isArray(channels)).toBe(true);
+    expect(channels.slice(-1)).toEqual([{ id: "channel-2", name: "Second" }]);
+    expect(channels[0]).toMatchObject({ id: "channel-1", channel: "channel-1", name: "First" });
+    expect(executeManageEntityMock).toHaveBeenCalledWith(
+      { action: "list_children", parentType: "merchant", parentId: "merchant-1", childType: "channel" },
+      creds,
+      env,
+    );
+  });
+
+  it("extracts listChildren arrays from wrapped API data", async () => {
+    executeManageEntityMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { merchants: [{ id: "merchant-1" }, { id: "merchant-2" }] },
+    });
+    const sdk = buildSdkFacade(creds, env, []);
+
+    await expect(sdk.entities.listChildren("division", "division-1", "merchant")).resolves.toEqual([
+      { id: "merchant-1" },
+      { id: "merchant-2" },
+    ]);
   });
 
   it("routes contact.edit through edit_contact with fields at top level", async () => {

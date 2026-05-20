@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChatContextPacket, getChatContextStorageKey, mergeChatContext, resolveChannelMerchantFromContext, shouldReplaceChatContext, type ChatContextRecord } from "./context-store";
+import { buildChatContextPacket, getChatContextStorageKey, mergeChatContext, normalizeChatContextRecord, resolveChannelMerchantFromContext, shouldReplaceChatContext, type ChatContextRecord } from "./context-store";
 
 describe("chat context store", () => {
   it("builds deterministic session storage keys", () => {
@@ -77,6 +77,7 @@ describe("chat context store", () => {
       ...incoming,
       entityName: "Checkout Channel",
       section: "attachedMerchantAccounts",
+      ids: { channelId: "channel-1" },
     });
   });
 
@@ -99,6 +100,50 @@ describe("chat context store", () => {
       ids: { channelId: "channel-1", merchantId: "merchant-1" },
       contextEvidence: [{ field: "merchantId", value: "merchant-1", source: "url", confidence: 100 }],
     });
+  });
+
+  it("drops stale descendant IDs when a higher-level entity becomes current", () => {
+    const current: ChatContextRecord = {
+      tabId: 7,
+      frameId: 0,
+      timestamp: 100,
+      entityId: "channel-1",
+      entityType: "channel",
+      confidence: 100,
+      source: "url",
+      ids: { pspId: "psp-1", divisionId: "division-1", merchantId: "merchant-1", channelId: "channel-1" },
+    };
+    const incoming: ChatContextRecord = {
+      tabId: 7,
+      frameId: 0,
+      timestamp: 101,
+      entityId: "division-2",
+      entityType: "division",
+      confidence: 100,
+      source: "anchor",
+      ids: { divisionId: "division-2" },
+    };
+
+    const merged = mergeChatContext(current, incoming);
+
+    expect(merged.ids).toEqual({ pspId: "psp-1", divisionId: "division-2" });
+    expect(buildChatContextPacket(merged).ids).toEqual({ pspId: "psp-1", divisionId: "division-2" });
+  });
+
+  it("normalizes records by pruning IDs below the current entity depth", () => {
+    const normalized = normalizeChatContextRecord({
+      tabId: 7,
+      frameId: 0,
+      timestamp: 100,
+      entityId: "merchant-2",
+      entityType: "merchant",
+      confidence: 100,
+      source: "url",
+      ids: { divisionId: "division-1", merchantId: "merchant-1", channelId: "channel-old" },
+    });
+
+    expect(normalized.ids).toEqual({ divisionId: "division-1", merchantId: "merchant-2" });
+    expect(normalized.packet?.ids).toEqual({ divisionId: "division-1", merchantId: "merchant-2" });
   });
 
   it("resolves a Channel's Merchant parent without overwriting supplied values", () => {

@@ -68,6 +68,12 @@ export interface ChatContextRecord {
 
 const KEY_PREFIX = "chat:context:";
 const BIP_URL_RE = /^https:\/\/eu-(test|prod)\.oppwa\.com\//i;
+const ENTITY_DEPTH: Record<EntityType, number> = {
+  psp: 0,
+  division: 1,
+  merchant: 2,
+  channel: 3,
+};
 
 export function getChatContextStorageKey(tabId: number): string {
   return `${KEY_PREFIX}${tabId}`;
@@ -87,7 +93,11 @@ export function mergeChatContext(
   current: ChatContextRecord | null,
   incoming: ChatContextRecord,
 ): ChatContextRecord {
-  const ids = { ...(current?.ids ?? {}), ...(incoming.ids ?? {}) };
+  const ids = pruneIdsForCurrentEntity(
+    { ...(current?.ids ?? {}), ...(incoming.ids ?? {}) },
+    incoming.entityType,
+    incoming.entityId,
+  );
   const parentChain = mergeParentChain(current?.parentChain, incoming.parentChain);
   const contextEvidence = mergeEvidence(current?.contextEvidence, incoming.contextEvidence);
   const route = incoming.route ?? current?.route;
@@ -103,6 +113,23 @@ export function mergeChatContext(
     ...(contextEvidence ? { contextEvidence } : {}),
     ...(apiVerifiedAt ? { apiVerifiedAt } : {}),
   };
+}
+
+function pruneIdsForCurrentEntity(
+  ids: Partial<Record<`${EntityType}Id`, string>>,
+  entityType: EntityType,
+  entityId: string,
+): Partial<Record<`${EntityType}Id`, string>> {
+  const maxDepth = ENTITY_DEPTH[entityType];
+  const pruned: Partial<Record<`${EntityType}Id`, string>> = {};
+  for (const type of Object.keys(ENTITY_DEPTH) as EntityType[]) {
+    if (ENTITY_DEPTH[type] > maxDepth) continue;
+    const key = `${type}Id` as `${EntityType}Id`;
+    const value = ids[key];
+    if (typeof value === "string" && value.trim()) pruned[key] = value;
+  }
+  pruned[`${entityType}Id` as `${EntityType}Id`] = entityId;
+  return pruned;
 }
 
 function mergeParentChain(
@@ -126,10 +153,7 @@ function mergeEvidence(
 }
 
 export function buildChatContextPacket(record: ChatContextRecord): ChatContextPacket {
-  const ids = {
-    ...(record.ids ?? {}),
-    [`${record.entityType}Id`]: record.entityId,
-  } as Partial<Record<`${EntityType}Id`, string>>;
+  const ids = pruneIdsForCurrentEntity(record.ids ?? {}, record.entityType, record.entityId);
   const contextEvidence = record.contextEvidence ?? [];
 
   return {
@@ -158,10 +182,7 @@ export function buildChatContextPacket(record: ChatContextRecord): ChatContextPa
 export function normalizeChatContextRecord(record: ChatContextRecord): ChatContextRecord {
   const normalized = {
     ...record,
-    ids: {
-      ...(record.ids ?? {}),
-      [`${record.entityType}Id`]: record.entityId,
-    } as Partial<Record<`${EntityType}Id`, string>>,
+    ids: pruneIdsForCurrentEntity(record.ids ?? {}, record.entityType, record.entityId),
   };
   return {
     ...normalized,

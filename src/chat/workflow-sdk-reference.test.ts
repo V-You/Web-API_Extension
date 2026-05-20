@@ -83,4 +83,16 @@ describe("workflow SDK reference (D15)", () => {
       expect(WORKFLOW_SDK_REFERENCE).toContain(`sdk.${key}(`);
     }
   });
+
+  it("documents flat transaction card params", () => {
+    expect(WORKFLOW_SDK_REFERENCE).toContain("Transaction helper params are flat objects");
+    expect(WORKFLOW_SDK_REFERENCE).toContain("cardNumber, cardHolder, cardExpiryMonth, cardExpiryYear, and cardCvv");
+    expect(WORKFLOW_SDK_REFERENCE).toContain("Do not pass a nested card object");
+  });
+
+  it("documents listChildren array semantics", () => {
+    expect(WORKFLOW_SDK_REFERENCE).toContain("sdk.entities.listChildren(parentType, parentId, childType) returns an array");
+    expect(WORKFLOW_SDK_REFERENCE).toContain("array methods such as map/filter/slice are valid");
+    expect(WORKFLOW_SDK_REFERENCE).toContain("the SDK aliases API channel rows where the entity ID is named channel");
+  });
 });

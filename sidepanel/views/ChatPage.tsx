@@ -31,6 +31,7 @@ import {
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
 import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt } from "../../src/chat/discovery-playbook";
+import { buildComposerTargetPreview, shouldShowChannelParentTarget, type EffectiveChatContext } from "../../src/chat/context-display";
 import { matchConfigTestRecipes, type MatchedConfigTestRecipe } from "../../src/chat/config-test-recipes";
 import { contextPacketFor, getActiveChatContext, resolveChannelMerchantFromContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
@@ -373,20 +374,8 @@ export function ChatPage() {
   const contextPacket = useMemo(() => contextPacketFor(detectedContext), [detectedContext]);
   const resolvedTarget = useMemo(() => resolveChannelMerchantFromContext(detectedContext), [detectedContext]);
   const composerTargetPreview = useMemo(() => {
-    const channelId = resolvedTarget?.channelId
-      ?? contextPacket?.ids.channelId
-      ?? (effectiveContext?.entityType === "channel" ? effectiveContext.entityId : undefined);
-    const merchantId = resolvedTarget?.merchantId ?? contextPacket?.ids.merchantId;
-    if (channelId) {
-      return merchantId
-        ? `Targeting Channel ${channelId} under Merchant ${merchantId}.`
-        : `Targeting Channel ${channelId}. Merchant parent not detected yet.`;
-    }
-    if (effectiveContext) {
-      return `Targeting ${effectiveContext.entityType} ${effectiveContext.entityId}.`;
-    }
-    return null;
-  }, [contextPacket?.ids.channelId, contextPacket?.ids.merchantId, effectiveContext, resolvedTarget?.channelId, resolvedTarget?.merchantId]);
+    return buildComposerTargetPreview(effectiveContext, resolvedTarget);
+  }, [effectiveContext, resolvedTarget]);
   const jobContextSnapshot = useMemo<JobContextSnapshot | undefined>(() => {
     if (!effectiveContext) return undefined;
     const ids = contextPacket && effectiveContext.source === "detected"
@@ -1121,7 +1110,7 @@ export function ChatPage() {
                     ].filter(Boolean).join(" | ") || "none"}
                   </div>
                 )}
-                {resolvedTarget?.merchantId && (
+                {shouldShowChannelParentTarget(detectedContext, resolvedTarget) && (
                   <p className="text-2xs text-slate-500">Targeting Channel {resolvedTarget.channelId} under Merchant {resolvedTarget.merchantId}</p>
                 )}
               </div>
