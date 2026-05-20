@@ -18,11 +18,50 @@
  */
 
 import forbiddenFieldsData from "../../src_data/forbidden-fields.json";
+import { WORKFLOW_SDK_REFERENCE_METHODS } from "../../src_data/workflow-sdk-reference";
+import { suggestClosest } from "../sandbox/sdk-guard";
 
 type ForbiddenRule = { reason: string; canonical?: string };
 type ForbiddenByOp = Record<string, Record<string, ForbiddenRule>>;
 
 const FORBIDDEN_BY_OP: ForbiddenByOp = (forbiddenFieldsData as { operations: ForbiddenByOp }).operations;
+
+const EXTRA_RUNTIME_METHODS = [
+  // The generated markdown reference currently lists async methods parsed from
+  // the facade. The Virtual Settings read helpers are bound methods and are
+  // still valid runtime SDK members, so include them until the generator is
+  // registry-driven (PRD 2026-05-20 Step 2).
+  "config.get",
+  "config.batchGet",
+  "config.describe",
+  "config.validate",
+  "config.coverage",
+  "settings.get",
+  "settings.batchGet",
+  "settings.describe",
+  "settings.validate",
+  "settings.coverage",
+  "describeSettings",
+] as const;
+
+const SDK_METHODS = new Set<string>([
+  ...WORKFLOW_SDK_REFERENCE_METHODS,
+  ...EXTRA_RUNTIME_METHODS,
+]);
+
+const SDK_NAMESPACES = new Map<string, string[]>();
+for (const path of SDK_METHODS) {
+  const [namespace, method] = path.split(".");
+  if (!namespace || !method) continue;
+  const methods = SDK_NAMESPACES.get(namespace) ?? [];
+  methods.push(method);
+  SDK_NAMESPACES.set(namespace, methods);
+}
+
+const TOP_LEVEL_SDK_MEMBERS = new Set([
+  ...SDK_NAMESPACES.keys(),
+  ...[...SDK_METHODS].filter((path) => !path.includes(".")),
+]);
 
 // SDK call patterns that map to operation manifest tool names.
 // Each entry pairs a textual call prefix with the manifest tool name whose
@@ -199,6 +238,7 @@ function inspectDoublicationKeys(argText: string): ContractCheckHit[] {
 }
 
 export interface StaticPreflightHit {
+  kind?: "forbidden_field" | "unknown_sdk_member" | "sdk_reflection";
   tool: string;
   field: string;
   reason: string;
@@ -262,8 +302,133 @@ function findForbiddenKeysInArgs(argText: string, rules: Record<string, Forbidde
   return hits;
 }
 
+function maskStringsAndComments(script: string): string {
+  let out = "";
+  let i = 0;
+  while (i < script.length) {
+    const ch = script[i];
+    const next = script[i + 1];
+
+    if (ch === "/" && next === "/") {
+      out += "  ";
+      i += 2;
+      while (i < script.length && script[i] !== "\n") { out += " "; i += 1; }
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      out += "  ";
+      i += 2;
+      while (i < script.length) {
+        if (script[i] === "*" && script[i + 1] === "/") { out += "  "; i += 2; break; }
+        out += script[i] === "\n" ? "\n" : " ";
+        i += 1;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const quote = ch;
+      out += " ";
+      i += 1;
+      while (i < script.length) {
+        const current = script[i];
+        if (current === "\\") { out += "  "; i += 2; continue; }
+        out += current === "\n" ? "\n" : " ";
+        i += 1;
+        if (current === quote) break;
+      }
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+function findSdkContractHits(script: string): StaticPreflightHit[] {
+  const masked = maskStringsAndComments(script);
+  const hits: StaticPreflightHit[] = [];
+  const seen = new Set<string>();
+
+  const addHit = (hit: StaticPreflightHit) => {
+    const key = `${hit.kind}:${hit.callPrefix}:${hit.field}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    hits.push(hit);
+  };
+
+  const reflectionPatterns: Array<{ re: RegExp; callPrefix: string }> = [
+    { re: /\bObject\s*\.\s*(?:keys|entries|values|getOwnPropertyNames)\s*\(\s*sdk(?:\s*\.\s*[A-Za-z_$][\w$]*)?\s*\)/g, callPrefix: "Object reflection over sdk" },
+    { re: /\bReflect\s*\.\s*ownKeys\s*\(\s*sdk(?:\s*\.\s*[A-Za-z_$][\w$]*)?\s*\)/g, callPrefix: "Reflect.ownKeys over sdk" },
+    { re: /\bfor\s*\([^)]*\bin\s+sdk(?:\s*\.\s*[A-Za-z_$][\w$]*)?\s*\)/g, callPrefix: "for-in reflection over sdk" },
+    { re: /\bconsole\s*\.\s*(?:log|dir|debug)\s*\(\s*sdk(?:\s*\.\s*[A-Za-z_$][\w$]*)?\s*\)/g, callPrefix: "console reflection over sdk" },
+  ];
+
+  for (const pattern of reflectionPatterns) {
+    if (!pattern.re.test(masked)) continue;
+    addHit({
+      kind: "sdk_reflection",
+      tool: "workflow_sdk",
+      field: "sdk",
+      reason: "Use the SDK reference; reflection is unsupported.",
+      callPrefix: pattern.callPrefix,
+    });
+  }
+
+  const sdkMemberRe = /\bsdk\s*\.\s*([A-Za-z_$][\w$]*)\s*(?:\.\s*([A-Za-z_$][\w$]*))?/g;
+  for (const match of masked.matchAll(sdkMemberRe)) {
+    const namespace = match[1];
+    const method = match[2];
+    if (!namespace) continue;
+
+    if (!method) {
+      if (!TOP_LEVEL_SDK_MEMBERS.has(namespace)) {
+        addHit({
+          kind: "unknown_sdk_member",
+          tool: "workflow_sdk",
+          field: namespace,
+          reason: `Unknown SDK member: \`sdk.${namespace}\`. Known members: ${[...TOP_LEVEL_SDK_MEMBERS].sort().join(", ")}.`,
+          canonical: suggestClosest(namespace, [...TOP_LEVEL_SDK_MEMBERS]),
+          callPrefix: `sdk.${namespace}`,
+        });
+      }
+      continue;
+    }
+
+    const methods = SDK_NAMESPACES.get(namespace);
+    if (!methods) {
+      addHit({
+        kind: "unknown_sdk_member",
+        tool: "workflow_sdk",
+        field: namespace,
+        reason: `Unknown SDK member: \`sdk.${namespace}\`. Known members: ${[...TOP_LEVEL_SDK_MEMBERS].sort().join(", ")}.`,
+        canonical: suggestClosest(namespace, [...TOP_LEVEL_SDK_MEMBERS]),
+        callPrefix: `sdk.${namespace}`,
+      });
+      continue;
+    }
+
+    if (!methods.includes(method)) {
+      const suggestion = suggestClosest(method, methods);
+      addHit({
+        kind: "unknown_sdk_member",
+        tool: "workflow_sdk",
+        field: method,
+        reason: `Unknown SDK member: \`sdk.${namespace}.${method}\`.${suggestion ? ` Did you mean \`${suggestion}\`?` : ""} Known members: ${methods.join(", ")}.`,
+        canonical: suggestion,
+        callPrefix: `sdk.${namespace}.${method}`,
+      });
+    }
+  }
+
+  return hits;
+}
+
 export function staticWorkflowPreflight(script: string): StaticPreflightResult {
   const hits: StaticPreflightHit[] = [];
+  hits.push(...findSdkContractHits(script));
   for (const pattern of CALL_PATTERNS) {
     const rules = FORBIDDEN_BY_OP[pattern.tool];
     if (!rules) continue;
@@ -273,6 +438,7 @@ export function staticWorkflowPreflight(script: string): StaticPreflightResult {
       if (!found) break;
       for (const hit of findForbiddenKeysInArgs(found.argText, rules)) {
         hits.push({
+          kind: "forbidden_field",
           tool: pattern.tool,
           field: hit.field,
           reason: hit.rule.reason,
@@ -294,6 +460,7 @@ export function staticWorkflowPreflight(script: string): StaticPreflightResult {
       if (!found) break;
       for (const hit of check.inspect(found.argText)) {
         hits.push({
+          kind: "forbidden_field",
           tool: check.tool,
           field: hit.field,
           reason: hit.reason,
@@ -308,12 +475,16 @@ export function staticWorkflowPreflight(script: string): StaticPreflightResult {
   if (hits.length === 0) return { ok: true, hits: [] };
 
   const lines = hits.map((h) => {
+    if (h.kind === "unknown_sdk_member" || h.kind === "sdk_reflection") {
+      const canonical = h.canonical ? ` Suggested member: ${h.canonical}.` : "";
+      return `- ${h.callPrefix}: ${h.reason}${canonical}`;
+    }
     const canonical = h.canonical ? ` Use ${h.canonical} instead.` : "";
     return `- ${h.callPrefix}(...): forbidden field "${h.field}". ${h.reason}${canonical}`;
   });
   return {
     ok: false,
     hits,
-    message: `Workflow preflight found forbidden fields:\n${lines.join("\n")}`,
+    message: `Workflow preflight found contract violations:\n${lines.join("\n")}`,
   };
 }

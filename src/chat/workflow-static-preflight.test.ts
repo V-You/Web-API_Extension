@@ -127,3 +127,45 @@ describe("staticWorkflowPreflight (PRD 2026-05-18 Phase 3 contract checks)", () 
     expect(staticWorkflowPreflight(script).ok).toBe(true);
   });
 });
+
+describe("staticWorkflowPreflight (PRD 2026-05-20 SDK contract checks)", () => {
+  it("accepts known SDK methods", () => {
+    const script = `await sdk.entities.create("merchant", merchantId, "channel", { name: row.id });`;
+    expect(staticWorkflowPreflight(script).ok).toBe(true);
+  });
+
+  it("rejects invented SDK methods with a closest-match hint", () => {
+    const result = staticWorkflowPreflight(`await sdk.entities.createChannel("merchant", "m1", { name: "Germany" });`);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0]).toMatchObject({
+      kind: "unknown_sdk_member",
+      callPrefix: "sdk.entities.createChannel",
+      canonical: "create",
+    });
+    expect(result.message).toMatch(/Unknown SDK member: `sdk\.entities\.createChannel`/);
+    expect(result.message).toMatch(/Did you mean `create`/);
+  });
+
+  it("rejects unknown SDK namespaces", () => {
+    const result = staticWorkflowPreflight(`await sdk.management.createChannel({ name: "Germany" });`);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0]).toMatchObject({ kind: "unknown_sdk_member", callPrefix: "sdk.management" });
+    expect(result.message).toMatch(/Unknown SDK member: `sdk\.management`/);
+  });
+
+  it("rejects SDK reflection scripts", () => {
+    const result = staticWorkflowPreflight(`console.log(sdk.entities);`);
+    expect(result.ok).toBe(false);
+    expect(result.hits[0]).toMatchObject({ kind: "sdk_reflection" });
+    expect(result.message).toMatch(/reflection is unsupported/);
+  });
+
+  it("does not inspect SDK-looking text inside strings or comments", () => {
+    const script = `
+      // await sdk.entities.createChannel();
+      results.push("sdk.entities.createChannel should not be scanned in text");
+      await sdk.entities.create("merchant", "m1", "channel", { name: "Germany" });
+    `;
+    expect(staticWorkflowPreflight(script).ok).toBe(true);
+  });
+});

@@ -87,4 +87,20 @@ describe("execute_workflow declarative workflow mode", () => {
     expect("error" in result ? result.error : "").toMatch(/planOnly for freeform workflow scripts/);
     expect(executeTypedToolMock).not.toHaveBeenCalled();
   });
+
+  it("rejects unknown SDK methods in freeform scripts during preflight", async () => {
+    const result = await executeWorkflow(
+      { script: "await sdk.entities.createChannel('merchant', 'm1', { name: 'Germany' });" },
+      {} as never,
+      "uat" as never,
+    );
+
+    expect(result).toMatchObject({
+      status: "error",
+      writeCount: 0,
+      errorKind: "precheck_failed",
+    });
+    expect("error" in result ? result.error : "").toMatch(/Unknown SDK member: `sdk\.entities\.createChannel`/);
+    expect(executeTypedToolMock).not.toHaveBeenCalled();
+  });
 });

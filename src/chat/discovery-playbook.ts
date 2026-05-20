@@ -67,6 +67,12 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
       ? "Automation mode is enabled for this browser session. Use execute_workflow for repeated writes and backend batch work instead of calling write tools one by one. The separate Draft Job action may prepare longer TypeScript workflow scripts for review before a background Job starts."
       : "Automation mode is disabled. Do not draft or run workflow scripts from ordinary chat turns.",
     automationModeEnabled
+      ? "Workflow runtime metadata: ordinary execute_workflow calls are handed off as long_job background Jobs; reviewed Draft Job starts are also long_job; dryRun/planOnly validation stays inline_sandbox/declarative_workflow. The SDK surface is identical across script runtimes."
+      : null,
+    automationModeEnabled
+      ? "If execute_workflow reports a contract/preflight failure (unknown sdk method, unsupported reflection, forbidden field), rewrite the workflow using the SDK reference. Do not recover in the same turn by switching to per-action write tools."
+      : null,
+    automationModeEnabled
       ? "Workflow scripts receive context.entityId, context.entityType, and when available context.ids with known dashboard IDs such as channelId and merchantId. Use context.ids before deriving IDs or asking the user."
       : null,
     automationModeEnabled

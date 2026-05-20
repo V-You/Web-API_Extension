@@ -19,6 +19,7 @@
 import { runSandbox, type SandboxResult } from "../sandbox/sandbox";
 import type { WriteRecord } from "../sandbox/sdk-facade";
 import { executeTypedTool, isReadOnlyTool } from "./adapter";
+import { staticWorkflowPreflight } from "../chat/workflow-static-preflight";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 export interface ExecuteWorkflowInput {
@@ -168,6 +169,22 @@ export async function executeWorkflow(
       writes: [],
       durationMs: 0,
       error: "planOnly for freeform workflow scripts is not available in WebMCP service-worker execution because it would require unsafe eval. Use declarative workflow JSON for planOnly, dryRun for syntax validation, or start a reviewed background Job.",
+    };
+  }
+
+  const preflight = staticWorkflowPreflight(input.script);
+  if (!preflight.ok) {
+    return {
+      status: "error",
+      returnValue: null,
+      results: [],
+      logs: [],
+      writeCount: 0,
+      writes: [],
+      durationMs: 0,
+      error: preflight.message ?? "Workflow preflight found contract violations.",
+      errorKind: "precheck_failed",
+      preflight,
     };
   }
 

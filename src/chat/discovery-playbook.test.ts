@@ -58,6 +58,8 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Automation workflow tools are enabled for this browser session.");
     expect(prompt).toContain("Automation mode is enabled for this browser session.");
     expect(prompt).toContain("Use execute_workflow for repeated writes and backend batch work instead of calling write tools one by one.");
+    expect(prompt).toContain("Workflow runtime metadata: ordinary execute_workflow calls are handed off as long_job background Jobs");
+    expect(prompt).toContain("Do not recover in the same turn by switching to per-action write tools.");
     expect(prompt).toContain("Workflow scripts receive context.entityId, context.entityType, and when available context.ids");
     expect(prompt).toContain("prefer one execute_workflow Job over a long chain of individual tool calls");
     expect(prompt).toContain("This is a Draft Job turn.");

@@ -23,6 +23,7 @@ import { listCardProcessors } from "../src/tools/card-processors";
 import { executeDescribeSettings } from "../src/tools/describe-settings";
 import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
 import { executeSendTestTransaction, executeSendTestTransactions } from "../src/tools/send-test-transaction";
+import { staticWorkflowPreflight } from "../src/chat/workflow-static-preflight";
 import { knownFieldNames, pickOperation } from "../src/tools/manifest-helpers";
 import { assertNoForbiddenFields } from "../src/tools/forbidden-fields";
 import { assertLiveContract } from "../src/tools/live-contracts";
@@ -781,6 +782,15 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
     }
     job = existing;
   } else {
+    const preflight = staticWorkflowPreflight(input.script);
+    if (!preflight.ok) {
+      return {
+        ok: false,
+        jobId: "",
+        error: preflight.message ?? "Workflow preflight found contract violations.",
+      };
+    }
+
     // Create a new job
     job = await createJob({
       label: input.label,
