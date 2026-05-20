@@ -17,6 +17,12 @@ Specs in base_data/ are the source of truth. This tool is a browser extension. A
 5. Preview/confirm bridge (side panel <-> tool handler coordination)
 6. Job runner (pause/resume in service worker)
 
+**Specialities:***
+- There are 2 SDKs: 
+  - Single turn: Sandbox facade (user confirms all writes): built by buildSdkFacade in sdk-facade.ts 
+  - Long running: SW job SDK (user confirms only the job): built by buildSwSdk in sw-job-executor.ts
+  - Specific bug fixes or changes may have to be done to either
+
 ## Project outline
 
 - Initial PRD = file `md/2026-03-20_PRD_v1.md`
