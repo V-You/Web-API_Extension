@@ -427,6 +427,76 @@ describe("sandbox SDK facade - typed adapter routing (Part-II P2-D3)", () => {
     ]);
   });
 
+  // Universal list contract (PRD 2026-05-18): every sdk.*.list*/search method
+  // must return an array, regardless of how the underlying API wraps it.
+  describe("universal list contract", () => {
+    it("contacts.list returns an array from a wrapped envelope", async () => {
+      executeManageContactMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { ownedContacts: [{ id: "c-1" }, { id: "c-2" }] },
+      });
+      const sdk = buildSdkFacade(creds, env, []);
+      const contacts = await sdk.contacts.list("merchant", "m-1");
+      expect(Array.isArray(contacts)).toBe(true);
+      expect(contacts.map((c) => c.id)).toEqual(["c-1", "c-2"]);
+    });
+
+    it("contacts.list (attached) extracts the attachedContacts array", async () => {
+      executeManageContactMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { attachedContacts: [{ id: "c-3" }] },
+      });
+      const sdk = buildSdkFacade(creds, env, []);
+      const contacts = await sdk.contacts.list("merchant", "m-1", "attached");
+      expect(contacts).toEqual([{ id: "c-3" }]);
+    });
+
+    it("contacts.list throws a clear error when the envelope is not ok", async () => {
+      executeManageContactMock.mockResolvedValueOnce({ ok: false, status: 403, data: { error: "Forbidden" } });
+      const sdk = buildSdkFacade(creds, env, []);
+      await expect(sdk.contacts.list("merchant", "m-1")).rejects.toThrow(/list contacts on merchant m-1 failed/);
+    });
+
+    it("merchantAccounts.list returns an array from a wrapped envelope", async () => {
+      executeManageMerchantAccountMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { ownedMerchantAccounts: [{ id: "ma-1" }] },
+      });
+      const sdk = buildSdkFacade(creds, env, []);
+      const accounts = await sdk.merchantAccounts.list("merchant", "m-1");
+      expect(accounts).toEqual([{ id: "ma-1" }]);
+    });
+
+    it("clearingInstitutes.search returns an array", async () => {
+      executeLookupClearingInstitutesMock.mockResolvedValueOnce({
+        matches: [{ ciCode: "VISA" }, { ciCode: "MC" }],
+      });
+      const sdk = buildSdkFacade(creds, env, []);
+      const out = await sdk.clearingInstitutes.search("visa");
+      expect(out.map((m) => m.ciCode)).toEqual(["VISA", "MC"]);
+    });
+
+    it("clearingInstitutes.listLive returns an array", async () => {
+      executeLookupClearingInstitutesMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { clearingInstitutes: [{ id: "ci-1" }] },
+      });
+      const sdk = buildSdkFacade(creds, env, []);
+      await expect(sdk.clearingInstitutes.listLive("psp-1")).resolves.toEqual([{ id: "ci-1" }]);
+    });
+
+    it("cardProcessors.list returns an array", async () => {
+      listCardProcessorsMock.mockResolvedValueOnce([{ id: "VISA", ciCode: "VISA", name: "VISA" }]);
+      const sdk = buildSdkFacade(creds, env, []);
+      const out = await sdk.cardProcessors.list("psp-1");
+      expect(out).toEqual([{ id: "VISA", ciCode: "VISA", name: "VISA" }]);
+    });
+  });
+
   it("routes contact.edit through edit_contact with fields at top level", async () => {
     const writes: WriteRecord[] = [];
     const sdk = buildSdkFacade(creds, env, writes);

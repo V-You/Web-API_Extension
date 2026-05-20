@@ -29,6 +29,13 @@ import { assertLiveContract } from "../src/tools/live-contracts";
 import { bumpWorkflowCounter } from "../src/lib/workflow-counters";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
+import { extractEntityCollection } from "../src/lib/api-shapes";
+import {
+  normalizeListResult,
+  contactScopeKeys,
+  merchantAccountScopeKeys,
+  LIST_KEYS,
+} from "../src/lib/list-contract";
 import { abortOffscreenJob, executeJobInOffscreen, type OffscreenJobExecuteResult } from "./offscreen-job-host";
 import type { EntityType } from "../src/lib/entity-types";
 import type { ApiCredentials, Environment } from "../src/lib/types";
@@ -220,13 +227,35 @@ function buildSwSdk(
     return result;
   }
 
-  function unwrapApiList(result: unknown): unknown[] {
-    const data = unwrapApiData(result);
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
-      return (data as { items: unknown[] }).items;
-    }
-    return [];
+  // Entity-aware list normalizer: returns array of records and, for channel
+  // rows, aliases the API's `channel` field to a stable `id` property so
+  // model-generated scripts can use `row.id` regardless of childType.
+  function normalizeEntityListResult(
+    result: unknown,
+    childType: "division" | "merchant" | "channel",
+    parentType: EntityType,
+    parentId: string,
+  ): Record<string, unknown>[] {
+    const data = isRecord(result) && "data" in result ? result.data : result;
+    const arr = (() => {
+      const rows = extractEntityCollection(childType, data);
+      if (rows.length > 0 || Array.isArray(data)) return rows;
+      // Fall back through the shared contract for envelope/error handling.
+      return normalizeListResult(result, {
+        label: `list ${childType}s on ${parentType} ${parentId}`,
+        candidateKeys: [`${childType}s`],
+      });
+    })();
+    return arr.map((item) => {
+      const row: Record<string, unknown> = { ...item };
+      const aliased = typeof row._entityId === "string" && row._entityId.trim()
+        ? row._entityId
+        : childType === "channel" && typeof row.channel === "string" && (row.channel as string).trim()
+          ? (row.channel as string)
+          : null;
+      if (aliased && typeof row.id !== "string") row.id = aliased;
+      return row;
+    });
   }
 
   function recordWrite(
@@ -488,7 +517,12 @@ function buildSwSdk(
         return executeManageEntity({ action: "search", namePath }, creds, env);
       },
       async listChildren(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel") {
-        return executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env);
+        return normalizeEntityListResult(
+          await executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env),
+          childType,
+          parentType,
+          parentId,
+        );
       },
       async create(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel", fields: Record<string, string>) {
         recordWrite("manage_entity", "create", parentId, parentType, { childType, fields });
@@ -516,7 +550,10 @@ function buildSwSdk(
         return unwrapApiData(await executeManageContact({ action: "get", contactId }, creds, env, { signal, throttleRate }));
       },
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return unwrapApiList(await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env, { signal, throttleRate }));
+        return normalizeListResult(
+          await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env, { signal, throttleRate }),
+          { label: `list contacts on ${entityType} ${entityId}`, candidateKeys: contactScopeKeys(scope) },
+        );
       },
       async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
         recordWrite("manage_contact", "create", entityId, entityType, { fields });
@@ -556,7 +593,10 @@ function buildSwSdk(
         return executeManageMerchantAccount({ action: "get", merchantAccountId }, creds, env);
       },
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env);
+        return normalizeListResult(
+          await executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env),
+          { label: `list merchant accounts on ${entityType} ${entityId}`, candidateKeys: merchantAccountScopeKeys(scope) },
+        );
       },
       async create(...args: unknown[]) {
         const { entityType, entityId, fields: rawFields } = normalizeMerchantAccountCreateArgs(args);
@@ -607,24 +647,39 @@ function buildSwSdk(
     },
     clearingInstitutes: {
       async search(query: string) {
-        return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
+        return normalizeListResult(
+          await executeLookupClearingInstitutes({ action: "search", query }, creds, env),
+          { label: `search clearing institutes "${query}"`, candidateKeys: [...LIST_KEYS.clearingInstitutesSearch] },
+        );
       },
       async getFields(ciCode: string) {
         return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
       },
       async listLive(pspId: string) {
-        return executeLookupClearingInstitutes({ action: "list_live", pspId }, creds, env);
+        return normalizeListResult(
+          await executeLookupClearingInstitutes({ action: "list_live", pspId }, creds, env),
+          { label: `list live clearing institutes for psp ${pspId}`, candidateKeys: [...LIST_KEYS.clearingInstitutesLive] },
+        );
       },
     },
     cardProcessors: {
       async list(pspId?: string) {
-        return listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env);
+        return normalizeListResult(
+          await listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env),
+          { label: `list card processors${pspId ? ` for psp ${pspId}` : ""}`, candidateKeys: [...LIST_KEYS.cardProcessors] },
+        );
       },
       async listLive(pspId?: string) {
-        return listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env);
+        return normalizeListResult(
+          await listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env),
+          { label: `list live card processors${pspId ? ` for psp ${pspId}` : ""}`, candidateKeys: [...LIST_KEYS.cardProcessors] },
+        );
       },
       async search(query: string) {
-        return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
+        return normalizeListResult(
+          await executeLookupClearingInstitutes({ action: "search", query }, creds, env),
+          { label: `search card processors "${query}"`, candidateKeys: [...LIST_KEYS.clearingInstitutesSearch] },
+        );
       },
       async getFields(ciCode: string) {
         return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);

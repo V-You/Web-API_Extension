@@ -92,7 +92,12 @@ describe("workflow SDK reference (D15)", () => {
 
   it("documents listChildren array semantics", () => {
     expect(WORKFLOW_SDK_REFERENCE).toContain("sdk.entities.listChildren(parentType, parentId, childType) returns an array");
-    expect(WORKFLOW_SDK_REFERENCE).toContain("array methods such as map/filter/slice are valid");
     expect(WORKFLOW_SDK_REFERENCE).toContain("the SDK aliases API channel rows where the entity ID is named channel");
+  });
+
+  it("documents the universal list contract", () => {
+    expect(WORKFLOW_SDK_REFERENCE).toContain("Universal list contract");
+    expect(WORKFLOW_SDK_REFERENCE).toContain("returns a plain JavaScript array");
+    expect(WORKFLOW_SDK_REFERENCE).toContain("Do not read .data");
   });
 });

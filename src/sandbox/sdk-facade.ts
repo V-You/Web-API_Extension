@@ -21,6 +21,12 @@
 import { createSdk, type SdkContext } from "../sdk/sdk";
 import type { EntityType } from "../lib/entity-types";
 import { extractEntityCollection } from "../lib/api-shapes";
+import {
+  normalizeListResult as sharedNormalizeListResult,
+  contactScopeKeys,
+  merchantAccountScopeKeys,
+  LIST_KEYS,
+} from "../lib/list-contract";
 import type { ApiCredentials, Environment } from "../lib/types";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { recordWrite } from "../bridge/write-status";
@@ -136,6 +142,16 @@ function assertWriteSucceeded<T>(result: T, description: string): T {
   if (typeof result.error === "string" && result.error.trim()) throw new Error(`${description} failed: ${result.error.trim()}`);
   return result;
 }
+
+/**
+ * Universal SDK list contract.
+ *
+ * Re-export of `normalizeListResult` from src/lib/list-contract.ts so the
+ * sandbox facade and the SW job executor share one implementation. Every
+ * `sdk.*.list*` / `sdk.*.search` SDK method must route through this helper
+ * (see md/2026-05-18_PRD_contract-first-workflow-sdk.md).
+ */
+export const normalizeListResult = sharedNormalizeListResult;
 
 function normalizeEntityListResult(result: unknown, childType: EntityType): Record<string, unknown>[] {
   if (isRecord(result)) {
@@ -484,7 +500,10 @@ export function buildSdkFacade(
         return executeManageContact({ action: "get", contactId }, creds, env);
       },
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return executeManageContact({ action: "list", entityType, entityId, scope }, creds, env);
+        return normalizeListResult(
+          await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env),
+          { label: `list contacts on ${entityType} ${entityId}`, candidateKeys: contactScopeKeys(scope) },
+        );
       },
       async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
         await confirmAndWrite(
@@ -571,7 +590,10 @@ export function buildSdkFacade(
         return executeManageMerchantAccount({ action: "get", merchantAccountId }, creds, env);
       },
       async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env);
+        return normalizeListResult(
+          await executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env),
+          { label: `list merchant accounts on ${entityType} ${entityId}`, candidateKeys: merchantAccountScopeKeys(scope) },
+        );
       },
       async create(...args: unknown[]) {
         const { entityType, entityId, fields } = normalizeMerchantAccountCreateArgs(args);
@@ -668,26 +690,42 @@ export function buildSdkFacade(
     // -- Clearing institutes --
     clearingInstitutes: {
       async search(query: string) {
-        return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
+        return normalizeListResult(
+          await executeLookupClearingInstitutes({ action: "search", query }, creds, env),
+          { label: `search clearing institutes "${query}"`, candidateKeys: [...LIST_KEYS.clearingInstitutesSearch] },
+        );
       },
       async getFields(ciCode: string) {
+        // Single-result lookup, not a list - return raw shape.
         return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
       },
       async listLive(pspId: string) {
-        return executeLookupClearingInstitutes({ action: "list_live", pspId }, creds, env);
+        return normalizeListResult(
+          await executeLookupClearingInstitutes({ action: "list_live", pspId }, creds, env),
+          { label: `list live clearing institutes for psp ${pspId}`, candidateKeys: [...LIST_KEYS.clearingInstitutesLive] },
+        );
       },
     },
 
     // -- Card processor aliases --
     cardProcessors: {
       async list(pspId?: string) {
-        return listCardProcessors(pspId, creds, env);
+        return normalizeListResult(await listCardProcessors(pspId, creds, env), {
+          label: `list card processors${pspId ? ` for psp ${pspId}` : ""}`,
+          candidateKeys: [...LIST_KEYS.cardProcessors],
+        });
       },
       async listLive(pspId?: string) {
-        return listCardProcessors(pspId, creds, env);
+        return normalizeListResult(await listCardProcessors(pspId, creds, env), {
+          label: `list live card processors${pspId ? ` for psp ${pspId}` : ""}`,
+          candidateKeys: [...LIST_KEYS.cardProcessors],
+        });
       },
       async search(query: string) {
-        return executeLookupClearingInstitutes({ action: "search", query }, creds, env);
+        return normalizeListResult(
+          await executeLookupClearingInstitutes({ action: "search", query }, creds, env),
+          { label: `search card processors "${query}"`, candidateKeys: [...LIST_KEYS.clearingInstitutesSearch] },
+        );
       },
       async getFields(ciCode: string) {
         return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
