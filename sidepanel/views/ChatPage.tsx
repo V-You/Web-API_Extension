@@ -31,7 +31,7 @@ import {
   type LlmProviderSettings,
 } from "../../src/lib/llm-storage";
 import { buildChatSystemPrompt, buildChatWorkflowDraftPrompt } from "../../src/chat/discovery-playbook";
-import { buildComposerTargetPreview, shouldShowChannelParentTarget, type EffectiveChatContext } from "../../src/chat/context-display";
+import { buildComposerTargetPreview, shouldShowChannelParentTarget } from "../../src/chat/context-display";
 import { matchConfigTestRecipes, type MatchedConfigTestRecipe } from "../../src/chat/config-test-recipes";
 import { contextPacketFor, getActiveChatContext, resolveChannelMerchantFromContext, type ChatContextRecord } from "../../src/chat/context-store";
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
