@@ -15,28 +15,11 @@ import { wrapSdkWithGuard } from "../src/sandbox/sdk-guard";
 import { appendAuditEntry } from "../src/lib/api-client";
 import { compileSandboxScript, type WriteRecord, type LogEntry } from "../src/sandbox";
 import { executeManageEntity } from "../src/tools/manage-entity";
-import { executeGetHierarchy } from "../src/tools/get-hierarchy";
-import { executeManageContact } from "../src/tools/manage-contact";
-import { executeManageMerchantAccount } from "../src/tools/manage-merchant-account";
 import { executeLookupClearingInstitutes } from "../src/tools/lookup-clearing-institutes";
-import { listCardProcessors } from "../src/tools/card-processors";
-import { executeDescribeSettings } from "../src/tools/describe-settings";
-import { executeGetAuditLog, type GetAuditLogInput } from "../src/tools/get-audit-log";
-import { executeSendTestTransaction, executeSendTestTransactions } from "../src/tools/send-test-transaction";
 import { staticWorkflowPreflight } from "../src/chat/workflow-static-preflight";
-import { knownFieldNames, pickOperation } from "../src/tools/manifest-helpers";
-import { assertNoForbiddenFields } from "../src/tools/forbidden-fields";
-import { assertLiveContract } from "../src/tools/live-contracts";
 import { bumpWorkflowCounter } from "../src/lib/workflow-counters";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
-import { createSdk, type SdkContext } from "../src/sdk/sdk";
-import { createWorkflowEntityNamespace } from "../src/sdk/workflow-entity-namespace";
-import {
-  normalizeListResult,
-  contactScopeKeys,
-  merchantAccountScopeKeys,
-  LIST_KEYS,
-} from "../src/lib/list-contract";
+import { createWorkflowSdk } from "../src/sdk/workflow-sdk";
 import { abortOffscreenJob, executeJobInOffscreen, type OffscreenJobExecuteResult } from "./offscreen-job-host";
 import type { EntityType } from "../src/lib/entity-types";
 import type { ApiCredentials, Environment } from "../src/lib/types";
@@ -85,140 +68,8 @@ function buildSwSdk(
   throttleRate?: number,
   runtimeContext?: JobRuntimeContext,
 ) {
-  const ctx: SdkContext = { creds, env, signal, throttleRate };
-  const virtualSdk = createSdk(ctx);
-
   function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-  }
-
-  function toStringRecord(value: unknown): Record<string, string> {
-    if (!isRecord(value)) return {};
-    const fields = Object.fromEntries(
-      Object.entries(value)
-        .filter(([, entry]) => entry !== undefined && entry !== null)
-        .map(([key, entry]) => [key, String(entry)]),
-    );
-    if (fields.status && !fields.state) fields.state = fields.status === "ACTIVE" ? "LIVE" : fields.status;
-    delete fields.status;
-    if (fields.id && !fields.merchantId) fields.merchantId = fields.id;
-    delete fields.id;
-    if (fields.mid && !fields.merchantId) fields.merchantId = fields.mid;
-    delete fields.mid;
-    if (fields.identification && !fields.merchantId) fields.merchantId = fields.identification;
-    delete fields.identification;
-    if (fields.merchant_id && !fields.merchantId) fields.merchantId = fields.merchant_id;
-    delete fields.merchant_id;
-    if (fields.merchant_name && !fields.name) fields.name = fields.merchant_name;
-    delete fields.merchant_name;
-    if (fields.merchantName && !fields.name) fields.name = fields.merchantName;
-    delete fields.merchantName;
-    if (fields.clearingInstitute && !fields.clearingInstituteName) fields.clearingInstituteName = fields.clearingInstitute;
-    delete fields.clearingInstitute;
-    if (fields.ciId && !fields.clearingInstituteId) fields.clearingInstituteId = fields.ciId;
-    delete fields.ciId;
-    normalizeClearingInstituteIdentifier(fields);
-    if (fields.merchantId && !fields.name) fields.name = fields.merchantId;
-    return fields;
-  }
-
-  function normalizeClearingInstituteIdentifier(fields: Record<string, string>) {
-    const id = fields.clearingInstituteId?.trim();
-    if (!id || /^[a-f0-9]{32}$/i.test(id)) return;
-    if (!fields.clearingInstituteName) fields.clearingInstituteName = id;
-    delete fields.clearingInstituteId;
-  }
-
-  function normalizeMerchantAccountCreateArgs(args: unknown[]): { entityType: EntityType; entityId: string; fields: Record<string, string> } {
-    const [first, second, third] = args;
-    if (isRecord(first)) {
-      const entityType = String(first.parentType ?? first.entityType ?? "merchant") as EntityType;
-      const entityId = String(first.parentId ?? first.entityId ?? first.merchantId ?? "");
-      const nestedFields = isRecord(first.fields) ? first.fields : first;
-      const { parentType: _parentType, parentId: _parentId, entityType: _entityType, entityId: _entityId, merchantId: _merchantId, fields: _fields, ...rest } = nestedFields;
-      return { entityType, entityId, fields: toStringRecord(rest) };
-    }
-    if (typeof first === "string" && isRecord(second) && third === undefined) {
-      return { entityType: "merchant", entityId: first, fields: toStringRecord(isRecord(second.fields) ? second.fields : second) };
-    }
-    return { entityType: first as EntityType, entityId: String(second ?? ""), fields: toStringRecord(third) };
-  }
-
-  function normalizeMerchantAccountEditArgs(args: unknown[]): { merchantAccountId: string; fields: Record<string, string> } {
-    const [first, second] = args;
-    if (isRecord(first)) {
-      const merchantAccountId = String(first.merchantAccountId ?? first.id ?? "");
-      const nestedFields = isRecord(first.fields) ? first.fields : first;
-      const { merchantAccountId: _merchantAccountId, id: _id, fields: _fields, ...rest } = nestedFields;
-      return { merchantAccountId, fields: toStringRecord(rest) };
-    }
-    return { merchantAccountId: String(first ?? ""), fields: toStringRecord(second) };
-  }
-
-  function assertManifestFields(toolName: string, parentType: EntityType | null, fields: Record<string, string>) {
-    assertNoForbiddenFields(toolName, fields);
-    const op = pickOperation(toolName, parentType);
-    if (!op) throw new Error(`Unknown generated operation: ${toolName}`);
-    const known = knownFieldNames(op);
-    const unknown = Object.keys(fields).filter((field) => !known.has(field));
-    if (unknown.length > 0) {
-      const accepted = op.request.map((field) => field.name).sort();
-      throw new Error(`${toolName} received unknown field(s): ${unknown.join(", ")}. Accepted fields: ${accepted.join(", ")}`);
-    }
-  }
-
-  function assertMerchantAccountCreateContract(fields: Record<string, string>) {
-    // PRD 2026-05-18 Phase 1 / D1: required-field check moved to the live-contract overlay.
-    assertLiveContract("create_merchant_account", fields);
-  }
-
-  function normalizeListField(value: unknown): string {
-    if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean).join(",");
-    return String(value ?? "").trim();
-  }
-
-  function normalizeMerchantAccountAttachArgs(args: unknown[]): { entityType: EntityType; entityId: string; merchantAccountId: string; subTypes: string; currency: string } {
-    const [first, second, third, fourth, fifth] = args;
-    if (isRecord(first)) {
-      return {
-        entityType: String(first.parentType ?? first.entityType ?? "channel") as EntityType,
-        entityId: String(first.parentId ?? first.entityId ?? ""),
-        merchantAccountId: String(first.merchantAccountId ?? first.id ?? ""),
-        subTypes: normalizeListField(first.subTypes ?? first.subType ?? first.paymentBrand ?? first.paymentBrands),
-        currency: normalizeListField(first.currency ?? first.currencies),
-      };
-    }
-    return {
-      entityType: first as EntityType,
-      entityId: String(second ?? ""),
-      merchantAccountId: String(third ?? ""),
-      subTypes: normalizeListField(fourth),
-      currency: normalizeListField(fifth),
-    };
-  }
-
-  function withMerchantAccountCreateAliases(result: unknown, fields: Record<string, string>): unknown {
-    if (!isRecord(result)) return result;
-    const data = isRecord(result.data) ? result.data : {};
-    const merchantAccountId = String(data.merchantAccountId ?? data.id ?? fields.merchantAccountId ?? fields.id ?? fields.merchantId ?? "");
-    const name = String(data.name ?? fields.name ?? merchantAccountId);
-    const aliases = {
-      ...(merchantAccountId ? { id: merchantAccountId, merchantAccountId } : {}),
-      ...(name ? { name } : {}),
-    };
-    return {
-      ...result,
-      ...aliases,
-      data: {
-        ...data,
-        ...aliases,
-      },
-    };
-  }
-
-  function assertMerchantAccountAttachFields(merchantAccountId: string, subTypes: string, currency: string) {
-    // PRD 2026-05-18 Phase 1 / D1: required-field check moved to the live-contract overlay.
-    assertLiveContract("attach_merchant_account", { merchantAccountId, subTypes, currency });
   }
 
   function unwrapApiData(result: unknown): unknown {
@@ -234,37 +85,6 @@ function buildSwSdk(
     params: Record<string, unknown>,
   ) {
     writes.push({ tool, action, entityId, entityType, params, timestamp: new Date().toISOString() });
-  }
-
-  function assertWriteSucceeded<T>(result: T, description: string): T {
-    if (!isRecord(result)) return result;
-    const errors = Array.isArray(result.errors) ? result.errors.map(String).filter(Boolean) : [];
-    if (errors.length > 0) {
-      throw new Error(`${description} failed: ${errors.join("; ")}`);
-    }
-    if (result.ok === false) {
-      throw new Error(`${description} failed: ${writeFailureMessage(result)}`);
-    }
-    if (typeof result.error === "string" && result.error.trim()) {
-      throw new Error(`${description} failed: ${result.error.trim()}`);
-    }
-    return result;
-  }
-
-  function writeFailureMessage(result: Record<string, unknown>): string {
-    const outcome = isRecord(result.apiOutcome) ? result.apiOutcome : null;
-    const data = isRecord(result.data) ? result.data : null;
-    const dataError = isRecord(data?.error) ? data.error : null;
-    const messages = [
-      stringValue(outcome?.errorCode),
-      stringValue(outcome?.errorMessage),
-      stringValue(dataError?.code),
-      stringValue(dataError?.message),
-      stringValue(data?.error),
-    ].filter(Boolean);
-    if (messages.length > 0) return messages.join(" - ");
-    const status = typeof result.status === "number" ? `HTTP ${result.status}` : "unknown error";
-    return status;
   }
 
   function stringValue(value: unknown): string | null {
@@ -434,219 +254,42 @@ function buildSwSdk(
     });
   }
 
-  const facade = {
-    config: {
-      get: virtualSdk.config.get.bind(virtualSdk.config),
-      batchGet: virtualSdk.config.batchGet.bind(virtualSdk.config),
-      describe: virtualSdk.config.describe.bind(virtualSdk.config),
-      validate: virtualSdk.config.validate.bind(virtualSdk.config),
-      coverage: virtualSdk.config.coverage.bind(virtualSdk.config),
-      async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
-        await assertWorkflowTarget(entityType, entityId, "settings update");
-        recordWrite("config", "update", entityId, entityType, { settings });
-        return assertWriteSucceeded(await virtualSdk.config.update(entityType, entityId, settings), "settings update");
-      },
-      async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
-        await assertWorkflowTarget(entityType, entityId, "settings batch update");
-        recordWrite("config", "batch_update", entityId, entityType, { settings });
-        return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
-      },
-    },
-    settings: {
-      get: virtualSdk.config.get.bind(virtualSdk.config),
-      batchGet: virtualSdk.config.batchGet.bind(virtualSdk.config),
-      describe: virtualSdk.config.describe.bind(virtualSdk.config),
-      validate: virtualSdk.config.validate.bind(virtualSdk.config),
-      coverage: virtualSdk.config.coverage.bind(virtualSdk.config),
-      async edit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
-        await assertWorkflowTarget(entityType, entityId, "settings update");
-        recordWrite("config", "update", entityId, entityType, { settings });
-        return assertWriteSucceeded(await virtualSdk.config.update(entityType, entityId, settings), "settings update");
-      },
-      async update(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
-        await assertWorkflowTarget(entityType, entityId, "settings update");
-        recordWrite("config", "update", entityId, entityType, { settings });
-        return assertWriteSucceeded(await virtualSdk.config.update(entityType, entityId, settings), "settings update");
-      },
-      async batchEdit(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
-        await assertWorkflowTarget(entityType, entityId, "settings batch update");
-        recordWrite("config", "batch_update", entityId, entityType, { settings });
-        return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
-      },
-      async batchUpdate(entityType: EntityType, entityId: string, settings: Record<string, unknown>) {
-        await assertWorkflowTarget(entityType, entityId, "settings batch update");
-        recordWrite("config", "batch_update", entityId, entityType, { settings });
-        return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
-      },
-    },
-    entities: createWorkflowEntityNamespace({
-      creds,
-      env,
-      writeTransport: "internalHandler",
-      mapGetResult: unwrapApiData,
-      beforeWrite: async (preview) => {
+  const facade = createWorkflowSdk({
+    creds,
+    env,
+    host: {
+      entityWriteTransport: "internalHandler",
+      contactWriteTransport: "internalHandler",
+      merchantAccountWriteTransport: "internalHandler",
+      signal,
+      throttleRate,
+      mapEntityGetResult: unwrapApiData,
+      mapContactGetResult: unwrapApiData,
+      resolveCardProcessorPspId: pspIdForLiveCardProcessors,
+      resolveMerchantAccountCreateFields: resolveMerchantAccountClearingInstitute,
+      validateMerchantAccountEditFields: true,
+      bypassTransactionConfirmation: true,
+      includeManagementNamespace: true,
+      mapManagementEntityGetResult: unwrapApiData,
+      beforeSettingsWrite: async (preview) => {
         await assertWorkflowTarget(preview.entityType as EntityType, preview.entityId, preview.description);
         recordWrite(preview.tool, preview.action, preview.entityId, preview.entityType, preview.params);
       },
-    }),
-    hierarchy: {
-      async fetch(pspId: string, depth?: number) {
-        return executeGetHierarchy({ pspId, depth }, creds, env);
+      beforeEntityWrite: async (preview) => {
+        await assertWorkflowTarget(preview.entityType as EntityType, preview.entityId, preview.description);
+        recordWrite(preview.tool, preview.action, preview.entityId, preview.entityType, preview.params);
       },
-      async estimate(pspId: string, depth?: number) {
-        return executeGetHierarchy({ pspId, depth, estimateOnly: true }, creds, env);
+      beforeContactWrite: async (preview) => {
+        recordWrite(preview.tool, preview.action, preview.entityId, preview.entityType, preview.params);
       },
-    },
-    contacts: {
-      async get(contactId: string) {
-        return unwrapApiData(await executeManageContact({ action: "get", contactId }, creds, env, { signal, throttleRate }));
+      beforeMerchantAccountWrite: async (preview) => {
+        if (preview.action === "create" || preview.action === "attach") {
+          await assertWorkflowTarget(preview.entityType as EntityType, preview.entityId, preview.description);
+        }
+        recordWrite(preview.tool, preview.action, preview.entityId, preview.entityType, preview.params);
       },
-      async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return normalizeListResult(
-          await executeManageContact({ action: "list", entityType, entityId, scope }, creds, env, { signal, throttleRate }),
-          { label: `list contacts on ${entityType} ${entityId}`, candidateKeys: contactScopeKeys(scope) },
-        );
-      },
-      async create(entityType: EntityType, entityId: string, fields: Record<string, string>) {
-        recordWrite("manage_contact", "create", entityId, entityType, { fields });
-        return assertWriteSucceeded(await executeManageContact({ action: "create", entityType, entityId, fields }, creds, env, { signal, throttleRate }), "contact create");
-      },
-      async edit(contactId: string, fields: Record<string, string>) {
-        recordWrite("manage_contact", "edit", contactId, "contact", { fields });
-        return assertWriteSucceeded(await executeManageContact({ action: "edit", contactId, fields }, creds, env, { signal, throttleRate }), "contact edit");
-      },
-      async delete(contactId: string) {
-        recordWrite("manage_contact", "delete", contactId, "contact", {});
-        return assertWriteSucceeded(await executeManageContact({ action: "delete", contactId }, creds, env, { signal, throttleRate }), "contact delete");
-      },
-      async attach(entityType: EntityType, entityId: string, contactId: string) {
-        recordWrite("manage_contact", "attach", entityId, entityType, { contactId });
-        return assertWriteSucceeded(await executeManageContact({ action: "attach", entityType, entityId, contactId }, creds, env, { signal, throttleRate }), "contact attach");
-      },
-      async detach(entityType: EntityType, entityId: string, contactId: string) {
-        recordWrite("manage_contact", "detach", entityId, entityType, { contactId });
-        return assertWriteSucceeded(await executeManageContact({ action: "detach", entityType, entityId, contactId }, creds, env, { signal, throttleRate }), "contact detach");
-      },
-      async lock(contactId: string) {
-        recordWrite("manage_contact", "lock", contactId, "contact", {});
-        return assertWriteSucceeded(await executeManageContact({ action: "lock", contactId }, creds, env, { signal, throttleRate }), "contact lock");
-      },
-      async unlock(contactId: string) {
-        recordWrite("manage_contact", "unlock", contactId, "contact", {});
-        return assertWriteSucceeded(await executeManageContact({ action: "unlock", contactId }, creds, env, { signal, throttleRate }), "contact unlock");
-      },
-      async resetPassword(contactId: string, newPassword: string) {
-        recordWrite("manage_contact", "reset_password", contactId, "contact", {});
-        return assertWriteSucceeded(await executeManageContact({ action: "reset_password", contactId, newPassword }, creds, env, { signal, throttleRate }), "contact password reset");
-      },
-    },
-    merchantAccounts: {
-      async get(merchantAccountId: string) {
-        return executeManageMerchantAccount({ action: "get", merchantAccountId }, creds, env);
-      },
-      async list(entityType: EntityType, entityId: string, scope?: "owned" | "attached") {
-        return normalizeListResult(
-          await executeManageMerchantAccount({ action: "list", entityType, entityId, scope }, creds, env),
-          { label: `list merchant accounts on ${entityType} ${entityId}`, candidateKeys: merchantAccountScopeKeys(scope) },
-        );
-      },
-      async create(...args: unknown[]) {
-        const { entityType, entityId, fields: rawFields } = normalizeMerchantAccountCreateArgs(args);
-        const fields = await resolveMerchantAccountClearingInstitute(rawFields);
-        await assertWorkflowTarget(entityType, entityId, "merchant account create");
-        assertManifestFields("create_merchant_account", entityType, fields);
-        assertMerchantAccountCreateContract(fields);
-        recordWrite("manage_merchant_account", "create", entityId, entityType, { fields });
-        return withMerchantAccountCreateAliases(
-          assertWriteSucceeded(await executeManageMerchantAccount({ action: "create", entityType, entityId, fields }, creds, env), "merchant account create"),
-          fields,
-        );
-      },
-      async edit(...args: unknown[]) {
-        const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
-        assertManifestFields("edit_merchant_account", null, fields);
-        recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
-        return assertWriteSucceeded(await executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env), "merchant account edit");
-      },
-      async update(...args: unknown[]) {
-        const { merchantAccountId, fields } = normalizeMerchantAccountEditArgs(args);
-        assertManifestFields("edit_merchant_account", null, fields);
-        recordWrite("manage_merchant_account", "edit", merchantAccountId, "merchant_account", { fields });
-        return assertWriteSucceeded(await executeManageMerchantAccount({ action: "edit", merchantAccountId, fields }, creds, env), "merchant account edit");
-      },
-      async activate(...args: unknown[]) {
-        const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
-        return this.attach(entityType, entityId, merchantAccountId, subTypes, currency);
-      },
-      async delete(merchantAccountId: string) {
-        recordWrite("manage_merchant_account", "delete", merchantAccountId, "merchant_account", {});
-        return assertWriteSucceeded(await executeManageMerchantAccount({ action: "delete", merchantAccountId }, creds, env), "merchant account delete");
-      },
-      async attach(...args: unknown[]) {
-        const { entityType, entityId, merchantAccountId, subTypes, currency } = normalizeMerchantAccountAttachArgs(args);
-        assertMerchantAccountAttachFields(merchantAccountId, subTypes, currency);
-        await assertWorkflowTarget(entityType, entityId, "merchant account attach");
-        recordWrite("manage_merchant_account", "attach", entityId, entityType, { merchantAccountId, subTypes, currency });
-        return assertWriteSucceeded(await executeManageMerchantAccount({ action: "attach", entityType, entityId, merchantAccountId, subTypes, currency }, creds, env), "merchant account attach");
-      },
-      async detach(attachedMerchantAccountId: string) {
-        recordWrite("manage_merchant_account", "detach", attachedMerchantAccountId, "merchant_account", {});
-        return assertWriteSucceeded(await executeManageMerchantAccount({ action: "detach", attachedMerchantAccountId }, creds, env), "merchant account detach");
-      },
-      async threeDCheck(merchantAccountId: string) {
-        return executeManageMerchantAccount({ action: "three_d_check", merchantAccountId }, creds, env);
-      },
-    },
-    clearingInstitutes: {
-      async search(query: string) {
-        return normalizeListResult(
-          await executeLookupClearingInstitutes({ action: "search", query }, creds, env),
-          { label: `search clearing institutes "${query}"`, candidateKeys: [...LIST_KEYS.clearingInstitutesSearch] },
-        );
-      },
-      async getFields(ciCode: string) {
-        return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
-      },
-      async listLive(pspId: string) {
-        return normalizeListResult(
-          await executeLookupClearingInstitutes({ action: "list_live", pspId }, creds, env),
-          { label: `list live clearing institutes for psp ${pspId}`, candidateKeys: [...LIST_KEYS.clearingInstitutesLive] },
-        );
-      },
-    },
-    cardProcessors: {
-      async list(pspId?: string) {
-        return normalizeListResult(
-          await listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env),
-          { label: `list card processors${pspId ? ` for psp ${pspId}` : ""}`, candidateKeys: [...LIST_KEYS.cardProcessors] },
-        );
-      },
-      async listLive(pspId?: string) {
-        return normalizeListResult(
-          await listCardProcessors(await pspIdForLiveCardProcessors(pspId), creds, env),
-          { label: `list live card processors${pspId ? ` for psp ${pspId}` : ""}`, candidateKeys: [...LIST_KEYS.cardProcessors] },
-        );
-      },
-      async search(query: string) {
-        return normalizeListResult(
-          await executeLookupClearingInstitutes({ action: "search", query }, creds, env),
-          { label: `search card processors "${query}"`, candidateKeys: [...LIST_KEYS.clearingInstitutesSearch] },
-        );
-      },
-      async getFields(ciCode: string) {
-        return executeLookupClearingInstitutes({ action: "get_fields", ciCode }, creds, env);
-      },
-    },
-    describeSettings(query: string, limit?: number) {
-      return executeDescribeSettings({ query, limit });
-    },
-    audit: {
-      async get(opts?: GetAuditLogInput) {
-        return executeGetAuditLog(opts ?? {});
-      },
-    },
-    transactions: {
-      async sendTest(params: Record<string, unknown>) {
+      recordTransactionWrite: (record) => recordWrite(record.tool, record.action, record.entityId, record.entityType, record.params),
+      resolveTransactionParams: async (params, mode) => {
         const channelId = String(
           params.channelId
             ?? runtimeContext?.ids?.channelId
@@ -654,46 +297,16 @@ function buildSwSdk(
             ?? "",
         ).trim();
         const merchantId = await resolveTransactionMerchantId(params, channelId);
-        const resolvedParams = {
+        return {
           ...params,
           channelId,
           merchantId,
+          ...(mode === "batch" ? { count: params.count ?? params.total ?? 3 } : {}),
           contextProvenance: params.contextProvenance ?? "Merchant derived by Job runtime from current Channel context or Channel GET.",
         };
-        return executeSendTestTransaction(resolvedParams, creds, env, {
-          bypassWriteConfirmation: true,
-          onWriteAccepted: () => recordWrite("send_test_transaction", "send", channelId, "channel", resolvedParams),
-        });
-      },
-      async sendTestBatch(params: Record<string, unknown>) {
-        const channelId = String(
-          params.channelId
-            ?? runtimeContext?.ids?.channelId
-            ?? (runtimeContext?.entityType === "channel" ? runtimeContext.entityId : "")
-            ?? "",
-        ).trim();
-        const merchantId = await resolveTransactionMerchantId(params, channelId);
-        const resolvedParams = {
-          ...params,
-          channelId,
-          merchantId,
-          count: params.count ?? params.total ?? 3,
-          contextProvenance: params.contextProvenance ?? "Merchant derived by Job runtime from current Channel context or Channel GET.",
-        };
-        return executeSendTestTransactions(resolvedParams, creds, env, {
-          bypassWriteConfirmation: true,
-          onWriteAccepted: () => recordWrite("send_test_transactions", "send_batch", channelId, "channel", resolvedParams),
-        });
       },
     },
-    management: {
-      entities: {
-        async get(entityType: EntityType, entityId: string) {
-          return unwrapApiData(await executeManageEntity({ action: "get", entityType, entityId }, creds, env));
-        },
-      },
-    },
-  };
+  });
 
   // PRD 2026-05-18 D14: parity with the sandbox facade -- unknown SDK
   // members raise a structured suggestion instead of silently being

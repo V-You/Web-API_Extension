@@ -17,6 +17,7 @@ import {
   WORKFLOW_SDK_REFERENCE_METHODS,
 } from "../../src_data/workflow-sdk-reference";
 import { WORKFLOW_SDK_METHODS } from "../sdk/workflow-registry";
+import { createWorkflowSdk } from "../sdk/workflow-sdk";
 
 const FACADE_PATH = resolve(__dirname, "../sandbox/sdk-facade.ts");
 const SW_JOB_EXECUTOR_PATH = resolve(__dirname, "../../background/sw-job-executor.ts");
@@ -64,6 +65,21 @@ function parseFacadeMethods(source: string): string[] {
   return [...methods].sort();
 }
 
+function runtimeMethodKeys(sdk: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const [key, value] of Object.entries(sdk)) {
+    if (typeof value === "function") {
+      out.push(key);
+      continue;
+    }
+    if (!value || typeof value !== "object") continue;
+    for (const method of Object.keys(value)) {
+      if (typeof (value as Record<string, unknown>)[method] === "function") out.push(`${key}.${method}`);
+    }
+  }
+  return out.sort();
+}
+
 describe("workflow SDK reference (D15)", () => {
   const facadeSource = readFileSync(FACADE_PATH, "utf8");
   const swJobSource = readFileSync(SW_JOB_EXECUTOR_PATH, "utf8");
@@ -79,6 +95,24 @@ describe("workflow SDK reference (D15)", () => {
     const known = new Set<string>(WORKFLOW_SDK_REFERENCE_METHODS);
     const missing = [...new Set([...facadeMethods, ...swJobMethods])].filter((m) => !known.has(m)).sort();
     expect(missing, `Add missing methods to src_data/workflow-sdk-registry.json: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("matches createWorkflowSdk runtime method keys", () => {
+    const sdk = createWorkflowSdk({
+      creds: { username: "u", password: "p" } as never,
+      env: "uat" as never,
+      host: {
+        entityWriteTransport: "typedTool",
+        contactWriteTransport: "typedTool",
+        merchantAccountWriteTransport: "typedTool",
+        beforeSettingsWrite: async () => undefined,
+        beforeEntityWrite: async () => undefined,
+        beforeContactWrite: async () => undefined,
+        beforeMerchantAccountWrite: async () => undefined,
+        recordTransactionWrite: () => undefined,
+      },
+    }) as Record<string, unknown>;
+    expect(runtimeMethodKeys(sdk)).toEqual(registryMethods);
   });
 
   it("renders each method into the markdown string", () => {

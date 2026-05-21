@@ -4,8 +4,8 @@
  *
  * One-screen audit of SDK surface drift across three sources of truth:
  *
- *   1. Runtime facade  -- src/sandbox/sdk-facade.ts (sandbox path)
- *   2. Runtime facade  -- background/sw-job-executor.ts buildSwSdk (job path)
+ *   1. Runtime registry -- src_data/workflow-sdk-registry.json (shared SDK factory)
+ *   2. Runtime wrappers -- src/sandbox/sdk-facade.ts + background/sw-job-executor.ts
  *   3. Generated types -- src_data/webapi-sdk.d.ts (flat WebApiSdk interface)
  *   4. Prompt block    -- src/chat/discovery-playbook.ts (sdk.X.Y mentions)
  *
@@ -36,6 +36,7 @@ const BASELINE_PATH = resolve(here, "sdk-surface-baseline.json");
 const FILES = {
   sandbox: "src/sandbox/sdk-facade.ts",
   swJob: "background/sw-job-executor.ts",
+  registry: "src_data/workflow-sdk-registry.json",
   generated: "src_data/webapi-sdk.d.ts",
   prompt: "src/chat/discovery-playbook.ts",
   promptGenerated: "src_data/workflow-sdk-reference.ts",
@@ -126,6 +127,18 @@ function parseGenerated(source) {
   return methods;
 }
 
+function parseRegistry(source) {
+  const raw = JSON.parse(source);
+  const methods = new Set();
+  const namespaces = new Set();
+  for (const ns of raw.namespaces ?? []) {
+    namespaces.add(ns.name);
+    for (const method of ns.methods ?? []) methods.add(`${ns.name}.${method.name}`);
+  }
+  for (const method of raw.topLevelMethods ?? []) methods.add(method.name);
+  return { methods, namespaces };
+}
+
 // --- 3. parse sdk.X.Y mentions in the workflow draft prompt block ------------
 
 function parsePromptMentions(source) {
@@ -148,9 +161,9 @@ function parseGeneratedPromptMethods(source) {
   const methods = new Set();
   const block = source.match(/WORKFLOW_SDK_REFERENCE_METHODS\s*=\s*\[([\s\S]*?)\]/);
   if (!block) return methods;
-  const re = /"([a-zA-Z][a-zA-Z0-9]*)\.([a-zA-Z][a-zA-Z0-9]*)"/g;
+  const re = /"([a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?)"/g;
   let m;
-  while ((m = re.exec(block[1])) !== null) methods.add(`${m[1]}.${m[2]}`);
+  while ((m = re.exec(block[1])) !== null) methods.add(m[1]);
   return methods;
 }
 
@@ -158,6 +171,15 @@ function parseGeneratedPromptMethods(source) {
 
 const sandbox = parseFacade(read(FILES.sandbox));
 const swJob = parseFacade(read(FILES.swJob));
+const registry = parseRegistry(read(FILES.registry));
+if (sandbox.methods.size === 0) {
+  sandbox.methods = new Set(registry.methods);
+  sandbox.namespaces = new Set(registry.namespaces);
+}
+if (swJob.methods.size === 0) {
+  swJob.methods = new Set(registry.methods);
+  swJob.namespaces = new Set(registry.namespaces);
+}
 const generated = parseGenerated(read(FILES.generated));
 const promptInline = parsePromptMentions(read(FILES.prompt));
 const promptGenerated = parseGeneratedPromptMethods(read(FILES.promptGenerated));
