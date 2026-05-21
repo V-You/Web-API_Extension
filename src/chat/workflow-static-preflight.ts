@@ -18,7 +18,10 @@
  */
 
 import forbiddenFieldsData from "../../src_data/forbidden-fields.json";
-import { WORKFLOW_SDK_REFERENCE_METHODS } from "../../src_data/workflow-sdk-reference";
+import {
+  WORKFLOW_SDK_NAMESPACE_METHODS,
+  WORKFLOW_SDK_TOP_LEVEL_MEMBERS,
+} from "../sdk/workflow-registry";
 import { suggestClosest } from "../sandbox/sdk-guard";
 
 type ForbiddenRule = { reason: string; canonical?: string };
@@ -26,42 +29,8 @@ type ForbiddenByOp = Record<string, Record<string, ForbiddenRule>>;
 
 const FORBIDDEN_BY_OP: ForbiddenByOp = (forbiddenFieldsData as { operations: ForbiddenByOp }).operations;
 
-const EXTRA_RUNTIME_METHODS = [
-  // The generated markdown reference currently lists async methods parsed from
-  // the facade. The Virtual Settings read helpers are bound methods and are
-  // still valid runtime SDK members, so include them until the generator is
-  // registry-driven (PRD 2026-05-20 Step 2).
-  "config.get",
-  "config.batchGet",
-  "config.describe",
-  "config.validate",
-  "config.coverage",
-  "settings.get",
-  "settings.batchGet",
-  "settings.describe",
-  "settings.validate",
-  "settings.coverage",
-  "describeSettings",
-] as const;
-
-const SDK_METHODS = new Set<string>([
-  ...WORKFLOW_SDK_REFERENCE_METHODS,
-  ...EXTRA_RUNTIME_METHODS,
-]);
-
-const SDK_NAMESPACES = new Map<string, string[]>();
-for (const path of SDK_METHODS) {
-  const [namespace, method] = path.split(".");
-  if (!namespace || !method) continue;
-  const methods = SDK_NAMESPACES.get(namespace) ?? [];
-  methods.push(method);
-  SDK_NAMESPACES.set(namespace, methods);
-}
-
-const TOP_LEVEL_SDK_MEMBERS = new Set([
-  ...SDK_NAMESPACES.keys(),
-  ...[...SDK_METHODS].filter((path) => !path.includes(".")),
-]);
+const SDK_NAMESPACES = WORKFLOW_SDK_NAMESPACE_METHODS;
+const TOP_LEVEL_SDK_MEMBERS = WORKFLOW_SDK_TOP_LEVEL_MEMBERS;
 
 // SDK call patterns that map to operation manifest tool names.
 // Each entry pairs a textual call prefix with the manifest tool name whose

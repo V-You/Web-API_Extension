@@ -5,8 +5,8 @@
  * Per PRD 2026-05-18 D15 - Generate the prompt SDK reference, do not
  * maintain it by hand.
  *
- * Parses the namespaced runtime facade declared in src/sandbox/sdk-facade.ts
- * (the single source of truth for the SDK surface, per D14) and emits a
+ * Reads the canonical workflow SDK registry in src_data/workflow-sdk-registry.json
+ * (the shared source of truth for both workflow lifecycles) and emits a
  * generated TypeScript module that exports:
  *
  *   - WORKFLOW_SDK_REFERENCE - a markdown reference string consumed by
@@ -28,129 +28,21 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const SOURCE = resolve(ROOT, "src/sandbox/sdk-facade.ts");
+const REGISTRY = resolve(ROOT, "src_data/workflow-sdk-registry.json");
 const OUT = resolve(ROOT, "src_data/workflow-sdk-reference.ts");
 
-const RESERVED = new Set([
-  "if", "for", "while", "switch", "return", "throw", "catch", "try",
-  "function", "const", "let", "var", "new", "await", "async", "import",
-  "export", "interface", "type", "class", "extends", "implements",
-  "Promise", "Array", "Object", "String", "Number", "Boolean",
-]);
-
-function countChar(s, ch) {
-  let n = 0;
-  for (const c of s) if (c === ch) n++;
-  return n;
-}
-
-/**
- * Walk the facade source and capture, per namespace, the method name and
- * a simplified positional signature derived from the source argument list.
- *
- * Limits:
- *   - Methods declared as `(...args: unknown[])` (overloaded write
- *     dispatchers in merchantAccounts) are emitted with `(...args)` and
- *     marked as overloaded so the caller can annotate them.
- */
-function parseFacade(source) {
-  const lines = source.split("\n");
-  const namespaces = new Map(); // name -> array of { method, args, overloaded }
-  const order = [];
-
-  // Stack of { name, depth }
-  const stack = [];
-  let depth = 0;
-
-  const nsOpen = /^\s+([a-zA-Z][a-zA-Z0-9]*)\s*:\s*\{\s*$/;
-  const methodLine = /^\s+(?:async\s+)?([a-zA-Z][a-zA-Z0-9]*)\s*\(([^)]*)\)/;
-
-  for (const raw of lines) {
-    const line = raw.replace(/\/\/.*$/, "");
-    const ns = line.match(nsOpen);
-    if (ns) {
-      if (!namespaces.has(ns[1])) {
-        namespaces.set(ns[1], []);
-        order.push(ns[1]);
-      }
-      stack.push({ name: ns[1], depth });
-      depth += countChar(line, "{") - countChar(line, "}");
-      continue;
-    }
-
-    const opens = countChar(line, "{");
-    const closes = countChar(line, "}");
-    const top = stack[stack.length - 1];
-    if (top && depth === top.depth + 1) {
-      const m = line.match(methodLine);
-      if (m && !RESERVED.has(m[1])) {
-        const method = m[1];
-        const rawArgs = m[2].trim();
-        const overloaded = rawArgs.startsWith("...args");
-        const args = overloaded ? "...args" : stripArgTypes(rawArgs);
-        // Skip duplicates (e.g. two separate "list" declarations - keep first).
-        if (!namespaces.get(top.name).some((e) => e.method === method)) {
-          namespaces.get(top.name).push({ method, args, overloaded });
-        }
-      }
-    }
-
-    depth += opens - closes;
-    while (stack.length > 0 && depth <= stack[stack.length - 1].depth) {
-      stack.pop();
-    }
-  }
-
-  return { order, namespaces };
-}
-
-/**
- * "entityType: EntityType, entityId: string, settings: Record<string, unknown>"
- *   -> "entityType, entityId, settings"
- *
- * "scope?: \"owned\" | \"attached\""
- *   -> "scope?"
- *
- * Keeps optional markers and default-arg presence; drops type annotations.
- */
-function stripArgTypes(input) {
-  if (!input) return "";
-  const out = [];
-  // Split on commas at depth 0 (so generics like Record<string, unknown> stay).
-  let depthA = 0, depthC = 0, depthS = 0, current = "";
-  for (const ch of input) {
-    if (ch === "<") depthA++;
-    else if (ch === ">") depthA--;
-    else if (ch === "(") depthC++;
-    else if (ch === ")") depthC--;
-    else if (ch === "{") depthS++;
-    else if (ch === "}") depthS--;
-    if (ch === "," && depthA === 0 && depthC === 0 && depthS === 0) {
-      out.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) out.push(current);
-  return out
-    .map((part) => {
-      // Drop default: "foo = bar"
-      const eq = part.indexOf("=");
-      const head = eq >= 0 ? part.slice(0, eq) : part;
-      // Drop annotation: "foo?: SomeType" -> "foo?"
-      const colon = head.indexOf(":");
-      const name = (colon >= 0 ? head.slice(0, colon) : head).trim();
-      return name;
-    })
-    .filter(Boolean)
-    .join(", ");
+function normalizeRegistry(raw) {
+  return {
+    order: raw.namespaces.map((ns) => ns.name),
+    namespaces: new Map(raw.namespaces.map((ns) => [ns.name, ns.methods])),
+    topLevelMethods: raw.topLevelMethods ?? [],
+  };
 }
 
 /** Build the markdown reference string injected into the workflow prompt. */
 function renderMarkdown(parsed) {
   const lines = [];
-  lines.push("Authoritative workflow SDK reference (generated from src/sandbox/sdk-facade.ts).");
+  lines.push("Authoritative workflow SDK reference (generated from src_data/workflow-sdk-registry.json).");
   lines.push("Do not call namespaces or methods that are not listed here. If you need a capability that is missing, return a workflow draft that throws a clear error explaining the missing SDK surface instead of inventing a method.");
   lines.push("Transaction helper params are flat objects. For card data, use top-level fields cardNumber, cardHolder, cardExpiryMonth, cardExpiryYear, and cardCvv. Do not pass a nested card object such as card: { holder: ... }.");
   lines.push("Universal list contract: every sdk.*.list*, sdk.*.search, and sdk.entities.listChildren method returns a plain JavaScript array of row objects. Call .map / .filter / .slice / .find directly on the returned value. Do not read .data, .items, .ownedContacts, .merchantAccounts, or any other wrapper key off the return value - normalization already happened inside the SDK.");
@@ -162,7 +54,14 @@ function renderMarkdown(parsed) {
     lines.push(`sdk.${ns}:`);
     for (const entry of methods) {
       const suffix = entry.overloaded ? "  // overloaded; see behavioural rules above for accepted shapes" : "";
-      lines.push(`  - sdk.${ns}.${entry.method}(${entry.args})${suffix}`);
+      lines.push(`  - sdk.${ns}.${entry.name}(${entry.args})${suffix}`);
+    }
+    lines.push("");
+  }
+  if (parsed.topLevelMethods.length > 0) {
+    lines.push("sdk top-level helpers:");
+    for (const entry of parsed.topLevelMethods) {
+      lines.push(`  - sdk.${entry.name}(${entry.args})`);
     }
     lines.push("");
   }
@@ -174,9 +73,10 @@ function flatMethods(parsed) {
   const out = [];
   for (const ns of parsed.order) {
     for (const entry of parsed.namespaces.get(ns) || []) {
-      out.push(`${ns}.${entry.method}`);
+      out.push(`${ns}.${entry.name}`);
     }
   }
+  for (const entry of parsed.topLevelMethods) out.push(entry.name);
   return out.sort();
 }
 
@@ -185,7 +85,7 @@ function renderModule(markdown, methods) {
   const methodsLiteral = methods.map((m) => `  "${m}"`).join(",\n");
   return [
     "// GENERATED FILE - do not edit by hand.",
-    "// Source: src/sandbox/sdk-facade.ts",
+    "// Source: src_data/workflow-sdk-registry.json",
     "// Regenerate with: npm run generate:sdk-reference",
     "// See PRD 2026-05-18 D15.",
     "",
@@ -200,8 +100,7 @@ function renderModule(markdown, methods) {
 
 function main() {
   const flags = new Set(process.argv.slice(2));
-  const source = readFileSync(SOURCE, "utf8");
-  const parsed = parseFacade(source);
+  const parsed = normalizeRegistry(JSON.parse(readFileSync(REGISTRY, "utf8")));
   const markdown = renderMarkdown(parsed);
   const methods = flatMethods(parsed);
   const next = renderModule(markdown, methods);
@@ -217,7 +116,7 @@ function main() {
       console.error("Run `npm run generate:sdk-reference` and commit the result.");
       process.exit(1);
     }
-    console.log("workflow-sdk-reference.ts is in sync with sdk-facade.ts.");
+    console.log("workflow-sdk-reference.ts is in sync with workflow-sdk-registry.json.");
     process.exit(0);
   }
 

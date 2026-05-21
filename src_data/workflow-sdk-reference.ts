@@ -1,19 +1,29 @@
 // GENERATED FILE - do not edit by hand.
-// Source: src/sandbox/sdk-facade.ts
+// Source: src_data/workflow-sdk-registry.json
 // Regenerate with: npm run generate:sdk-reference
 // See PRD 2026-05-18 D15.
 
-export const WORKFLOW_SDK_REFERENCE = `Authoritative workflow SDK reference (generated from src/sandbox/sdk-facade.ts).
+export const WORKFLOW_SDK_REFERENCE = `Authoritative workflow SDK reference (generated from src_data/workflow-sdk-registry.json).
 Do not call namespaces or methods that are not listed here. If you need a capability that is missing, return a workflow draft that throws a clear error explaining the missing SDK surface instead of inventing a method.
 Transaction helper params are flat objects. For card data, use top-level fields cardNumber, cardHolder, cardExpiryMonth, cardExpiryYear, and cardCvv. Do not pass a nested card object such as card: { holder: ... }.
 Universal list contract: every sdk.*.list*, sdk.*.search, and sdk.entities.listChildren method returns a plain JavaScript array of row objects. Call .map / .filter / .slice / .find directly on the returned value. Do not read .data, .items, .ownedContacts, .merchantAccounts, or any other wrapper key off the return value - normalization already happened inside the SDK.
 sdk.entities.listChildren(parentType, parentId, childType) returns an array. Channel rows expose a stable id field; the SDK aliases API channel rows where the entity ID is named channel.
 
 sdk.config:
+  - sdk.config.get(entityType, entityId, sdkPath)
+  - sdk.config.batchGet(entityType, entityIds, paths)
+  - sdk.config.describe(query, limit?)
+  - sdk.config.validate(settings)
+  - sdk.config.coverage()
   - sdk.config.update(entityType, entityId, settings)
   - sdk.config.batchUpdate(entityType, entityId, settings)
 
 sdk.settings:
+  - sdk.settings.get(entityType, entityId, sdkPath)
+  - sdk.settings.batchGet(entityType, entityIds, paths)
+  - sdk.settings.describe(query, limit?)
+  - sdk.settings.validate(settings)
+  - sdk.settings.coverage()
   - sdk.settings.edit(entityType, entityId, settings)
   - sdk.settings.update(entityType, entityId, settings)
   - sdk.settings.batchEdit(entityType, entityId, settings)
@@ -72,6 +82,9 @@ sdk.audit:
 sdk.transactions:
   - sdk.transactions.sendTest(params)
   - sdk.transactions.sendTestBatch(params)
+
+sdk top-level helpers:
+  - sdk.describeSettings(query, limit?)
 `;
 
 export const WORKFLOW_SDK_REFERENCE_METHODS = [
@@ -83,8 +96,13 @@ export const WORKFLOW_SDK_REFERENCE_METHODS = [
   "clearingInstitutes.getFields",
   "clearingInstitutes.listLive",
   "clearingInstitutes.search",
+  "config.batchGet",
   "config.batchUpdate",
+  "config.coverage",
+  "config.describe",
+  "config.get",
   "config.update",
+  "config.validate",
   "contacts.attach",
   "contacts.create",
   "contacts.delete",
@@ -95,6 +113,7 @@ export const WORKFLOW_SDK_REFERENCE_METHODS = [
   "contacts.lock",
   "contacts.resetPassword",
   "contacts.unlock",
+  "describeSettings",
   "entities.create",
   "entities.delete",
   "entities.edit",
@@ -114,9 +133,14 @@ export const WORKFLOW_SDK_REFERENCE_METHODS = [
   "merchantAccounts.threeDCheck",
   "merchantAccounts.update",
   "settings.batchEdit",
+  "settings.batchGet",
   "settings.batchUpdate",
+  "settings.coverage",
+  "settings.describe",
   "settings.edit",
+  "settings.get",
   "settings.update",
+  "settings.validate",
   "transactions.sendTest",
   "transactions.sendTestBatch"
 ] as const;

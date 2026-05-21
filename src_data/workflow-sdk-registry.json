@@ -1,0 +1,113 @@
+{
+  "source": "src_data/workflow-sdk-registry.json",
+  "description": "Canonical workflow SDK surface registry. PRD 2026-05-20 Step 2 moves prompt generation and static preflight away from parsing one runtime facade so both SDK lifecycles can converge on this registry.",
+  "namespaces": [
+    {
+      "name": "config",
+      "methods": [
+        { "name": "get", "args": "entityType, entityId, sdkPath" },
+        { "name": "batchGet", "args": "entityType, entityIds, paths" },
+        { "name": "describe", "args": "query, limit?" },
+        { "name": "validate", "args": "settings" },
+        { "name": "coverage", "args": "" },
+        { "name": "update", "args": "entityType, entityId, settings" },
+        { "name": "batchUpdate", "args": "entityType, entityId, settings" }
+      ]
+    },
+    {
+      "name": "settings",
+      "methods": [
+        { "name": "get", "args": "entityType, entityId, sdkPath" },
+        { "name": "batchGet", "args": "entityType, entityIds, paths" },
+        { "name": "describe", "args": "query, limit?" },
+        { "name": "validate", "args": "settings" },
+        { "name": "coverage", "args": "" },
+        { "name": "edit", "args": "entityType, entityId, settings" },
+        { "name": "update", "args": "entityType, entityId, settings" },
+        { "name": "batchEdit", "args": "entityType, entityId, settings" },
+        { "name": "batchUpdate", "args": "entityType, entityId, settings" }
+      ]
+    },
+    {
+      "name": "entities",
+      "methods": [
+        { "name": "get", "args": "entityType, entityId" },
+        { "name": "search", "args": "namePath" },
+        { "name": "listChildren", "args": "parentType, parentId, childType" },
+        { "name": "create", "args": "parentType, parentId, childType, fields" },
+        { "name": "edit", "args": "entityType, entityId, fields" },
+        { "name": "delete", "args": "entityType, entityId" }
+      ]
+    },
+    {
+      "name": "hierarchy",
+      "methods": [
+        { "name": "fetch", "args": "pspId, depth?" },
+        { "name": "estimate", "args": "pspId, depth?" }
+      ]
+    },
+    {
+      "name": "contacts",
+      "methods": [
+        { "name": "get", "args": "contactId" },
+        { "name": "list", "args": "entityType, entityId, scope?" },
+        { "name": "create", "args": "entityType, entityId, fields" },
+        { "name": "edit", "args": "contactId, fields" },
+        { "name": "delete", "args": "contactId" },
+        { "name": "attach", "args": "entityType, entityId, contactId" },
+        { "name": "detach", "args": "entityType, entityId, contactId" },
+        { "name": "lock", "args": "contactId" },
+        { "name": "unlock", "args": "contactId" },
+        { "name": "resetPassword", "args": "contactId, _newPassword?" }
+      ]
+    },
+    {
+      "name": "merchantAccounts",
+      "methods": [
+        { "name": "get", "args": "merchantAccountId" },
+        { "name": "list", "args": "entityType, entityId, scope?" },
+        { "name": "create", "args": "...args", "overloaded": true },
+        { "name": "edit", "args": "...args", "overloaded": true },
+        { "name": "update", "args": "...args", "overloaded": true },
+        { "name": "activate", "args": "...args", "overloaded": true },
+        { "name": "delete", "args": "merchantAccountId" },
+        { "name": "attach", "args": "...args", "overloaded": true },
+        { "name": "detach", "args": "attachedMerchantAccountId" },
+        { "name": "threeDCheck", "args": "merchantAccountId" }
+      ]
+    },
+    {
+      "name": "clearingInstitutes",
+      "methods": [
+        { "name": "search", "args": "query" },
+        { "name": "getFields", "args": "ciCode" },
+        { "name": "listLive", "args": "pspId" }
+      ]
+    },
+    {
+      "name": "cardProcessors",
+      "methods": [
+        { "name": "list", "args": "pspId?" },
+        { "name": "listLive", "args": "pspId?" },
+        { "name": "search", "args": "query" },
+        { "name": "getFields", "args": "ciCode" }
+      ]
+    },
+    {
+      "name": "audit",
+      "methods": [
+        { "name": "get", "args": "opts?" }
+      ]
+    },
+    {
+      "name": "transactions",
+      "methods": [
+        { "name": "sendTest", "args": "params" },
+        { "name": "sendTestBatch", "args": "params" }
+      ]
+    }
+  ],
+  "topLevelMethods": [
+    { "name": "describeSettings", "args": "query, limit?" }
+  ]
+}

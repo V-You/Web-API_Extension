@@ -2,10 +2,10 @@
  * PRD 2026-05-18 D15 parity test.
  *
  * The generated workflow SDK reference (src_data/workflow-sdk-reference.ts)
- * must enumerate every facade method exposed by src/sandbox/sdk-facade.ts.
- * If a new method is added to the facade without re-running
- * `npm run generate:sdk-reference`, this test fails so the prompt cannot
- * silently fall behind the runtime surface.
+ * must enumerate every method declared in src_data/workflow-sdk-registry.json.
+ * If the canonical registry changes without re-running
+ * `npm run generate:sdk-reference`, this test fails so the prompt/preflight
+ * surface cannot silently fall behind the registry.
  */
 
 import { describe, it, expect } from "vitest";
@@ -16,8 +16,10 @@ import {
   WORKFLOW_SDK_REFERENCE,
   WORKFLOW_SDK_REFERENCE_METHODS,
 } from "../../src_data/workflow-sdk-reference";
+import { WORKFLOW_SDK_METHODS } from "../sdk/workflow-registry";
 
 const FACADE_PATH = resolve(__dirname, "../sandbox/sdk-facade.ts");
+const SW_JOB_EXECUTOR_PATH = resolve(__dirname, "../../background/sw-job-executor.ts");
 
 const RESERVED = new Set([
   "if", "for", "while", "switch", "return", "throw", "catch", "try",
@@ -64,18 +66,19 @@ function parseFacadeMethods(source: string): string[] {
 
 describe("workflow SDK reference (D15)", () => {
   const facadeSource = readFileSync(FACADE_PATH, "utf8");
+  const swJobSource = readFileSync(SW_JOB_EXECUTOR_PATH, "utf8");
   const facadeMethods = parseFacadeMethods(facadeSource);
+  const swJobMethods = parseFacadeMethods(swJobSource);
+  const registryMethods = [...WORKFLOW_SDK_METHODS].sort();
 
-  it("enumerates every facade method", () => {
-    const referenced = new Set<string>(WORKFLOW_SDK_REFERENCE_METHODS);
-    const missing = facadeMethods.filter((m) => !referenced.has(m));
-    expect(missing, `Run \`npm run generate:sdk-reference\` to refresh. Missing: ${missing.join(", ")}`).toEqual([]);
+  it("enumerates every registry method", () => {
+    expect([...WORKFLOW_SDK_REFERENCE_METHODS].sort()).toEqual(registryMethods);
   });
 
-  it("does not reference methods absent from the facade", () => {
-    const known = new Set(facadeMethods);
-    const ghosts = [...WORKFLOW_SDK_REFERENCE_METHODS].filter((m) => !known.has(m));
-    expect(ghosts).toEqual([]);
+  it("keeps the registry as a superset of async facade methods during migration", () => {
+    const known = new Set<string>(WORKFLOW_SDK_REFERENCE_METHODS);
+    const missing = [...new Set([...facadeMethods, ...swJobMethods])].filter((m) => !known.has(m)).sort();
+    expect(missing, `Add missing methods to src_data/workflow-sdk-registry.json: ${missing.join(", ")}`).toEqual([]);
   });
 
   it("renders each method into the markdown string", () => {
