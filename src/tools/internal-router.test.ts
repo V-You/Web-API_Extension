@@ -216,4 +216,24 @@ describe("internal router transaction tools", () => {
       });
     }
   });
+
+  it("returns a structured workflow contract failure before starting a job", async () => {
+    const startWorkflowJob = vi.fn();
+    const execute = createExecuteMap({ startWorkflowJob });
+
+    const result = await execute.execute_workflow({
+      script: "await sdk.entities.createChannel('merchant', 'm1', { name: 'Germany' });",
+    }) as Record<string, unknown>;
+
+    expect(startWorkflowJob).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      status: "error",
+      errorKind: "unknown_sdk_member",
+      errorInfo: {
+        kind: "unknown_sdk_member",
+        suggest: "create",
+      },
+    });
+    expect((result.errorInfo as { fixHint?: string }).fixHint).toMatch(/workflow SDK reference/);
+  });
 });

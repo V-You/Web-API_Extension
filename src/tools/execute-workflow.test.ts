@@ -98,8 +98,13 @@ describe("execute_workflow declarative workflow mode", () => {
     expect(result).toMatchObject({
       status: "error",
       writeCount: 0,
-      errorKind: "precheck_failed",
+      errorKind: "unknown_sdk_member",
+      errorInfo: {
+        kind: "unknown_sdk_member",
+        suggest: "create",
+      },
     });
+    expect("errorInfo" in result ? (result.errorInfo as { fixHint?: string }).fixHint : "").toMatch(/workflow SDK reference/);
     expect("error" in result ? result.error : "").toMatch(/Unknown SDK member: `sdk\.entities\.createChannel`/);
     expect(executeTypedToolMock).not.toHaveBeenCalled();
   });

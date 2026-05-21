@@ -16,6 +16,7 @@ import { executeManageMerchantAccount } from "./manage-merchant-account";
 import { executeManageSettings } from "./manage-settings";
 import { executeWorkflow } from "./execute-workflow";
 import { staticWorkflowPreflight } from "../chat/workflow-static-preflight";
+import { workflowContractFailureFromPreflight } from "../chat/workflow-contract-error";
 import { describeOperation } from "./describe-operation";
 import { MANIFEST } from "./manifest-helpers";
 import { executeSendTestTransaction } from "./send-test-transaction";
@@ -310,12 +311,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
       const { creds, env } = await sessionOrError();
       const preflight = staticWorkflowPreflight(String(params.script ?? ""));
       if (!preflight.ok) {
-        return {
-          status: "error",
-          errorKind: "precheck_failed",
-          error: preflight.message ?? "Workflow preflight found contract violations.",
-          preflight,
-        };
+        return workflowContractFailureFromPreflight(preflight);
       }
       const autoConfirmWrites = await confirmWorkflowIfNeeded(params, env, options);
 

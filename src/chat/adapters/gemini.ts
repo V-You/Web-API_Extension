@@ -1,5 +1,6 @@
 import type { ChatToolDeclaration, ChatToolEvent } from "../llm-adapter";
 import { sendToSw } from "../sw-client";
+import { isWorkflowContractFailure, workflowContractFailureText } from "../workflow-contract-error";
 
 export interface GeminiPart {
   text?: string;
@@ -220,28 +221,4 @@ export async function runGeminiTurn(input: RunGeminiTurnInput): Promise<GeminiTu
     toolEvents,
     finishReason: "max_rounds",
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isWorkflowContractFailure(result: unknown): result is Record<string, unknown> {
-  if (!isRecord(result)) return false;
-  return result.status === "error" && (
-    result.errorKind === "precheck_failed" ||
-    result.errorKind === "unknown_sdk_member" ||
-    (typeof result.error === "string" && /Workflow preflight found contract violations|Unknown SDK member/i.test(result.error))
-  );
-}
-
-function workflowContractFailureText(result: Record<string, unknown>): string {
-  const error = typeof result.error === "string" && result.error.trim()
-    ? result.error.trim()
-    : "Workflow preflight found contract violations.";
-  return [
-    "The workflow draft failed SDK contract preflight and was not started.",
-    error,
-    "Rewrite the workflow using only the methods listed in the workflow SDK reference; do not switch to per-action write tools in this turn.",
-  ].join("\n\n");
 }
