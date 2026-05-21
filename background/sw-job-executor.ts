@@ -18,6 +18,7 @@ import { compileSandboxScript, type WriteRecord, type LogEntry } from "../src/sa
 import { executeManageEntity } from "../src/tools/manage-entity";
 import { executeLookupClearingInstitutes } from "../src/tools/lookup-clearing-institutes";
 import { staticWorkflowPreflight } from "../src/chat/workflow-static-preflight";
+import { workflowContractFailureFromPreflight, type WorkflowContractFailureResult } from "../src/chat/workflow-contract-error";
 import { bumpWorkflowCounter } from "../src/lib/workflow-counters";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
 import { createWorkflowSdk } from "../src/sdk/workflow-sdk";
@@ -333,7 +334,7 @@ export interface SwJobStartInput {
 }
 
 /** Start or resume a job in the service worker. */
-export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean; jobId: string; error?: string }> {
+export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean; jobId: string; error?: string; failure?: WorkflowContractFailureResult }> {
   if (activeJobId) {
     return { ok: false, jobId: "", error: "A job is already running. Pause or cancel it first." };
   }
@@ -350,10 +351,13 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
   } else {
     const preflight = staticWorkflowPreflight(input.script);
     if (!preflight.ok) {
+      void bumpWorkflowCounter("preflight_fail_unrecovered", preflight.hits[0]?.kind ?? "contract");
+      const failure = workflowContractFailureFromPreflight(preflight);
       return {
         ok: false,
         jobId: "",
-        error: preflight.message ?? "Workflow preflight found contract violations.",
+        error: failure.error,
+        failure,
       };
     }
 

@@ -27,21 +27,33 @@ export function isDeclarativeWorkflowScript(script: string | undefined): boolean
   }
 }
 
-export function selectWorkflowRuntime(input: WorkflowRuntimeSelectionInput): WorkflowRuntime {
-  const requested = normalizeWorkflowRuntime(input.requestedRuntime);
-  const actual = input.dryRun === true || input.planOnly === true
-    ? isDeclarativeWorkflowScript(input.script) ? "declarative_workflow" : "inline_sandbox"
-    : input.hasJobHandoff === true
-      ? "long_job"
-      : isDeclarativeWorkflowScript(input.script)
-        ? "declarative_workflow"
-        : "inline_sandbox";
+export interface WorkflowRuntimeSelection {
+  runtime: WorkflowRuntime;
+  /** True when requestedRuntime was provided but did not match the computed runtime. */
+  requestedRuntimeMismatch?: WorkflowRuntime;
+}
 
-  if (!requested) return actual;
-  if (requested === "long_job" && actual === "long_job") return requested;
-  if (requested === "inline_sandbox" && actual === "inline_sandbox") return requested;
-  if (requested === "declarative_workflow" && actual === "declarative_workflow") return requested;
-  return actual;
+function computeActualRuntime(input: WorkflowRuntimeSelectionInput): WorkflowRuntime {
+  // Declarative JSON wins over hasJobHandoff: a declarative workflow is
+  // executed synchronously through typed tools, never as a background Job,
+  // regardless of whether a job handoff path is wired by the caller.
+  if (isDeclarativeWorkflowScript(input.script)) return "declarative_workflow";
+  if (input.dryRun === true || input.planOnly === true) return "inline_sandbox";
+  if (input.hasJobHandoff === true) return "long_job";
+  return "inline_sandbox";
+}
+
+export function selectWorkflowRuntime(input: WorkflowRuntimeSelectionInput): WorkflowRuntime {
+  return resolveWorkflowRuntime(input).runtime;
+}
+
+export function resolveWorkflowRuntime(input: WorkflowRuntimeSelectionInput): WorkflowRuntimeSelection {
+  const actual = computeActualRuntime(input);
+  const requested = normalizeWorkflowRuntime(input.requestedRuntime);
+  if (requested && requested !== actual) {
+    return { runtime: actual, requestedRuntimeMismatch: requested };
+  }
+  return { runtime: actual };
 }
 
 export function workflowRuntimePromptLine(runtime: WorkflowRuntime): string {

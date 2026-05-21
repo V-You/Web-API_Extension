@@ -39,6 +39,7 @@ import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-br
 import { parseWorkflowDraft, WorkflowDraftParseError } from "../../src/chat/workflow-draft";
 import type { WorkflowRuntime } from "../../src/chat/workflow-runtime";
 import { staticWorkflowPreflight, type StaticPreflightResult } from "../../src/chat/workflow-static-preflight";
+import { workflowContractFailureFromPreflight } from "../../src/chat/workflow-contract-error";
 import { bumpWorkflowCounter } from "../../src/lib/workflow-counters";
 import { startJob } from "../../src/jobs/job-runner";
 import { estimateRuntime, type JobContextSnapshot } from "../../src/jobs/job-store";
@@ -931,7 +932,8 @@ export function ChatPage() {
       // checks should still block Start. Blockers surface as a review error.
       const startPreflight = staticWorkflowPreflight(workflowReview.script);
       if (!startPreflight.ok) {
-        throw new Error(`Preflight blocked Start:\n${startPreflight.message ?? "Contract violations detected."}`);
+        const failure = workflowContractFailureFromPreflight(startPreflight);
+        throw new Error(`Preflight blocked Start:\n${failure.error}\n\n${failure.errorInfo.fixHint}`);
       }
 
       const activeEnv = await getActiveEnv();

@@ -16,8 +16,9 @@ import { executeManageMerchantAccount } from "./manage-merchant-account";
 import { executeManageSettings } from "./manage-settings";
 import { executeWorkflow } from "./execute-workflow";
 import { staticWorkflowPreflight } from "../chat/workflow-static-preflight";
-import { workflowContractFailureFromPreflight } from "../chat/workflow-contract-error";
-import { selectWorkflowRuntime, type WorkflowRuntime } from "../chat/workflow-runtime";
+import { workflowContractFailureFromPreflight, workflowContractFailureFromRuntimeMismatch } from "../chat/workflow-contract-error";
+import { resolveWorkflowRuntime, type WorkflowRuntime } from "../chat/workflow-runtime";
+import { bumpWorkflowCounter } from "../lib/workflow-counters";
 import { describeOperation } from "./describe-operation";
 import { MANIFEST } from "./manifest-helpers";
 import { executeSendTestTransaction } from "./send-test-transaction";
@@ -312,20 +313,27 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
 
     execute_workflow: async (params) => {
       const { creds, env } = await sessionOrError();
-      const preflight = staticWorkflowPreflight(String(params.script ?? ""));
+      const script = String(params.script ?? "");
+      const preflight = staticWorkflowPreflight(script);
       if (!preflight.ok) {
+        void bumpWorkflowCounter("preflight_fail_unrecovered", preflight.hits[0]?.kind ?? "contract");
         return workflowContractFailureFromPreflight(preflight);
       }
       const autoConfirmWrites = await confirmWorkflowIfNeeded(params, env, options);
-      const runtime = selectWorkflowRuntime({
-        script: String(params.script ?? ""),
+      const selection = resolveWorkflowRuntime({
+        script,
         dryRun: params.dryRun === true,
         planOnly: params.planOnly === true,
         hasJobHandoff: Boolean(options.startWorkflowJob),
         requestedRuntime: params.runtime,
       });
+      const runtime = selection.runtime;
+      if (selection.requestedRuntimeMismatch) {
+        void bumpWorkflowCounter("preflight_fail_unrecovered", `runtime_mismatch:${selection.requestedRuntimeMismatch}->${runtime}`);
+        return workflowContractFailureFromRuntimeMismatch(selection.requestedRuntimeMismatch, runtime);
+      }
 
-      if (params.dryRun !== true && params.planOnly !== true && options.startWorkflowJob) {
+      if (runtime === "long_job" && options.startWorkflowJob) {
         const label = typeof params.label === "string" && params.label.trim()
           ? params.label.trim()
           : "WebMCP workflow";

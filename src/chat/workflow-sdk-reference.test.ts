@@ -97,6 +97,15 @@ describe("workflow SDK reference (D15)", () => {
     expect(missing, `Add missing methods to src_data/workflow-sdk-registry.json: ${missing.join(", ")}`).toEqual([]);
   });
 
+  it("requires both host wrappers to route through createWorkflowSdk so the registry equals the runtime surface", () => {
+    // After Step 2 of PRD 2026-05-20, buildSdkFacade and buildSwSdk are thin
+    // wrappers over createWorkflowSdk. They must not declare any standalone
+    // method literals; if either grows a hand-written method again the
+    // generated registry will silently drift.
+    expect(facadeMethods, "src/sandbox/sdk-facade.ts must not declare standalone SDK methods; route through createWorkflowSdk.").toEqual([]);
+    expect(swJobMethods, "background/sw-job-executor.ts must not declare standalone SDK methods; route through createWorkflowSdk.").toEqual([]);
+  });
+
   it("matches createWorkflowSdk runtime method keys", () => {
     const sdk = createWorkflowSdk({
       creds: { username: "u", password: "p" } as never,

@@ -1,6 +1,7 @@
 import type { ChatToolDeclaration, ChatToolEvent } from "../llm-adapter";
 import { sendToSw } from "../sw-client";
 import { isWorkflowContractFailure, workflowContractFailureText } from "../workflow-contract-error";
+import { bumpWorkflowCounter } from "../../lib/workflow-counters";
 
 export interface GeminiPart {
   text?: string;
@@ -187,6 +188,8 @@ export async function runGeminiTurn(input: RunGeminiTurnInput): Promise<GeminiTu
       });
 
       if (call.name === "execute_workflow" && isWorkflowContractFailure(result)) {
+        const info = (result as { errorInfo?: { kind?: string } }).errorInfo;
+        void bumpWorkflowCounter("preflight_fail_unrecovered", info?.kind ?? "contract");
         return {
           history,
           assistantText: workflowContractFailureText(result),

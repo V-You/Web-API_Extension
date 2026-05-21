@@ -1,6 +1,11 @@
 import type { StaticPreflightResult } from "./workflow-static-preflight";
 
-export type WorkflowContractErrorKind = "unknown_sdk_member" | "sdk_reflection" | "precheck_failed" | "runtime_failed";
+export type WorkflowContractErrorKind =
+  | "unknown_sdk_member"
+  | "sdk_reflection"
+  | "precheck_failed"
+  | "runtime_failed"
+  | "runtime_mismatch";
 
 export interface WorkflowContractErrorInfo {
   kind: WorkflowContractErrorKind;
@@ -39,7 +44,28 @@ function fixHintFor(kind: WorkflowContractErrorKind, suggest?: string): string {
   if (kind === "runtime_failed") {
     return "Rewrite the workflow against the workflow SDK reference before retrying.";
   }
+  if (kind === "runtime_mismatch") {
+    return "Set runtime to the value the host computed (or omit runtime and let the host decide).";
+  }
   return "Rewrite the workflow using the workflow SDK reference before retrying.";
+}
+
+export function workflowContractFailureFromRuntimeMismatch(
+  requested: string,
+  actual: string,
+): WorkflowContractFailureResult {
+  const message = `Requested runtime "${requested}" does not match the computed runtime "${actual}" for this workflow. The host will not silently override lifecycle.`;
+  return {
+    status: "error",
+    errorKind: "runtime_mismatch",
+    error: message,
+    errorInfo: {
+      kind: "runtime_mismatch",
+      message,
+      suggest: actual,
+      fixHint: fixHintFor("runtime_mismatch"),
+    },
+  };
 }
 
 export function workflowContractFailureFromPreflight(preflight: StaticPreflightResult): WorkflowContractFailureResult {
@@ -67,13 +93,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function isWorkflowContractFailure(result: unknown): result is Record<string, unknown> {
   if (!isRecord(result)) return false;
   const info = isRecord(result.errorInfo) ? result.errorInfo : null;
-  if (typeof info?.kind === "string" && ["unknown_sdk_member", "sdk_reflection", "precheck_failed", "runtime_failed"].includes(info.kind)) {
+  if (typeof info?.kind === "string" && ["unknown_sdk_member", "sdk_reflection", "precheck_failed", "runtime_failed", "runtime_mismatch"].includes(info.kind)) {
     return true;
   }
   return result.status === "error" && (
     result.errorKind === "precheck_failed" ||
     result.errorKind === "unknown_sdk_member" ||
     result.errorKind === "sdk_reflection" ||
+    result.errorKind === "runtime_mismatch" ||
     (typeof result.error === "string" && /Workflow preflight found contract violations|Unknown SDK member/i.test(result.error))
   );
 }

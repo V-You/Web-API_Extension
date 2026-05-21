@@ -283,4 +283,39 @@ describe("internal router transaction tools", () => {
     expect(result.runtime).toBe("declarative_workflow");
   });
 
+  it("does not route declarative workflows to startWorkflowJob", async () => {
+    const startWorkflowJob = vi.fn();
+    const execute = createExecuteMap({ startWorkflowJob, bypassWriteConfirmation: true });
+
+    const result = await execute.execute_workflow({
+      label: "Declarative",
+      script: JSON.stringify({ calls: [{ tool: "manage_entity", params: { action: "get", entityType: "merchant", entityId: "m1" } }] }),
+      totalCalls: 1,
+    }) as Record<string, unknown>;
+
+    expect(startWorkflowJob).not.toHaveBeenCalled();
+    expect(result.runtime).toBe("declarative_workflow");
+  });
+
+  it("returns a runtime_mismatch contract failure when caller demands an impossible runtime", async () => {
+    const startWorkflowJob = vi.fn();
+    const execute = createExecuteMap({ startWorkflowJob, bypassWriteConfirmation: true });
+
+    const result = await execute.execute_workflow({
+      script: "results.push({ ok: true });",
+      dryRun: true,
+      runtime: "long_job",
+    }) as Record<string, unknown>;
+
+    expect(startWorkflowJob).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      status: "error",
+      errorKind: "runtime_mismatch",
+      errorInfo: {
+        kind: "runtime_mismatch",
+        suggest: "inline_sandbox",
+      },
+    });
+  });
+
 });

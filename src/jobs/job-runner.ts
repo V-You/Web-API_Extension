@@ -146,7 +146,7 @@ export interface StartJobInput {
 export async function startJob(input: StartJobInput): Promise<JobRecord> {
   startJobKeepAlive();
 
-  const res = await sendToSw<{ ok: boolean; jobId?: string; error?: string }>({
+  const res = await sendToSw<{ ok: boolean; jobId?: string; error?: string; failure?: { errorInfo?: { fixHint?: string } } }>({
     type: "job_start",
     payload: {
       label: input.label,
@@ -165,7 +165,9 @@ export async function startJob(input: StartJobInput): Promise<JobRecord> {
 
   if (!res?.ok || !res.jobId) {
     stopJobKeepAlive();
-    throw new Error(res?.error ?? "Failed to start job.");
+    const fixHint = res?.failure?.errorInfo?.fixHint;
+    const baseMessage = res?.error ?? "Failed to start job.";
+    throw new Error(fixHint ? `${baseMessage}\n\n${fixHint}` : baseMessage);
   }
 
   activeJobId = res.jobId;
