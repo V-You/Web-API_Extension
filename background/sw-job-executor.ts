@@ -10,6 +10,7 @@
  */
 
 import { createJob, updateJob, getJob, type JobContextSnapshot, type JobRecord, type JobProgress, type JobSource } from "../src/jobs/job-store";
+import type { WorkflowRuntime } from "../src/chat/workflow-runtime";
 import { computeJobOutcome } from "../src/jobs/job-outcome";
 import { wrapSdkWithGuard } from "../src/sandbox/sdk-guard";
 import { appendAuditEntry } from "../src/lib/api-client";
@@ -328,6 +329,7 @@ export interface SwJobStartInput {
   creds: ApiCredentials;
   env: Environment;
   source?: JobSource;
+  runtime?: WorkflowRuntime;
 }
 
 /** Start or resume a job in the service worker. */
@@ -366,6 +368,7 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
       contextSnapshot: input.contextSnapshot,
       env: input.env,
       source: input.source,
+      runtime: input.runtime,
     });
   }
 

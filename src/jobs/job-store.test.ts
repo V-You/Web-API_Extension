@@ -63,9 +63,10 @@ describe("job-store", () => {
   };
 
   it("creates a job in paused state", async () => {
-    const job = await createJob(jobInit);
+    const job = await createJob({ ...jobInit, runtime: "long_job" });
     expect(job.id).toBe("job-uuid-1234");
     expect(job.state).toBe("paused");
+    expect(job.runtime).toBe("long_job");
     expect(job.label).toBe("Test job");
     expect(job.completedCalls).toBe(0);
     expect(job.results).toEqual([]);

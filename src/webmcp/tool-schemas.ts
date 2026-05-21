@@ -374,6 +374,11 @@ const HANDWRITTEN_TOOL_SCHEMAS: ToolSchema[] = [
           minimum: 1,
           description: "Optional estimated API call count for Jobs tab progress and runtime estimate.",
         },
+        runtime: {
+          type: "string",
+          enum: ["inline_sandbox", "long_job", "declarative_workflow"],
+          description: "Lifecycle selected for this workflow. Real write workflows are long_job; dryRun/planOnly validation is inline_sandbox; typed declarative workflow JSON is declarative_workflow.",
+        },
         dryRun: {
           type: "boolean",
           description: "If true, validate syntax only -- do not execute.",

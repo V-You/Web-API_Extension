@@ -81,6 +81,9 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Target context: merchant m1.");
     expect(prompt).toContain("Entity name: Demo merchant.");
     expect(prompt).toContain("Known context IDs available in the script as context.ids: merchantId=m1, channelId=c1.");
+    expect(prompt).toContain("\"runtime\":\"long_job\"");
+    expect(prompt).toContain("runtime=long_job");
+    expect(prompt).toContain("Runtime selection rules");
     expect(prompt).toContain("Use context.ids.channelId and context.ids.merchantId when present");
     expect(prompt).toContain("Do not use import, export, require, fetch");
     expect(prompt).toContain("sdk.entities.listChildren(parentType, parentId, childType)");

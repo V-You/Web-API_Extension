@@ -150,6 +150,7 @@ describe("chat tool bridge", () => {
     const workflow = automationSchemas.find((schema) => schema.name === "execute_workflow");
     expect(workflow).toBeDefined();
     expect((workflow?.inputSchema as { properties?: Record<string, unknown> }).properties?.planOnly).toBeDefined();
+    expect((workflow?.inputSchema as { properties?: Record<string, unknown> }).properties?.runtime).toBeDefined();
   });
 
   // Phase 3 / D11 – Gemini-safe chat declarations.

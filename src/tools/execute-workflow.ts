@@ -21,6 +21,7 @@ import type { WriteRecord } from "../sandbox/sdk-facade";
 import { executeTypedTool, isReadOnlyTool } from "./adapter";
 import { staticWorkflowPreflight } from "../chat/workflow-static-preflight";
 import { workflowContractFailureFromPreflight } from "../chat/workflow-contract-error";
+import { selectWorkflowRuntime, type WorkflowRuntime } from "../chat/workflow-runtime";
 import type { ApiCredentials, Environment } from "../lib/types";
 
 export interface ExecuteWorkflowInput {
@@ -37,6 +38,8 @@ export interface ExecuteWorkflowInput {
   timeoutMs?: number;
   /** Bypass per-write prompts after an outer WebMCP confirmation. */
   autoConfirmWrites?: boolean;
+  /** Declared lifecycle metadata for routing and model feedback. */
+  runtime?: WorkflowRuntime;
 }
 
 interface DeclarativeWorkflowCall {
@@ -157,7 +160,8 @@ export async function executeWorkflow(
 
   const declarativeWorkflow = parseDeclarativeWorkflow(input.script);
   if (declarativeWorkflow) {
-    return executeDeclarativeWorkflow(declarativeWorkflow, input, creds, env);
+    const result = await executeDeclarativeWorkflow(declarativeWorkflow, input, creds, env);
+    return { ...result, runtime: selectWorkflowRuntime({ script: input.script, dryRun: input.dryRun, planOnly: input.planOnly, requestedRuntime: input.runtime }) };
   }
 
   if (input.planOnly) {
@@ -170,6 +174,7 @@ export async function executeWorkflow(
       writes: [],
       durationMs: 0,
       error: "planOnly for freeform workflow scripts is not available in WebMCP service-worker execution because it would require unsafe eval. Use declarative workflow JSON for planOnly, dryRun for syntax validation, or start a reviewed background Job.",
+      runtime: selectWorkflowRuntime({ script: input.script, dryRun: input.dryRun, planOnly: input.planOnly, requestedRuntime: input.runtime }),
     };
   }
 
@@ -184,6 +189,7 @@ export async function executeWorkflow(
       writeCount: 0,
       writes: [],
       durationMs: 0,
+      runtime: selectWorkflowRuntime({ script: input.script, dryRun: input.dryRun, planOnly: input.planOnly, requestedRuntime: input.runtime }),
     };
   }
 
@@ -208,5 +214,6 @@ export async function executeWorkflow(
     writes: result.writes,
     durationMs: result.durationMs,
     error: result.error,
+    runtime: selectWorkflowRuntime({ script: input.script, dryRun: input.dryRun, planOnly: input.planOnly, requestedRuntime: input.runtime }),
   };
 }

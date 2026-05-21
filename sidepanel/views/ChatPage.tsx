@@ -37,6 +37,7 @@ import { contextPacketFor, getActiveChatContext, resolveChannelMerchantFromConte
 import { summarizeToolResources } from "../../src/chat/tool-provenance";
 import { executeChatTool, getChatToolDeclarations } from "../../src/chat/tool-bridge";
 import { parseWorkflowDraft, WorkflowDraftParseError } from "../../src/chat/workflow-draft";
+import type { WorkflowRuntime } from "../../src/chat/workflow-runtime";
 import { staticWorkflowPreflight, type StaticPreflightResult } from "../../src/chat/workflow-static-preflight";
 import { bumpWorkflowCounter } from "../../src/lib/workflow-counters";
 import { startJob } from "../../src/jobs/job-runner";
@@ -68,6 +69,7 @@ const CHAT_HISTORY_SESSION_KEY = "chat:history";
 interface WorkflowReviewState {
   label: string;
   script: string;
+  runtime: WorkflowRuntime;
   totalCalls: number;
   throttleRate: number;
   env: Environment;
@@ -640,6 +642,7 @@ export function ChatPage() {
               throttleRate,
               contextSnapshot: workflowInput.contextSnapshot ?? jobContextSnapshot,
               source: "chat",
+              runtime: workflowInput.runtime ?? "long_job",
             });
             watchedJobIds.current.add(job.id);
             announcedJobStates.current.set(job.id, job.state);
@@ -648,6 +651,7 @@ export function ChatPage() {
               state: job.state,
               label: job.label,
               totalCalls: job.totalCalls,
+              runtime: job.runtime,
             };
           },
         }),
@@ -884,6 +888,7 @@ export function ChatPage() {
       setWorkflowReview({
         label: draft.label,
         script: draft.script,
+        runtime: draft.runtime,
         totalCalls: draft.totalCalls,
         throttleRate,
         env,
@@ -950,6 +955,7 @@ export function ChatPage() {
         creds,
         env: workflowReview.env,
         source: "chat",
+        runtime: workflowReview.runtime,
       });
 
       watchedJobIds.current.add(job.id);
@@ -1490,6 +1496,10 @@ function WorkflowReviewDialog({
             <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
               <div className="font-medium text-slate-600">Estimated calls</div>
               <div className="mt-1 text-slate-800">{draft.totalCalls}</div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 sm:col-span-2">
+              <div className="font-medium text-slate-600">Runtime</div>
+              <div className="mt-1 text-slate-800">{draft.runtime}</div>
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 p-2 sm:col-span-2">
               <div className="font-medium text-slate-600">Snapshot context</div>

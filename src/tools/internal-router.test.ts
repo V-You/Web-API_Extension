@@ -236,4 +236,51 @@ describe("internal router transaction tools", () => {
     });
     expect((result.errorInfo as { fixHint?: string }).fixHint).toMatch(/workflow SDK reference/);
   });
+
+  it("returns long_job runtime metadata on accepted workflow jobs", async () => {
+    const startWorkflowJob = vi.fn(async (input) => ({
+      jobId: "job-1",
+      state: "running",
+      label: input.label,
+      totalCalls: input.totalCalls,
+      runtime: input.runtime,
+    }));
+    const execute = createExecuteMap({ startWorkflowJob });
+
+    const result = await execute.execute_workflow({
+      label: "Workflow",
+      script: "results.push({ ok: true });",
+      totalCalls: 2,
+    }) as Record<string, unknown>;
+
+    expect(startWorkflowJob).toHaveBeenCalledWith(expect.objectContaining({ runtime: "long_job" }));
+    expect(result).toMatchObject({
+      status: "accepted",
+      jobId: "job-1",
+      runtime: "long_job",
+    });
+  });
+
+  it("returns inline_sandbox runtime metadata for dry-run workflow execution", async () => {
+    const execute = createExecuteMap({ bypassWriteConfirmation: true });
+
+    const result = await execute.execute_workflow({
+      script: "results.push({ ok: true });",
+      dryRun: true,
+    }) as Record<string, unknown>;
+
+    expect(result.runtime).toBe("inline_sandbox");
+  });
+
+  it("returns declarative_workflow runtime metadata for declarative workflows", async () => {
+    const execute = createExecuteMap({ bypassWriteConfirmation: true });
+
+    const result = await execute.execute_workflow({
+      script: JSON.stringify({ calls: [{ tool: "manage_entity", params: { action: "get", entityType: "merchant", entityId: "m1" } }] }),
+      planOnly: true,
+    }) as Record<string, unknown>;
+
+    expect(result.runtime).toBe("declarative_workflow");
+  });
+
 });

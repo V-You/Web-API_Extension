@@ -99,6 +99,7 @@ describe("execute_workflow declarative workflow mode", () => {
       status: "error",
       writeCount: 0,
       errorKind: "unknown_sdk_member",
+      runtime: "inline_sandbox",
       errorInfo: {
         kind: "unknown_sdk_member",
         suggest: "create",

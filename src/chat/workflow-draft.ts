@@ -1,7 +1,10 @@
+import { normalizeWorkflowRuntime, type WorkflowRuntime } from "./workflow-runtime";
+
 export interface ParsedWorkflowDraft {
   label: string;
   totalCalls: number;
   script: string;
+  runtime: WorkflowRuntime;
 }
 
 export class WorkflowDraftParseError extends Error {
@@ -44,6 +47,7 @@ export function parseWorkflowDraft(text: string): ParsedWorkflowDraft {
   const label = typeof draft.label === "string" ? draft.label.trim() : "";
   const script = typeof draft.script === "string" ? draft.script.trim() : "";
   const totalCalls = typeof draft.totalCalls === "number" ? draft.totalCalls : Number(draft.totalCalls);
+  const runtime = normalizeWorkflowRuntime(draft.runtime) ?? "long_job";
 
   if (!label) throw new Error("The workflow draft is missing a label.");
   if (!script) throw new Error("The workflow draft is missing a script.");
@@ -52,7 +56,7 @@ export function parseWorkflowDraft(text: string): ParsedWorkflowDraft {
     throw new Error("The workflow draft totalCalls estimate must be a positive integer.");
   }
 
-  return { label, script, totalCalls };
+  return { label, script, totalCalls, runtime };
 }
 
 function validateWorkflowDraftScript(script: string): void {
@@ -71,11 +75,12 @@ function validateWorkflowDraftScript(script: string): void {
 function parseLooseWorkflowDraft(source: string): ParsedWorkflowDraft | null {
   const label = readLooseScalar(source, "label");
   const totalCallsRaw = readLooseScalar(source, "totalCalls");
+  const runtime = normalizeWorkflowRuntime(readLooseScalar(source, "runtime")) ?? "long_job";
   const script = readLooseScript(source);
   const totalCalls = Number(totalCallsRaw);
 
   if (!label || !script || !Number.isInteger(totalCalls) || totalCalls < 1) return null;
-  return { label, script, totalCalls };
+  return { label, script, totalCalls, runtime };
 }
 
 function readLooseScalar(source: string, key: string): string {

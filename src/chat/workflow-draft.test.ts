@@ -13,6 +13,18 @@ describe("workflow draft parsing", () => {
     expect(draft.label).toBe("Audit current entity");
     expect(draft.totalCalls).toBe(3);
     expect(draft.script).toContain("results.push");
+    expect(draft.runtime).toBe("long_job");
+  });
+
+  it("accepts explicit runtime metadata", () => {
+    const draft = parseWorkflowDraft(JSON.stringify({
+      label: "Audit current entity",
+      runtime: "inline_sandbox",
+      totalCalls: 3,
+      script: "results.push({ ok: true });",
+    }));
+
+    expect(draft.runtime).toBe("inline_sandbox");
   });
 
   it("accepts a fenced JSON response", () => {

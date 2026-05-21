@@ -108,6 +108,7 @@ describe("tool schema definitions", () => {
     const workflow = TOOL_SCHEMAS.find((schema) => schema.name === "execute_workflow");
     expect(workflow?.description).toContain("returns a Job receipt immediately");
     expect((workflow?.inputSchema as { properties?: Record<string, unknown> }).properties).toHaveProperty("totalCalls");
+    expect((workflow?.inputSchema as { properties?: Record<string, unknown> }).properties).toHaveProperty("runtime");
   });
 
   it("documents channel entity get as the Web API channelInfo payload", () => {

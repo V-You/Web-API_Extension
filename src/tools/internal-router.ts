@@ -17,6 +17,7 @@ import { executeManageSettings } from "./manage-settings";
 import { executeWorkflow } from "./execute-workflow";
 import { staticWorkflowPreflight } from "../chat/workflow-static-preflight";
 import { workflowContractFailureFromPreflight } from "../chat/workflow-contract-error";
+import { selectWorkflowRuntime, type WorkflowRuntime } from "../chat/workflow-runtime";
 import { describeOperation } from "./describe-operation";
 import { MANIFEST } from "./manifest-helpers";
 import { executeSendTestTransaction } from "./send-test-transaction";
@@ -54,6 +55,7 @@ export interface StartWorkflowJobInput {
   totalCalls: number;
   throttleRate?: number;
   timeoutMs?: number;
+  runtime?: WorkflowRuntime;
   creds: ApiCredentials;
   env: Environment;
 }
@@ -63,6 +65,7 @@ export interface StartWorkflowJobResult {
   state: string;
   label: string;
   totalCalls: number;
+  runtime?: WorkflowRuntime;
 }
 
 export async function resolveSession(): Promise<ToolSession | null> {
@@ -314,6 +317,13 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
         return workflowContractFailureFromPreflight(preflight);
       }
       const autoConfirmWrites = await confirmWorkflowIfNeeded(params, env, options);
+      const runtime = selectWorkflowRuntime({
+        script: String(params.script ?? ""),
+        dryRun: params.dryRun === true,
+        planOnly: params.planOnly === true,
+        hasJobHandoff: Boolean(options.startWorkflowJob),
+        requestedRuntime: params.runtime,
+      });
 
       if (params.dryRun !== true && params.planOnly !== true && options.startWorkflowJob) {
         const label = typeof params.label === "string" && params.label.trim()
@@ -328,6 +338,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
           contextSnapshot: params.contextSnapshot as JobContextSnapshot | undefined,
           totalCalls,
           timeoutMs: params.timeoutMs as number | undefined,
+          runtime,
           creds,
           env,
         });
@@ -337,6 +348,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
           state: receipt.state,
           label: receipt.label,
           totalCalls: receipt.totalCalls,
+          runtime: receipt.runtime ?? runtime,
           message: "Workflow accepted as a background Job. Poll get_job_status with this jobId, and the user can monitor or cancel it in the extension Jobs tab.",
         };
       }
@@ -350,6 +362,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
           planOnly: params.planOnly as boolean | undefined,
           timeoutMs: params.timeoutMs as number | undefined,
           autoConfirmWrites,
+          runtime,
         },
         creds,
         env,

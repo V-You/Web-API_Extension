@@ -1,5 +1,6 @@
 import playbookData from "../../base_data/chat_discovery_playbook.json";
 import { renderConfigTestRecipePrompt, type MatchedConfigTestRecipe } from "./config-test-recipes";
+import { workflowRuntimePromptLine } from "./workflow-runtime";
 // PRD 2026-05-18 D15 / 2026-05-20 Step 2: generated authoritative SDK
 // surface. Regenerated via `npm run generate:sdk-reference` from the shared
 // workflow SDK registry so prompt/preflight/runtime migration share a method
@@ -131,7 +132,9 @@ export function buildChatWorkflowDraftPrompt(options: ChatWorkflowDraftPromptOpt
     configTestRecipePrompt,
     WORKFLOW_SDK_REFERENCE,
     "Return only valid JSON with this exact shape:",
-    "{\"label\":\"short job label\",\"totalCalls\":1,\"script\":\"TypeScript workflow source\"}",
+    "{\"label\":\"short job label\",\"runtime\":\"long_job\",\"totalCalls\":1,\"script\":\"TypeScript workflow source\"}",
+    workflowRuntimePromptLine("long_job"),
+    "Runtime selection rules: reviewed Draft Job output must set runtime to long_job; execute_workflow with real writes is long_job; dryRun or planOnly validation is inline_sandbox; declarative workflow JSON is declarative_workflow. The SDK reference is identical for inline_sandbox and long_job.",
     "The response must parse with JSON.parse. Escape script newlines as \\n and quotes as \\\" inside the script string. Do not use raw multiline strings, backticks, comments outside JSON, or Markdown fences.",
       "The script runs in the existing workflow sandbox with sdk, console, sleep(ms), results array, context, signal, and progress available.",
     "Write executable top-level workflow code directly. Do not wrap the workflow in async function runWorkflow() or any other function unless you also call it; uncalled wrapper functions do no work.",

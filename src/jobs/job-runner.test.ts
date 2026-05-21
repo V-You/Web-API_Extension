@@ -164,12 +164,13 @@ describe("job-runner", () => {
       creds,
       env: "uat",
       source: "chat",
+      runtime: "long_job",
     });
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "job_start",
-        payload: expect.objectContaining({ source: "chat" }),
+        payload: expect.objectContaining({ source: "chat", runtime: "long_job" }),
       }),
     );
   });

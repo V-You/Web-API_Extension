@@ -13,6 +13,7 @@
 
 import { getJob, getJobFresh, type JobContextSnapshot, type JobRecord, type JobSource } from "./job-store";
 import type { ApiCredentials, Environment } from "../lib/types";
+import type { WorkflowRuntime } from "../chat/workflow-runtime";
 
 // -- SW message helper with retry -----------------------------------------
 // chrome.runtime.sendMessage can fail transiently if the SW is waking up.
@@ -135,6 +136,7 @@ export interface StartJobInput {
   creds: ApiCredentials;
   env: Environment;
   source?: JobSource;
+  runtime?: WorkflowRuntime;
 }
 
 /**
@@ -157,6 +159,7 @@ export async function startJob(input: StartJobInput): Promise<JobRecord> {
       creds: input.creds,
       env: input.env,
       source: input.source,
+      runtime: input.runtime,
     },
   });
 
@@ -202,6 +205,7 @@ export async function resumeJob(
       contextSnapshot: job.contextSnapshot,
       creds,
       env,
+      runtime: job.runtime,
     },
   });
 

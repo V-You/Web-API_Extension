@@ -3,6 +3,7 @@ import { createExecuteMap, type ExecuteMapOptions } from "../tools/internal-rout
 import { isRecoverableToolError } from "../tools/recoverable-error";
 import type { ChatToolDeclaration } from "./llm-adapter";
 import { contextPacketFor, resolveChannelMerchantFromContext, type ChatContextRecord } from "./context-store";
+import { selectWorkflowRuntime } from "./workflow-runtime";
 
 export interface ChatToolCatalogOptions {
   writeToolsEnabled?: boolean;
@@ -275,11 +276,19 @@ function applyContextDefaults(
 ): Record<string, unknown> {
   if (name === "execute_workflow") {
     const packet = contextPacketFor(options.context ?? null);
-    if (!packet) return args;
+    const next = { ...args };
+    if (!next.runtime) {
+      next.runtime = selectWorkflowRuntime({
+        script: String(next.script ?? ""),
+        dryRun: next.dryRun === true,
+        planOnly: next.planOnly === true,
+        hasJobHandoff: Boolean(options.startWorkflowJob),
+      });
+    }
+    if (!packet) return next;
     const ids = Object.fromEntries(
       Object.entries(packet.ids).filter(([, value]) => typeof value === "string" && value.trim()),
     );
-    const next = { ...args };
     if (!next.entityId) next.entityId = packet.current.entityId;
     if (!next.entityType) next.entityType = packet.current.entityType;
     next.contextSnapshot = {
