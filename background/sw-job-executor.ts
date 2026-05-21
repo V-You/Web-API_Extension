@@ -30,7 +30,7 @@ import { assertLiveContract } from "../src/tools/live-contracts";
 import { bumpWorkflowCounter } from "../src/lib/workflow-counters";
 import { RecoverableToolError } from "../src/tools/recoverable-error";
 import { createSdk, type SdkContext } from "../src/sdk/sdk";
-import { extractEntityCollection } from "../src/lib/api-shapes";
+import { createWorkflowEntityNamespace } from "../src/sdk/workflow-entity-namespace";
 import {
   normalizeListResult,
   contactScopeKeys,
@@ -226,37 +226,6 @@ function buildSwSdk(
       return (result as { data: unknown }).data;
     }
     return result;
-  }
-
-  // Entity-aware list normalizer: returns array of records and, for channel
-  // rows, aliases the API's `channel` field to a stable `id` property so
-  // model-generated scripts can use `row.id` regardless of childType.
-  function normalizeEntityListResult(
-    result: unknown,
-    childType: "division" | "merchant" | "channel",
-    parentType: EntityType,
-    parentId: string,
-  ): Record<string, unknown>[] {
-    const data = isRecord(result) && "data" in result ? result.data : result;
-    const arr = (() => {
-      const rows = extractEntityCollection(childType, data);
-      if (rows.length > 0 || Array.isArray(data)) return rows;
-      // Fall back through the shared contract for envelope/error handling.
-      return normalizeListResult(result, {
-        label: `list ${childType}s on ${parentType} ${parentId}`,
-        candidateKeys: [`${childType}s`],
-      });
-    })();
-    return arr.map((item) => {
-      const row: Record<string, unknown> = { ...item };
-      const aliased = typeof row._entityId === "string" && row._entityId.trim()
-        ? row._entityId
-        : childType === "channel" && typeof row.channel === "string" && (row.channel as string).trim()
-          ? (row.channel as string)
-          : null;
-      if (aliased && typeof row.id !== "string") row.id = aliased;
-      return row;
-    });
   }
 
   function recordWrite(
@@ -510,34 +479,16 @@ function buildSwSdk(
         return assertWriteSucceeded(await virtualSdk.config.batchUpdate(entityType, entityId, settings), "settings batch update");
       },
     },
-    entities: {
-      async get(entityType: EntityType, entityId: string) {
-        return unwrapApiData(await executeManageEntity({ action: "get", entityType, entityId }, creds, env));
+    entities: createWorkflowEntityNamespace({
+      creds,
+      env,
+      writeTransport: "internalHandler",
+      mapGetResult: unwrapApiData,
+      beforeWrite: async (preview) => {
+        await assertWorkflowTarget(preview.entityType as EntityType, preview.entityId, preview.description);
+        recordWrite(preview.tool, preview.action, preview.entityId, preview.entityType, preview.params);
       },
-      async search(namePath: string) {
-        return executeManageEntity({ action: "search", namePath }, creds, env);
-      },
-      async listChildren(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel") {
-        return normalizeEntityListResult(
-          await executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env),
-          childType,
-          parentType,
-          parentId,
-        );
-      },
-      async create(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel", fields: Record<string, string>) {
-        recordWrite("manage_entity", "create", parentId, parentType, { childType, fields });
-        return assertWriteSucceeded(await executeManageEntity({ action: "create", parentType, parentId, childType, fields }, creds, env), "entity create");
-      },
-      async edit(entityType: EntityType, entityId: string, fields: Record<string, string>) {
-        recordWrite("manage_entity", "edit", entityId, entityType, { fields });
-        return assertWriteSucceeded(await executeManageEntity({ action: "edit", entityType, entityId, fields }, creds, env), "entity edit");
-      },
-      async delete(entityType: EntityType, entityId: string) {
-        recordWrite("manage_entity", "delete", entityId, entityType, {});
-        return assertWriteSucceeded(await executeManageEntity({ action: "delete", entityType, entityId }, creds, env), "entity delete");
-      },
-    },
+    }),
     hierarchy: {
       async fetch(pspId: string, depth?: number) {
         return executeGetHierarchy({ pspId, depth }, creds, env);

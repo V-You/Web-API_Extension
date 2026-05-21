@@ -1,8 +1,9 @@
 import playbookData from "../../base_data/chat_discovery_playbook.json";
 import { renderConfigTestRecipePrompt, type MatchedConfigTestRecipe } from "./config-test-recipes";
-// PRD 2026-05-18 D15: generated authoritative SDK surface. Regenerated via
-// `npm run generate:sdk-reference` from src/sandbox/sdk-facade.ts so the
-// prompt enumerates every facade method, not a hand-maintained subset.
+// PRD 2026-05-18 D15 / 2026-05-20 Step 2: generated authoritative SDK
+// surface. Regenerated via `npm run generate:sdk-reference` from the shared
+// workflow SDK registry so prompt/preflight/runtime migration share a method
+// source instead of parsing one facade implementation.
 import { WORKFLOW_SDK_REFERENCE } from "../../src_data/workflow-sdk-reference";
 
 interface DiscoveryPlaybookStep {

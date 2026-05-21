@@ -20,13 +20,13 @@
 
 import { createSdk, type SdkContext } from "../sdk/sdk";
 import type { EntityType } from "../lib/entity-types";
-import { extractEntityCollection } from "../lib/api-shapes";
 import {
   normalizeListResult as sharedNormalizeListResult,
   contactScopeKeys,
   merchantAccountScopeKeys,
   LIST_KEYS,
 } from "../lib/list-contract";
+import { createWorkflowEntityNamespace } from "../sdk/workflow-entity-namespace";
 import type { ApiCredentials, Environment } from "../lib/types";
 import { requestConfirm, type WritePreview } from "../bridge/confirm-bridge";
 import { recordWrite } from "../bridge/write-status";
@@ -35,7 +35,6 @@ import { executeTypedTool, type AdapterResult } from "../tools/adapter";
 import { knownFieldNames, pickOperation } from "../tools/manifest-helpers";
 import { assertNoForbiddenFields } from "../tools/forbidden-fields";
 import { assertLiveContract } from "../tools/live-contracts";
-import { executeManageEntity } from "../tools/manage-entity";
 import { executeGetHierarchy } from "../tools/get-hierarchy";
 import { executeManageContact } from "../tools/manage-contact";
 import { executeManageMerchantAccount } from "../tools/manage-merchant-account";
@@ -152,25 +151,6 @@ function assertWriteSucceeded<T>(result: T, description: string): T {
  * (see md/2026-05-18_PRD_contract-first-workflow-sdk.md).
  */
 export const normalizeListResult = sharedNormalizeListResult;
-
-function normalizeEntityListResult(result: unknown, childType: EntityType): Record<string, unknown>[] {
-  if (isRecord(result)) {
-    if (result.ok === false) throw new Error(`list ${childType} failed: ${writeFailureMessage(result)}`);
-    if (typeof result.error === "string" && result.error.trim()) throw new Error(`list ${childType} failed: ${result.error.trim()}`);
-  }
-
-  const data = isRecord(result) && "data" in result ? result.data : result;
-  return extractEntityCollection(childType, data).map((item) => {
-    const normalized = { ...item };
-    const entityId = typeof normalized._entityId === "string" && normalized._entityId.trim()
-      ? normalized._entityId
-      : childType === "channel" && typeof normalized.channel === "string" && normalized.channel.trim()
-        ? normalized.channel
-        : null;
-    if (entityId && typeof normalized.id !== "string") normalized.id = entityId;
-    return normalized;
-  });
-}
 
 function toStringRecord(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
@@ -438,51 +418,21 @@ export function buildSdkFacade(
     },
 
     // -- Entity operations --
-    entities: {
-      async get(entityType: EntityType, entityId: string) {
-        return executeManageEntity({ action: "get", entityType, entityId }, creds, env);
-      },
-      async search(namePath: string) {
-        return executeManageEntity({ action: "search", namePath }, creds, env);
-      },
-      async listChildren(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel") {
-        return normalizeEntityListResult(
-          await executeManageEntity({ action: "list_children", parentType, parentId, childType }, creds, env),
-          childType,
-        );
-      },
-      async create(parentType: EntityType, parentId: string, childType: "division" | "merchant" | "channel", fields: Record<string, string>) {
-        await confirmAndWrite(
-          "manage_entity", "create", "POST", parentId, parentType,
-          `Create ${childType} under ${parentType} ${parentId}`,
-          { childType, fields },
-        );
-        const toolName =
-          childType === "division" ? "create_division"
-          : childType === "merchant" ? "create_merchant"
-          : "create_channel";
-        if (options.planOnlyWrites) return plannedResult(toolName, { parentType, parentId, ...fields });
-        return runTyped(toolName, { parentType, parentId, ...fields });
-      },
-      async edit(entityType: EntityType, entityId: string, fields: Record<string, string>) {
-        await confirmAndWrite(
-          "manage_entity", "edit", "POST", entityId, entityType,
-          `Edit ${entityType} ${entityId}`,
-          { fields },
-        );
-        if (options.planOnlyWrites) return plannedResult("edit_entity", { parentType: entityType, parentId: entityId, ...fields });
-        return runTyped("edit_entity", { parentType: entityType, parentId: entityId, ...fields });
-      },
-      async delete(entityType: EntityType, entityId: string) {
-        await confirmAndWrite(
-          "manage_entity", "delete", "DELETE", entityId, entityType,
-          `Delete ${entityType} ${entityId}`,
-          {},
-        );
-        if (options.planOnlyWrites) return plannedResult("delete_entity", { parentType: entityType, parentId: entityId });
-        return runTyped("delete_entity", { parentType: entityType, parentId: entityId });
-      },
-    },
+    entities: createWorkflowEntityNamespace({
+      creds,
+      env,
+      writeTransport: "typedTool",
+      planOnlyWrites: options.planOnlyWrites,
+      beforeWrite: (preview) => confirmAndWrite(
+        preview.tool,
+        preview.action,
+        preview.method,
+        preview.entityId,
+        preview.entityType,
+        preview.description,
+        preview.params,
+      ),
+    }),
 
     // -- Hierarchy --
     hierarchy: {
