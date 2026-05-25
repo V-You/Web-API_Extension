@@ -20,6 +20,19 @@ import {
 import { apiRequest } from "../../src/lib/api-client";
 import { maskSecret, redactSecrets } from "../../src/lib/redact";
 import { sendExampleTransaction } from "../../src/lib/transaction-client";
+import {
+  DEFAULT_GATEWAY_HOST,
+  DEFAULT_POLICY_PATH,
+  DEFAULT_TELEMETRY_PATH,
+  forgetGatewayToken,
+  getGatewaySessionToken,
+  getGatewaySettings,
+  hasStoredGatewayToken,
+  isGatewayTokenInvalid,
+  saveGatewaySettings,
+  saveGatewayToken,
+  type GatewaySettings,
+} from "../../src/gateway/gateway-storage";
 
 interface Props {
   onChanged: () => void;
@@ -121,6 +134,8 @@ export function ConnectionsPage({ onChanged }: Props) {
       />
 
       <TransactionTokenVault env={selectedEnv} />
+
+      <GatewaySettingsSection />
 
       <ThrottleRateSetting />
     </div>
@@ -1015,6 +1030,271 @@ function ThrottleRateSetting() {
         Maximum API requests per second for jobs and batch operations (default: 9).
         Higher values may trigger rate limiting.
       </p>
+    </div>
+  );
+}
+
+type GatewayStatusBadge =
+  | "disabled"
+  | "disabled-but-configured"
+  | "ready"
+  | "token-locked"
+  | "token-missing";
+
+function badgeStyle(status: GatewayStatusBadge) {
+  switch (status) {
+    case "ready":
+      return { label: "Ready", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    case "token-locked":
+      return { label: "Token locked", className: "bg-amber-50 text-amber-700 border-amber-200" };
+    case "token-missing":
+      return { label: "Token missing", className: "bg-rose-50 text-rose-700 border-rose-200" };
+    case "disabled-but-configured":
+      return { label: "Disabled but configured", className: "bg-slate-100 text-slate-600 border-slate-200" };
+    case "disabled":
+    default:
+      return { label: "Disabled", className: "bg-slate-50 text-slate-500 border-slate-200" };
+  }
+}
+
+function GatewaySettingsSection() {
+  const [settings, setSettings] = useState<GatewaySettings | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [host, setHost] = useState(DEFAULT_GATEWAY_HOST);
+  const [policyPath, setPolicyPath] = useState(DEFAULT_POLICY_PATH);
+  const [telemetryPath, setTelemetryPath] = useState(DEFAULT_TELEMETRY_PATH);
+  const [token, setToken] = useState("");
+  const [pin, setPin] = useState("");
+  const [hasToken, setHasToken] = useState(false);
+  const [sessionTokenAvailable, setSessionTokenAvailable] = useState(false);
+  const [tokenInvalid, setTokenInvalid] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const hydrate = async () => {
+    const [loaded, stored, sessionToken, invalid] = await Promise.all([
+      getGatewaySettings(),
+      hasStoredGatewayToken(),
+      getGatewaySessionToken(),
+      isGatewayTokenInvalid(),
+    ]);
+    setSettings(loaded);
+    setEnabled(loaded.enabled);
+    setHost(loaded.host);
+    setPolicyPath(loaded.policyPath);
+    setTelemetryPath(loaded.telemetryPath);
+    setHasToken(stored);
+    setSessionTokenAvailable(!!sessionToken);
+    setTokenInvalid(invalid);
+  };
+
+  useEffect(() => {
+    void hydrate();
+  }, []);
+
+  const status: GatewayStatusBadge = useMemo(() => {
+    if (!settings) return "disabled";
+    if (!settings.enabled) {
+      return hasToken || settings.host !== DEFAULT_GATEWAY_HOST
+        ? "disabled-but-configured"
+        : "disabled";
+    }
+    if (!hasToken) return "token-missing";
+    if (tokenInvalid || !sessionTokenAvailable) return "token-locked";
+    return "ready";
+  }, [hasToken, sessionTokenAvailable, settings, tokenInvalid]);
+
+  const isDirty =
+    !!settings &&
+    (enabled !== settings.enabled ||
+      host.trim() !== settings.host ||
+      policyPath.trim() !== settings.policyPath ||
+      telemetryPath.trim() !== settings.telemetryPath);
+
+  async function handleSaveSettings() {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const saved = await saveGatewaySettings({ enabled, host, policyPath, telemetryPath });
+      setSettings(saved);
+      setInfo("Settings saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save gateway settings.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveToken() {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await saveGatewayToken(token, pin);
+      setToken("");
+      setPin("");
+      await hydrate();
+      setInfo("Gateway token saved and unlocked for this session.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save gateway token.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForgetToken() {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await forgetGatewayToken();
+      await hydrate();
+      setInfo("Gateway token forgotten.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to forget gateway token.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const badge = badgeStyle(status);
+
+  return (
+    <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-slate-600">Governance and telemetry</h3>
+        <span className={`text-2xs font-medium px-1.5 py-0.5 rounded border ${badge.className}`}>
+          {badge.label}
+        </span>
+      </div>
+
+      <p className="text-2xs text-slate-500">
+        Route tool intent through an MCP gateway for policy evaluation before execution and
+        structured telemetry afterwards. Hardened for the Mobot demo; allowed host:
+        <code className="ml-1">mobot.laetzer.com</code>.
+      </p>
+
+      <label className="flex items-center gap-2 text-xs text-slate-700">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        Enable governance hooks
+      </label>
+
+      <div>
+        <label className="block text-xs font-medium text-slate-600 mb-1">Gateway host URL</label>
+        <input
+          type="url"
+          value={host}
+          onChange={(e) => setHost(e.target.value)}
+          placeholder={DEFAULT_GATEWAY_HOST}
+          className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+        />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Policy path</label>
+          <input
+            type="text"
+            value={policyPath}
+            onChange={(e) => setPolicyPath(e.target.value)}
+            placeholder={DEFAULT_POLICY_PATH}
+            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Telemetry path</label>
+          <input
+            type="text"
+            value={telemetryPath}
+            onChange={(e) => setTelemetryPath(e.target.value)}
+            placeholder={DEFAULT_TELEMETRY_PATH}
+            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={handleSaveSettings}
+        disabled={busy || !isDirty}
+        className="bg-blue-600 text-white text-xs font-medium py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+      >
+        {busy ? "Saving..." : "Save gateway settings"}
+      </button>
+
+      <div className="border-t border-slate-100 pt-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-slate-600">Bearer token</h4>
+          <span className="text-2xs text-slate-500">
+            {hasToken
+              ? sessionTokenAvailable
+                ? "Saved and unlocked"
+                : tokenInvalid
+                  ? "Saved but failed to unlock"
+                  : "Saved (locked)"
+              : "Not saved"}
+          </span>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Gateway bearer token
+          </label>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            autoComplete="off"
+            placeholder={hasToken ? "Enter to replace existing token" : "Bearer token from Mobot"}
+            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Encryption PIN
+          </label>
+          <input
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            autoComplete="off"
+            placeholder="Reuse the PIN you set for ACI credentials"
+            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+          />
+          <p className="text-2xs text-slate-400 mt-1">
+            The gateway token is encrypted with the same PIN as your ACI credentials and
+            transaction tokens. Unlocking the extension also unlocks the gateway token.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleSaveToken}
+            disabled={busy || !token || pin.length < 6}
+            className="bg-blue-600 text-white text-xs font-medium py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {busy ? "Saving..." : hasToken ? "Replace token" : "Save token"}
+          </button>
+          {hasToken && (
+            <button
+              onClick={handleForgetToken}
+              disabled={busy}
+              className="bg-slate-100 text-slate-700 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-slate-200 disabled:opacity-50 transition-colors"
+            >
+              Forget token
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-rose-600">{error}</p>}
+      {info && !error && <p className="text-xs text-emerald-600">{info}</p>}
     </div>
   );
 }

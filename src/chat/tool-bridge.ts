@@ -4,6 +4,10 @@ import { isRecoverableToolError } from "../tools/recoverable-error";
 import type { ChatToolDeclaration } from "./llm-adapter";
 import { contextPacketFor, resolveChannelMerchantFromContext, type ChatContextRecord } from "./context-store";
 import { selectWorkflowRuntime } from "./workflow-runtime";
+import { isWebMcpReadOnlyInvocation } from "../webmcp/execution-policy";
+import { getActiveEnv } from "../lib/storage";
+import { evaluatePolicy, sendToolTelemetry } from "../gateway/gateway-client";
+import { GatewayPolicyDeniedError } from "../gateway/gateway-types";
 
 export interface ChatToolCatalogOptions {
   writeToolsEnabled?: boolean;
@@ -261,10 +265,89 @@ export async function executeChatTool(
     throw new Error(`No execute handler found for ${name}.`);
   }
 
+  const resolvedArgs = applyContextDefaults(name, args, options);
+  const readOnly = isWebMcpReadOnlyInvocation(name, resolvedArgs);
+  const environment = (await getActiveEnv()) ?? undefined;
+  const gatewayContext = {
+    environment,
+    ...(options.context?.entityId ? { entityId: options.context.entityId } : {}),
+    ...(options.context?.entityType ? { entityType: options.context.entityType } : {}),
+    ...(options.context?.entityName ? { entityName: options.context.entityName } : {}),
+    ...(options.context?.section ? { section: options.context.section } : {}),
+  };
+
+  const correlationId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   try {
-    return await execute(applyContextDefaults(name, args, options));
+    await evaluatePolicy({
+      source: "chat",
+      tool: { name, readOnly, params: resolvedArgs },
+      context: gatewayContext,
+      correlationId,
+    });
+  } catch (err) {
+    if (err instanceof GatewayPolicyDeniedError) {
+      void sendToolTelemetry({
+        source: "chat",
+        eventType: "tool_execution_denied",
+        tool: { name, readOnly, params: resolvedArgs },
+        context: gatewayContext,
+        correlationId,
+        outcome: {
+          ok: false,
+          status: "denied",
+          errorCode: err.decision.code,
+          errorMessage: err.decision.internalReason ?? err.decision.reason,
+        },
+      }).catch(() => undefined);
+      throw new Error(err.decision.reason ?? "Action denied by enterprise policy.", { cause: err });
+    }
+    throw err;
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await execute(resolvedArgs);
+    void sendToolTelemetry({
+      source: "chat",
+      eventType: "tool_execution_completed",
+      tool: { name, readOnly, params: resolvedArgs },
+      context: gatewayContext,
+      correlationId,
+      outcome: { ok: true, durationMs: Date.now() - startedAt, status: "completed" },
+    }).catch(() => undefined);
+    return result;
   } catch (error) {
-    if (isRecoverableToolError(error)) return error.payload;
+    if (isRecoverableToolError(error)) {
+      void sendToolTelemetry({
+        source: "chat",
+        eventType: "tool_execution_completed",
+        tool: { name, readOnly, params: resolvedArgs },
+        context: gatewayContext,
+        correlationId,
+        outcome: {
+          ok: true,
+          durationMs: Date.now() - startedAt,
+          status: "recoverable_error",
+        },
+      }).catch(() => undefined);
+      return error.payload;
+    }
+    void sendToolTelemetry({
+      source: "chat",
+      eventType: "tool_execution_failed",
+      tool: { name, readOnly, params: resolvedArgs },
+      context: gatewayContext,
+      correlationId,
+      outcome: {
+        ok: false,
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    }).catch(() => undefined);
     throw error;
   }
 }

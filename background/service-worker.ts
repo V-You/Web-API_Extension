@@ -18,6 +18,13 @@ import type { EntityType } from "../src/lib/entity-types";
 import type { WritePreview } from "../src/bridge/confirm-bridge";
 import { buildRemoteConfirmRequest, clearRemoteConfirmState, isSidePanelConfirmReady, setRemoteConfirmRequest, waitForRemoteConfirmResponse } from "../src/bridge/remote-confirm";
 import { buildWebMcpWritePreview, isWebMcpReadOnlyInvocation } from "../src/webmcp/execution-policy";
+import {
+  evaluateWebMcpPolicy,
+  fireToolTelemetry,
+  gatewayErrorMessage,
+  invalidateWebMcpCache,
+} from "../src/gateway/gateway-sw-bridge";
+import { GatewayPolicyDeniedError } from "../src/gateway/gateway-types";
 
 const WEBMCP_EXECUTE_MAP = createExecuteMap({
   bypassWriteConfirmation: true,
@@ -357,9 +364,48 @@ async function handleWebMcpExecuteTool(
     return { ok: false, error: `Unknown tool: ${payload.tool}` };
   }
 
-  if (!isWebMcpReadOnlyInvocation(payload.tool, params)) {
-    const session = await resolveSession();
+  const readOnly = isWebMcpReadOnlyInvocation(payload.tool, params);
+  const sessionForCtx = await resolveSession();
+  const gatewayContext = { environment: sessionForCtx?.env };
+
+  // -- Gateway policy preflight (no-op when hooks disabled). Runs for reads
+  //    AND writes per PRD; the SW round-trip cache prevents re-evaluation
+  //    when the agent re-invokes with confirmed:true.
+  let correlationId: string;
+  try {
+    const policy = await evaluateWebMcpPolicy({
+      source: "webmcp",
+      tool: { name: payload.tool, readOnly },
+      params,
+      context: gatewayContext,
+    });
+    correlationId = policy.correlationId;
+  } catch (err) {
+    if (err instanceof GatewayPolicyDeniedError) {
+      const cid = (err as GatewayPolicyDeniedError & { correlationId?: string }).correlationId
+        ?? "unknown";
+      void fireToolTelemetry({
+        source: "webmcp",
+        eventType: "tool_execution_denied",
+        tool: { name: payload.tool, readOnly },
+        params,
+        context: gatewayContext,
+        correlationId: cid,
+        outcome: {
+          ok: false,
+          status: "denied",
+          errorCode: err.decision.code,
+          errorMessage: err.decision.internalReason ?? err.decision.reason,
+        },
+      });
+    }
+    return { ok: false, error: gatewayErrorMessage(err) };
+  }
+
+  if (!readOnly) {
+    const session = sessionForCtx ?? (await resolveSession());
     if (!session) {
+      invalidateWebMcpCache(payload.tool, params);
       return { ok: false, error: "Session not unlocked. Open the side panel and enter your PIN first." };
     }
 
@@ -376,20 +422,52 @@ async function handleWebMcpExecuteTool(
       await clearRemoteConfirmState();
 
       if (choice === null) {
+        invalidateWebMcpCache(payload.tool, params);
         return { ok: false, error: "Timed out waiting for side-panel confirmation." };
       }
 
       if (choice === "cancel") {
+        invalidateWebMcpCache(payload.tool, params);
         return { ok: false, error: "Operation cancelled by user." };
       }
     }
   }
 
-  const result = await execute(params);
-  return {
-    ok: true,
-    result: typeof result === "string" ? result : JSON.stringify(result),
-  };
+  const startedAt = Date.now();
+  try {
+    const result = await execute(params);
+    void fireToolTelemetry({
+      source: "webmcp",
+      eventType: "tool_execution_completed",
+      tool: { name: payload.tool, readOnly },
+      params,
+      context: gatewayContext,
+      correlationId,
+      outcome: { ok: true, durationMs: Date.now() - startedAt, status: "completed" },
+    });
+    invalidateWebMcpCache(payload.tool, params);
+    return {
+      ok: true,
+      result: typeof result === "string" ? result : JSON.stringify(result),
+    };
+  } catch (err) {
+    void fireToolTelemetry({
+      source: "webmcp",
+      eventType: "tool_execution_failed",
+      tool: { name: payload.tool, readOnly },
+      params,
+      context: gatewayContext,
+      correlationId,
+      outcome: {
+        ok: false,
+        durationMs: Date.now() - startedAt,
+        status: "failed",
+        errorMessage: err instanceof Error ? err.message : String(err),
+      },
+    });
+    invalidateWebMcpCache(payload.tool, params);
+    throw err;
+  }
 }
 
 async function handleApiRequest(

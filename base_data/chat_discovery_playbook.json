@@ -103,6 +103,15 @@
       ]
     },
     {
+      "trigger": "Disable, enable, or toggle 3DS for an entity",
+      "steps": [
+        "This is a settings write, not a merchant-account write. Start with sdk.settings.describe or describe_settings for 3D Secure, 3DS, threeDSecure, or SCA wording on the target entity (typically a Channel) to enumerate the relevant RiRo keys and their types.",
+        "Read the current values with sdk.settings.get on the resolved sdkPath(s) before writing, so the workflow can present a meaningful before/after preview.",
+        "Disable by calling sdk.settings.update(entityType, entityId, { ... }) with the boolean key(s) set to false (or the equivalent enum value such as DISABLED). Do not detach, recreate, or modify attached merchant accounts to turn 3DS off - merchant accounts inherit the entity-level threeDSecure configuration through useRiskSettings.",
+        "Only inspect merchant accounts after the settings write if the user explicitly asks about per-MA threeDSecure overrides; do not list or edit merchant accounts as part of the disable flow."
+      ]
+    },
+    {
       "trigger": "AVS or CVV question",
       "steps": [
         "Use describe_settings with AVS, address verification, CVV, or CVC phrasing to find the exact setting families and paths.",

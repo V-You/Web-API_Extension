@@ -19,6 +19,7 @@
 
 import { encrypt, decrypt, type EncryptedBlob } from "./crypto";
 import { unlockLlmProviderSettingsWithPin } from "./llm-storage";
+import { unlockGatewayTokenWithPin } from "../gateway/gateway-storage";
 import type { ApiCredentials, Environment } from "./types";
 
 export type { ApiCredentials, Environment } from "./types";
@@ -124,6 +125,7 @@ export async function unlockWithPin(pin: string): Promise<boolean> {
   }
 
   await unlockLlmProviderSettingsWithPin(pin);
+  await unlockGatewayTokenWithPin(pin);
 
   if (anyDecrypted) {
     await getActiveEnv();

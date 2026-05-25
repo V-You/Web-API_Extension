@@ -50,7 +50,7 @@
       "name": "contacts",
       "methods": [
         { "name": "get", "args": "contactId" },
-        { "name": "list", "args": "entityType, entityId, scope?" },
+        { "name": "list", "args": "entityType, entityId, scope?: \"owned\" | \"attached\"" },
         { "name": "create", "args": "entityType, entityId, fields" },
         { "name": "edit", "args": "contactId, fields" },
         { "name": "delete", "args": "contactId" },
@@ -65,7 +65,7 @@
       "name": "merchantAccounts",
       "methods": [
         { "name": "get", "args": "merchantAccountId" },
-        { "name": "list", "args": "entityType, entityId, scope?" },
+        { "name": "list", "args": "entityType, entityId, scope?: \"owned\" | \"attached\"" },
         { "name": "create", "args": "...args", "overloaded": true },
         { "name": "edit", "args": "...args", "overloaded": true },
         { "name": "update", "args": "...args", "overloaded": true },

@@ -84,6 +84,29 @@ export function suggestClosest(target: string, candidates: string[]): string | u
   // Case-insensitive exact match wins.
   const exact = candidates.find((c) => c.toLowerCase() === lowered);
   if (exact) return exact;
+  // Prefix/substring matches across the entire candidate list win over
+  // Levenshtein distance. This catches common LLM aliasing patterns where
+  // an existing method is wrapped in a verbose-but-related name, e.g.
+  // `listAttached` -> `list`, `getOwnedContacts` -> `list`, `attachContact`
+  // -> `attach`. Without this branch the distance heuristic prefers
+  // similarly long but unrelated members and the suggestion vanishes.
+  // Preference order (strongest first): target starts with candidate,
+  // candidate starts with target, target ends with candidate, target
+  // contains candidate. Within a tier, prefer the longer candidate.
+  const tiers: string[][] = [[], [], [], []];
+  for (const c of candidates) {
+    const lc = c.toLowerCase();
+    if (lc.length < 3) continue;
+    if (lowered.startsWith(lc)) tiers[0].push(c);
+    else if (lc.startsWith(lowered)) tiers[1].push(c);
+    else if (lowered.endsWith(lc)) tiers[2].push(c);
+    else if (lowered.includes(lc)) tiers[3].push(c);
+  }
+  for (const tier of tiers) {
+    if (tier.length === 0) continue;
+    tier.sort((a, b) => b.length - a.length);
+    return tier[0];
+  }
   let best: { name: string; distance: number } | undefined;
   for (const c of candidates) {
     const d = levenshtein(lowered, c.toLowerCase());
@@ -91,9 +114,8 @@ export function suggestClosest(target: string, candidates: string[]): string | u
   }
   if (!best) return undefined;
   // Always accept obvious stem matches (e.g. "entity" -> "entities").
-  const loweredTarget = target.toLowerCase();
   const loweredBest = best.name.toLowerCase();
-  if (loweredBest.startsWith(loweredTarget) || loweredTarget.startsWith(loweredBest)) {
+  if (loweredBest.startsWith(lowered) || lowered.startsWith(loweredBest)) {
     return best.name;
   }
   // Otherwise allow at most half of the longer length, capped at 4 edits

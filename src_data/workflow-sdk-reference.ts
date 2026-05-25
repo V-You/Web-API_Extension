@@ -8,6 +8,7 @@ Do not call namespaces or methods that are not listed here. If you need a capabi
 Transaction helper params are flat objects. For card data, use top-level fields cardNumber, cardHolder, cardExpiryMonth, cardExpiryYear, and cardCvv. Do not pass a nested card object such as card: { holder: ... }.
 Universal list contract: every sdk.*.list*, sdk.*.search, and sdk.entities.listChildren method returns a plain JavaScript array of row objects. Call .map / .filter / .slice / .find directly on the returned value. Do not read .data, .items, .ownedContacts, .merchantAccounts, or any other wrapper key off the return value - normalization already happened inside the SDK.
 sdk.entities.listChildren(parentType, parentId, childType) returns an array. Channel rows expose a stable id field; the SDK aliases API channel rows where the entity ID is named channel.
+Scope filter for list methods: when a list method documents a scope parameter, pass "owned" or "attached" to filter the result. Do not invent listAttached, listOwned, getAttached, or similar method aliases - the single list method covers both scopes through this argument.
 
 sdk.config:
   - sdk.config.get(entityType, entityId, sdkPath)
@@ -43,7 +44,7 @@ sdk.hierarchy:
 
 sdk.contacts:
   - sdk.contacts.get(contactId)
-  - sdk.contacts.list(entityType, entityId, scope?)
+  - sdk.contacts.list(entityType, entityId, scope?: "owned" | "attached")
   - sdk.contacts.create(entityType, entityId, fields)
   - sdk.contacts.edit(contactId, fields)
   - sdk.contacts.delete(contactId)
@@ -55,7 +56,7 @@ sdk.contacts:
 
 sdk.merchantAccounts:
   - sdk.merchantAccounts.get(merchantAccountId)
-  - sdk.merchantAccounts.list(entityType, entityId, scope?)
+  - sdk.merchantAccounts.list(entityType, entityId, scope?: "owned" | "attached")
   - sdk.merchantAccounts.create(...args)  // overloaded; see behavioural rules above for accepted shapes
   - sdk.merchantAccounts.edit(...args)  // overloaded; see behavioural rules above for accepted shapes
   - sdk.merchantAccounts.update(...args)  // overloaded; see behavioural rules above for accepted shapes

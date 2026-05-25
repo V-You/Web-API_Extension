@@ -36,7 +36,7 @@ function fixHintFor(kind: WorkflowContractErrorKind, suggest?: string): string {
   if (kind === "unknown_sdk_member") {
     return suggest
       ? `Use the workflow SDK reference and replace the unknown method with \`${suggest}\` if it matches the requested operation.`
-      : "Use only methods listed in the workflow SDK reference; do not invent aliases.";
+      : "Use only methods listed in the workflow SDK reference; do not invent aliases. If you wanted a filtered list (e.g. listAttached, listOwned, getAttached), check whether the listed `list` method accepts a `scope: \"owned\" | \"attached\"` argument before assuming the capability is missing.";
   }
   if (kind === "sdk_reflection") {
     return "Use the workflow SDK reference; runtime reflection over sdk is unsupported.";

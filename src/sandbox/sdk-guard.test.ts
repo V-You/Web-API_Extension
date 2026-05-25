@@ -14,6 +14,18 @@ describe("suggestClosest", () => {
   it("returns undefined when nothing is close enough", () => {
     expect(suggestClosest("xyz", ["entities", "hierarchy"])).toBeUndefined();
   });
+
+  it("prefers prefix/substring matches over closer-by-Levenshtein but unrelated members", () => {
+    // Regression: the model invented `listAttached` and `listOwned` aliases
+    // for filtered-list methods. Without this branch the Levenshtein winner
+    // is `attach` (distance 6) and the prefix `list` (distance 8) is never
+    // surfaced as a suggestion, so the user-facing fix hint loses the
+    // canonical recovery path.
+    const members = ["get", "list", "create", "edit", "update", "activate", "delete", "attach", "detach", "threeDCheck"];
+    expect(suggestClosest("listAttached", members)).toBe("list");
+    expect(suggestClosest("listOwned", members)).toBe("list");
+    expect(suggestClosest("getAttached", members)).toBe("get");
+  });
 });
 
 describe("wrapSdkWithGuard", () => {

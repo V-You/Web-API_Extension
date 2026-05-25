@@ -18,7 +18,8 @@
     "https://*.ctpe.info/*",
     "https://prtpe.com/*",
     "https://*.prtpe.com/*",
-    "https://generativelanguage.googleapis.com/*"
+    "https://generativelanguage.googleapis.com/*",
+    "https://mobot.laetzer.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.ts"

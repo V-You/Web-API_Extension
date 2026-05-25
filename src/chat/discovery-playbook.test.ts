@@ -20,6 +20,7 @@ describe("chat discovery playbook", () => {
     expect(prompt).toContain("Subjective or comparative question:");
     expect(prompt).toContain("Risk or fraud configuration question:");
     expect(prompt).toContain("3DS or SCA question:");
+    expect(prompt).toContain("Disable, enable, or toggle 3DS for an entity:");
     expect(prompt).toContain("Merchant-account troubleshooting:");
     expect(prompt).toContain("Test transaction authentication failure or missing merchantId:");
     expect(prompt).toContain("The dashboard binds context, but the Web API is authoritative.");

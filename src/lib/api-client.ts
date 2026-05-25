@@ -14,6 +14,7 @@
 import { RateLimiter } from "./rate-limiter";
 import { redactSecrets } from "./redact";
 import type { ApiCredentials, ApiOutcome, AuditEntry, AuditEventType, Environment } from "./types";
+import { sendApiTelemetry } from "../gateway/gateway-client";
 
 const DEFAULT_RATE_LIMIT = 9;
 const defaultLimiter = new RateLimiter(DEFAULT_RATE_LIMIT);
@@ -47,6 +48,12 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Optional request throttle rate in requests per second. */
   throttleRate?: number;
+  /**
+   * Optional parent correlation ID from the gateway-governed tool invocation
+   * that triggered this API call. Included in API-level telemetry so the
+   * gateway can group fan-out from a single workflow.
+   */
+  gatewayParentCorrelationId?: string;
 }
 
 function limiterFor(rate: number | undefined): RateLimiter {
@@ -82,13 +89,13 @@ async function fetchWithRetry(
   init: RequestInit,
   signal?: AbortSignal,
   limiter = defaultLimiter,
-): Promise<Response> {
+): Promise<{ res: Response; attemptCount: number }> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(url, init);
       if (!isRetryableStatus(res.status) || attempt === MAX_RETRIES) {
-        return res;
+        return { res, attemptCount: attempt + 1 };
       }
       // Retryable status -- wait and try again
     } catch (err) {
@@ -129,14 +136,28 @@ export async function apiRequest<T = unknown>(
     body = new URLSearchParams(opts.params).toString();
   }
 
-  const res = await fetchWithRetry(url, { method, headers, body, signal: opts.signal }, opts.signal, limiter);
+  const res = await fetchWithRetry(url, { method, headers, body, signal: opts.signal }, opts.signal, limiter)
+    .catch((err) => {
+      // Final-failure API telemetry (network error after all retries).
+      void fireApiTelemetry({
+        method,
+        path: opts.path,
+        status: 0,
+        environment: env,
+        attemptCount: MAX_RETRIES + 1,
+        outcomeOk: false,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        parentCorrelationId: opts.gatewayParentCorrelationId,
+      });
+      throw err;
+    });
 
   let data: T;
-  const contentType = res.headers.get("content-type") ?? "";
+  const contentType = res.res.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    data = (await res.json()) as T;
+    data = (await res.res.json()) as T;
   } else {
-    data = (await res.text()) as unknown as T;
+    data = (await res.res.text()) as unknown as T;
   }
   const apiOutcome = extractApiOutcome(data, opts.path);
 
@@ -153,7 +174,7 @@ export async function apiRequest<T = unknown>(
         _path: opts.path,
         ...(opts.params ?? {}),
       }),
-      responseStatus: res.status,
+      responseStatus: res.res.status,
       ...(apiOutcome ? {
         apiOutcome,
         ...(apiOutcome.resultCode ? { apiResultCode: apiOutcome.resultCode } : {}),
@@ -165,7 +186,65 @@ export async function apiRequest<T = unknown>(
     });
   }
 
-  return { ok: res.ok && apiOutcome?.isError !== true, status: res.status, data, ...(apiOutcome ? { apiOutcome } : {}) };
+  const finalOk = res.res.ok && apiOutcome?.isError !== true;
+  // Final-outcome API telemetry (HTTP completed, success or apiOutcome error).
+  void fireApiTelemetry({
+    method,
+    path: opts.path,
+    status: res.res.status,
+    environment: env,
+    attemptCount: res.attemptCount,
+    outcomeOk: finalOk,
+    apiOutcome,
+    parentCorrelationId: opts.gatewayParentCorrelationId,
+  });
+
+  return { ok: finalOk, status: res.res.status, data, ...(apiOutcome ? { apiOutcome } : {}) };
+}
+
+interface FireApiTelemetryInput {
+  method: "GET" | "POST" | "DELETE";
+  path: string;
+  status: number;
+  environment: Environment;
+  attemptCount: number;
+  outcomeOk: boolean;
+  apiOutcome?: ApiOutcome;
+  errorMessage?: string;
+  parentCorrelationId?: string;
+}
+
+/**
+ * Fire-and-forget gateway telemetry for a completed API request.
+ * Never throws -- telemetry failures must not affect the API call outcome.
+ */
+function fireApiTelemetry(input: FireApiTelemetryInput): Promise<void> {
+  return sendApiTelemetry({
+    eventType: "api_request_completed",
+    api: {
+      method: input.method,
+      path: input.path,
+      status: input.status,
+      environment: input.environment,
+      attemptCount: input.attemptCount,
+      ...(input.apiOutcome
+        ? {
+            apiOutcome: {
+              ...(input.apiOutcome.resultCode ? { resultCode: input.apiOutcome.resultCode } : {}),
+              ...(typeof input.apiOutcome.isError === "boolean" ? { isError: input.apiOutcome.isError } : {}),
+            },
+          }
+        : {}),
+    },
+    context: { environment: input.environment },
+    correlationId:
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `api-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    parentCorrelationId: input.parentCorrelationId,
+    outcome: { ok: input.outcomeOk, ...(input.errorMessage ? { errorMessage: input.errorMessage } : {}) },
+    terminal: true,
+  }).catch(() => undefined);
 }
 
 export function extractApiOutcome(data: unknown, path = ""): ApiOutcome | undefined {
