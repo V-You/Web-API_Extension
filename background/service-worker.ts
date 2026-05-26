@@ -25,6 +25,7 @@ import {
   invalidateWebMcpCache,
 } from "../src/gateway/gateway-sw-bridge";
 import { GatewayPolicyDeniedError } from "../src/gateway/gateway-types";
+import { runWithGatewayTelemetryContext } from "../src/gateway/gateway-context";
 
 const WEBMCP_EXECUTE_MAP = createExecuteMap({
   bypassWriteConfirmation: true,
@@ -40,6 +41,7 @@ const WEBMCP_EXECUTE_MAP = createExecuteMap({
       creds: input.creds,
       env: input.env,
       source: "webmcp",
+      gatewayParentCorrelationId: input.gatewayParentCorrelationId,
     });
 
     if (!result.ok || !result.jobId) {
@@ -382,21 +384,20 @@ async function handleWebMcpExecuteTool(
     correlationId = policy.correlationId;
   } catch (err) {
     if (err instanceof GatewayPolicyDeniedError) {
-      const cid = (err as GatewayPolicyDeniedError & { correlationId?: string }).correlationId
-        ?? "unknown";
-      void fireToolTelemetry({
+      await fireToolTelemetry({
         source: "webmcp",
         eventType: "tool_execution_denied",
         tool: { name: payload.tool, readOnly },
         params,
         context: gatewayContext,
-        correlationId: cid,
+        correlationId: err.correlationId,
         outcome: {
           ok: false,
           status: "denied",
           errorCode: err.decision.code,
           errorMessage: err.decision.internalReason ?? err.decision.reason,
         },
+        terminal: true,
       });
     }
     return { ok: false, error: gatewayErrorMessage(err) };
@@ -435,8 +436,8 @@ async function handleWebMcpExecuteTool(
 
   const startedAt = Date.now();
   try {
-    const result = await execute(params);
-    void fireToolTelemetry({
+    const result = await runWithGatewayTelemetryContext({ parentCorrelationId: correlationId }, () => execute(params));
+    await fireToolTelemetry({
       source: "webmcp",
       eventType: "tool_execution_completed",
       tool: { name: payload.tool, readOnly },
@@ -444,6 +445,7 @@ async function handleWebMcpExecuteTool(
       context: gatewayContext,
       correlationId,
       outcome: { ok: true, durationMs: Date.now() - startedAt, status: "completed" },
+      terminal: true,
     });
     invalidateWebMcpCache(payload.tool, params);
     return {
@@ -451,7 +453,7 @@ async function handleWebMcpExecuteTool(
       result: typeof result === "string" ? result : JSON.stringify(result),
     };
   } catch (err) {
-    void fireToolTelemetry({
+    await fireToolTelemetry({
       source: "webmcp",
       eventType: "tool_execution_failed",
       tool: { name: payload.tool, readOnly },
@@ -464,6 +466,7 @@ async function handleWebMcpExecuteTool(
         status: "failed",
         errorMessage: err instanceof Error ? err.message : String(err),
       },
+      terminal: true,
     });
     invalidateWebMcpCache(payload.tool, params);
     throw err;

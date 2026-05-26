@@ -78,6 +78,8 @@ export interface JobRecord {
   source?: JobSource;
   /** Runtime lifecycle selected for this workflow. */
   runtime?: WorkflowRuntime;
+  /** Gateway parent correlation ID for governed workflow/job telemetry. */
+  gatewayCorrelationId?: string;
   /** Timestamp for the one-time Chat automation start audit event. */
   chatStartedAuditAt?: string;
 }
@@ -140,6 +142,7 @@ function normalizeJob(raw: unknown): JobRecord {
     env: (job.env ?? "uat") as Environment,
     source: job.source === "chat" ? "chat" : job.source === "webmcp" ? "webmcp" : undefined,
     runtime: normalizeWorkflowRuntime(job.runtime),
+    gatewayCorrelationId: job.gatewayCorrelationId ? String(job.gatewayCorrelationId) : undefined,
     chatStartedAuditAt: job.chatStartedAuditAt ? String(job.chatStartedAuditAt) : undefined,
   };
 }
@@ -217,7 +220,7 @@ export function getJobsSnapshot(): JobRecord[] {
 
 /** Create a new job record. Returns the record. */
 export async function createJob(
-  init: Pick<JobRecord, "label" | "script" | "entityId" | "entityType" | "totalCalls" | "throttleRate" | "env"> & { source?: JobSource; contextSnapshot?: JobContextSnapshot; runtime?: WorkflowRuntime }
+  init: Pick<JobRecord, "label" | "script" | "entityId" | "entityType" | "totalCalls" | "throttleRate" | "env"> & { source?: JobSource; contextSnapshot?: JobContextSnapshot; runtime?: WorkflowRuntime; gatewayCorrelationId?: string }
 ): Promise<JobRecord> {
   const job: JobRecord = {
     id: crypto.randomUUID(),
@@ -238,6 +241,7 @@ export async function createJob(
     env: init.env,
     source: init.source,
     runtime: init.runtime,
+    gatewayCorrelationId: init.gatewayCorrelationId,
   };
   const jobs = await loadJobsFresh();
   jobs.push(job);

@@ -137,6 +137,7 @@ export interface StartJobInput {
   env: Environment;
   source?: JobSource;
   runtime?: WorkflowRuntime;
+  gatewayParentCorrelationId?: string;
 }
 
 /**
@@ -160,6 +161,7 @@ export async function startJob(input: StartJobInput): Promise<JobRecord> {
       env: input.env,
       source: input.source,
       runtime: input.runtime,
+      gatewayParentCorrelationId: input.gatewayParentCorrelationId,
     },
   });
 

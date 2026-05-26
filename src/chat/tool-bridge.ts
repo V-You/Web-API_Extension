@@ -8,6 +8,7 @@ import { isWebMcpReadOnlyInvocation } from "../webmcp/execution-policy";
 import { getActiveEnv } from "../lib/storage";
 import { evaluatePolicy, sendToolTelemetry } from "../gateway/gateway-client";
 import { GatewayPolicyDeniedError } from "../gateway/gateway-types";
+import { runWithGatewayTelemetryContext } from "../gateway/gateway-context";
 
 export interface ChatToolCatalogOptions {
   writeToolsEnabled?: boolean;
@@ -289,7 +290,7 @@ export async function executeChatTool(
     });
   } catch (err) {
     if (err instanceof GatewayPolicyDeniedError) {
-      void sendToolTelemetry({
+      await sendToolTelemetry({
         source: "chat",
         eventType: "tool_execution_denied",
         tool: { name, readOnly, params: resolvedArgs },
@@ -301,7 +302,8 @@ export async function executeChatTool(
           errorCode: err.decision.code,
           errorMessage: err.decision.internalReason ?? err.decision.reason,
         },
-      }).catch(() => undefined);
+        terminal: true,
+      });
       throw new Error(err.decision.reason ?? "Action denied by enterprise policy.", { cause: err });
     }
     throw err;
@@ -309,19 +311,20 @@ export async function executeChatTool(
 
   const startedAt = Date.now();
   try {
-    const result = await execute(resolvedArgs);
-    void sendToolTelemetry({
+    const result = await runWithGatewayTelemetryContext({ parentCorrelationId: correlationId }, () => execute(resolvedArgs));
+    await sendToolTelemetry({
       source: "chat",
       eventType: "tool_execution_completed",
       tool: { name, readOnly, params: resolvedArgs },
       context: gatewayContext,
       correlationId,
       outcome: { ok: true, durationMs: Date.now() - startedAt, status: "completed" },
-    }).catch(() => undefined);
+      terminal: true,
+    });
     return result;
   } catch (error) {
     if (isRecoverableToolError(error)) {
-      void sendToolTelemetry({
+      await sendToolTelemetry({
         source: "chat",
         eventType: "tool_execution_completed",
         tool: { name, readOnly, params: resolvedArgs },
@@ -332,10 +335,11 @@ export async function executeChatTool(
           durationMs: Date.now() - startedAt,
           status: "recoverable_error",
         },
-      }).catch(() => undefined);
+        terminal: true,
+      });
       return error.payload;
     }
-    void sendToolTelemetry({
+    await sendToolTelemetry({
       source: "chat",
       eventType: "tool_execution_failed",
       tool: { name, readOnly, params: resolvedArgs },
@@ -347,7 +351,8 @@ export async function executeChatTool(
         status: "failed",
         errorMessage: error instanceof Error ? error.message : String(error),
       },
-    }).catch(() => undefined);
+      terminal: true,
+    });
     throw error;
   }
 }

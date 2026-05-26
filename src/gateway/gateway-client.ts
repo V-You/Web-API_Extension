@@ -25,9 +25,10 @@ import {
   GatewayPolicyUnavailableError,
 } from "./gateway-types";
 import {
-  forgetGatewayToken,
   getGatewaySessionToken,
   getGatewaySettings,
+  lockGatewayToken,
+  saveGatewayProbeStatus,
   type GatewaySettings,
 } from "./gateway-storage";
 import { redactToolParams, sanitizeDashboardUrl } from "./gateway-redaction";
@@ -46,6 +47,13 @@ const diagnostics: GatewayDiagnostics = {
   gatewayTelemetryFailed: 0,
 };
 
+function newCorrelationId(prefix = "gateway"): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function getGatewayDiagnostics(): GatewayDiagnostics {
   return { ...diagnostics };
 }
@@ -56,6 +64,12 @@ export function resetGatewayDiagnostics(): void {
   diagnostics.gatewayPolicyError = 0;
   diagnostics.gatewayTelemetrySent = 0;
   diagnostics.gatewayTelemetryFailed = 0;
+}
+
+export interface GatewayProbeResult {
+  ok: boolean;
+  step: "policy" | "telemetry" | "token";
+  error?: string;
 }
 
 export interface EvaluatePolicyInput {
@@ -145,7 +159,7 @@ export async function evaluatePolicy(input: EvaluatePolicyInput): Promise<Gatewa
 
   if (res.status === 401) {
     diagnostics.gatewayPolicyError++;
-    await forgetGatewayTokenSilently();
+    await lockGatewayTokenSilently();
     throw new GatewayPolicyUnavailableError(
       "unauthorized",
       "Gateway token was rejected. Save a fresh token in Connections.",
@@ -203,7 +217,45 @@ export async function evaluatePolicy(input: EvaluatePolicyInput): Promise<Gatewa
     internalReason,
     cached: false,
   };
-  throw new GatewayPolicyDeniedError(decision);
+  throw new GatewayPolicyDeniedError(decision, input.correlationId);
+}
+
+/** Test the configured gateway without executing an agent tool. */
+export async function testGatewayConnection(): Promise<GatewayProbeResult> {
+  const correlationId = newCorrelationId("probe");
+  try {
+    await evaluatePolicy({
+      source: "sidepanel",
+      tool: { name: "_gateway_probe", readOnly: true, params: {} },
+      context: {},
+      correlationId,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const tokenIssue = err instanceof GatewayPolicyUnavailableError && err.kind === "unauthorized";
+    await saveGatewayProbeStatus({ policyStatus: "failed", telemetryStatus: undefined, error: message });
+    return { ok: false, step: tokenIssue ? "token" : "policy", error: message };
+  }
+
+  const telemetryBefore = diagnostics.gatewayTelemetryFailed;
+  await sendToolTelemetry({
+    source: "sidepanel",
+    eventType: "tool_execution_completed",
+    tool: { name: "_gateway_probe", readOnly: true, params: {} },
+    context: {},
+    correlationId,
+    outcome: { ok: true, status: "probe" },
+    terminal: true,
+  });
+  const telemetryFailed = diagnostics.gatewayTelemetryFailed > telemetryBefore;
+  if (telemetryFailed) {
+    const error = "Telemetry endpoint failed.";
+    await saveGatewayProbeStatus({ policyStatus: "ok", telemetryStatus: "failed", error });
+    return { ok: false, step: "telemetry", error };
+  }
+
+  await saveGatewayProbeStatus({ policyStatus: "ok", telemetryStatus: "ok" });
+  return { ok: true, step: "telemetry" };
 }
 
 /**
@@ -347,9 +399,9 @@ function getExtensionMeta(): GatewayExtensionMeta {
   return { name: "Web API Extension", version: "0.0.0" };
 }
 
-async function forgetGatewayTokenSilently(): Promise<void> {
+async function lockGatewayTokenSilently(): Promise<void> {
   try {
-    await forgetGatewayToken();
+    await lockGatewayToken();
   } catch {
     // ignore - best-effort cleanup
   }

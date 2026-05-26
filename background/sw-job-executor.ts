@@ -25,6 +25,9 @@ import { createWorkflowSdk } from "../src/sdk/workflow-sdk";
 import { abortOffscreenJob, executeJobInOffscreen, type OffscreenJobExecuteResult } from "./offscreen-job-host";
 import type { EntityType } from "../src/lib/entity-types";
 import type { ApiCredentials, Environment } from "../src/lib/types";
+import { sendToolTelemetry } from "../src/gateway/gateway-client";
+import { runWithGatewayTelemetryContext } from "../src/gateway/gateway-context";
+import type { GatewaySource } from "../src/gateway/gateway-types";
 
 // -- Active job state (singleton per SW) ----------------------------------
 
@@ -331,6 +334,7 @@ export interface SwJobStartInput {
   env: Environment;
   source?: JobSource;
   runtime?: WorkflowRuntime;
+  gatewayParentCorrelationId?: string;
 }
 
 /** Start or resume a job in the service worker. */
@@ -373,6 +377,7 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
       env: input.env,
       source: input.source,
       runtime: input.runtime,
+      gatewayCorrelationId: input.gatewayParentCorrelationId,
     });
   }
 
@@ -382,11 +387,17 @@ export async function swStartJob(input: SwJobStartInput): Promise<{ ok: boolean;
     startedAt: job.startedAt ?? new Date().toISOString(),
     pausedAt: undefined,
   });
+  await sendJobTelemetry(job, "job_started", { ok: true, status: "started" });
   void executeInSw(job.id, input.creds, input.env).catch(async (err) => {
     await updateJob(job.id, {
       state: "failed",
       completedAt: new Date().toISOString(),
       error: err instanceof Error ? err.message : String(err),
+    });
+    await sendJobTelemetry(job, "job_failed", {
+      ok: false,
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : String(err),
     });
     cleanup();
   });
@@ -523,9 +534,55 @@ function estimateOffscreenTimeoutMs(job: JobRecord): number {
   return Math.max(MIN_OFFSCREEN_JOB_TIMEOUT_MS, estimatedMs * 3 + MIN_OFFSCREEN_JOB_TIMEOUT_MS);
 }
 
+function gatewaySourceForJob(job: JobRecord): GatewaySource {
+  return job.source === "webmcp" ? "webmcp-workflow" : "chat-workflow";
+}
+
+async function sendJobTelemetry(
+  job: JobRecord,
+  eventType: "job_started" | "job_completed" | "job_failed",
+  outcome: { ok: boolean; status: string; errorMessage?: string },
+): Promise<void> {
+  if (!job.gatewayCorrelationId) return;
+  await sendToolTelemetry({
+    source: gatewaySourceForJob(job),
+    eventType,
+    tool: {
+      name: "execute_workflow",
+      readOnly: false,
+      params: {
+        label: job.label,
+        runtime: job.runtime,
+        totalCalls: job.totalCalls,
+        completedCalls: job.completedCalls,
+        jobId: job.id,
+      },
+    },
+    context: {
+      environment: job.env,
+      entityId: job.entityId ?? job.contextSnapshot?.entityId,
+      entityType: job.entityType ?? job.contextSnapshot?.entityType,
+      entityName: job.contextSnapshot?.entityName,
+      section: job.contextSnapshot?.section,
+      ids: job.contextSnapshot?.ids,
+    },
+    correlationId: job.gatewayCorrelationId,
+    outcome,
+    terminal: true,
+  });
+}
+
 async function executeInSw(jobId: string, creds: ApiCredentials, env: Environment) {
   const job = await getJob(jobId);
   if (!job) { cleanup(); return; }
+
+  return runWithGatewayTelemetryContext(
+    job.gatewayCorrelationId ? { parentCorrelationId: job.gatewayCorrelationId } : null,
+    () => executeInSwWithContext(job, jobId, creds, env),
+  );
+}
+
+async function executeInSwWithContext(job: JobRecord, jobId: string, creds: ApiCredentials, env: Environment) {
 
   await updateJob(jobId, {
     state: "running",
@@ -585,6 +642,11 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
       elapsedMs: job.elapsedMs + segmentElapsed,
       error: compiled.error,
     });
+    await sendJobTelemetry({ ...job, state: "failed", completedCalls: activeSandboxRuntime?.completedSdkCalls ?? job.completedCalls }, "job_failed", {
+      ok: false,
+      status: "failed",
+      errorMessage: compiled.error,
+    });
     cleanup();
     return;
   }
@@ -622,6 +684,13 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
       error: outcome.state === "failed"
         ? `Workflow ran to completion but ${outcome.summary.failed}/${outcome.summary.totalRecords} recorded calls failed.`
         : undefined,
+    });
+    await sendJobTelemetry({ ...job, state: outcome.state, completedCalls: activeSandboxRuntime?.completedSdkCalls ?? job.completedCalls }, outcome.state === "completed" ? "job_completed" : "job_failed", {
+      ok: outcome.state === "completed",
+      status: outcome.state,
+      ...(outcome.state === "failed" || outcome.state === "partial"
+        ? { errorMessage: `Workflow completed with ${outcome.summary.failed}/${outcome.summary.totalRecords} recorded calls failed.` }
+        : {}),
     });
     if (outcome.state === "failed" || outcome.state === "partial") {
       void bumpWorkflowCounter("job_live_write_failed", outcome.state);
@@ -672,6 +741,11 @@ async function executeInSw(jobId: string, creds: ApiCredentials, env: Environmen
         elapsedMs: job.elapsedMs + segmentElapsed,
         summary: outcome.summary,
         error: err instanceof Error ? err.message : String(err),
+      });
+      await sendJobTelemetry({ ...job, state: "failed", completedCalls: activeSandboxRuntime?.completedSdkCalls ?? job.completedCalls }, "job_failed", {
+        ok: false,
+        status: "failed",
+        errorMessage: err instanceof Error ? err.message : String(err),
       });
       void bumpWorkflowCounter("job_live_write_failed", "throw");
     }

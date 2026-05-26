@@ -36,6 +36,10 @@ export interface GatewaySettings {
   policyPath: string;
   telemetryPath: string;
   updatedAt?: string;
+  lastPolicyStatus?: "ok" | "failed";
+  lastTelemetryStatus?: "ok" | "failed";
+  lastProbeAt?: string;
+  lastProbeError?: string;
 }
 
 export interface GatewaySettingsInput {
@@ -61,6 +65,10 @@ function normalizeSettings(raw: unknown): GatewaySettings {
     policyPath: typeof obj.policyPath === "string" && obj.policyPath.trim() ? obj.policyPath.trim() : DEFAULT_POLICY_PATH,
     telemetryPath: typeof obj.telemetryPath === "string" && obj.telemetryPath.trim() ? obj.telemetryPath.trim() : DEFAULT_TELEMETRY_PATH,
     updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : undefined,
+    lastPolicyStatus: obj.lastPolicyStatus === "ok" || obj.lastPolicyStatus === "failed" ? obj.lastPolicyStatus : undefined,
+    lastTelemetryStatus: obj.lastTelemetryStatus === "ok" || obj.lastTelemetryStatus === "failed" ? obj.lastTelemetryStatus : undefined,
+    lastProbeAt: typeof obj.lastProbeAt === "string" ? obj.lastProbeAt : undefined,
+    lastProbeError: typeof obj.lastProbeError === "string" ? obj.lastProbeError : undefined,
   };
 }
 
@@ -124,7 +132,24 @@ export async function saveGatewaySettings(input: GatewaySettingsInput): Promise<
   return next;
 }
 
-/** Encrypt and persist the gateway bearer token. Sets pinInitialized for parity with other secrets. */
+export async function saveGatewayProbeStatus(input: {
+  policyStatus?: "ok" | "failed";
+  telemetryStatus?: "ok" | "failed";
+  error?: string;
+}): Promise<GatewaySettings> {
+  const current = await getGatewaySettings();
+  const next: GatewaySettings = {
+    ...current,
+    lastPolicyStatus: input.policyStatus,
+    lastTelemetryStatus: input.telemetryStatus,
+    lastProbeAt: new Date().toISOString(),
+    lastProbeError: input.error,
+  };
+  await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+  return next;
+}
+
+/** Encrypt and persist the gateway bearer token. Does not by itself force the app-level PIN gate. */
 export async function saveGatewayToken(token: string, pin: string): Promise<void> {
   const trimmed = token.trim();
   if (!trimmed) throw new Error("Gateway bearer token is required.");
@@ -134,7 +159,6 @@ export async function saveGatewayToken(token: string, pin: string): Promise<void
   await chrome.storage.local.set({
     [TOKEN_STORAGE_KEY]: blob,
     [TOKEN_INVALID_KEY]: false,
-    pinInitialized: true,
   });
   await chrome.storage.session.set({ [TOKEN_SESSION_KEY]: trimmed });
 }
@@ -190,5 +214,13 @@ export async function forgetGatewayToken(): Promise<void> {
   await Promise.all([
     chrome.storage.local.remove([TOKEN_STORAGE_KEY, TOKEN_INVALID_KEY]),
     chrome.storage.session.remove(TOKEN_SESSION_KEY),
+  ]);
+}
+
+/** Clear only the decrypted session token and mark the saved token as needing unlock/replacement. */
+export async function lockGatewayToken(): Promise<void> {
+  await Promise.all([
+    chrome.storage.session.remove(TOKEN_SESSION_KEY),
+    chrome.storage.local.set({ [TOKEN_INVALID_KEY]: true }),
   ]);
 }

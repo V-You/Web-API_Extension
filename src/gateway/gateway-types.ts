@@ -5,7 +5,7 @@
 
 export const GATEWAY_SCHEMA_VERSION = 1;
 
-export type GatewaySource = "webmcp" | "chat" | "job" | "api";
+export type GatewaySource = "webmcp" | "chat" | "chat-workflow" | "webmcp-workflow" | "sidepanel";
 
 export interface GatewayContext {
   environment?: string;
@@ -140,10 +140,12 @@ export interface GatewayDiagnostics {
 /** Errors thrown by the gateway client. */
 export class GatewayPolicyDeniedError extends Error {
   readonly decision: GatewayPolicyDecision;
-  constructor(decision: GatewayPolicyDecision) {
+  readonly correlationId: string;
+  constructor(decision: GatewayPolicyDecision, correlationId: string) {
     super(decision.reason ?? "Action denied by enterprise policy.");
     this.name = "GatewayPolicyDeniedError";
     this.decision = decision;
+    this.correlationId = correlationId;
   }
 }
 

@@ -22,6 +22,7 @@ import { bumpWorkflowCounter } from "../lib/workflow-counters";
 import { describeOperation } from "./describe-operation";
 import { MANIFEST } from "./manifest-helpers";
 import { executeSendTestTransaction } from "./send-test-transaction";
+import { getGatewayTelemetryContext } from "../gateway/gateway-context";
 
 const API_TOKEN_TOOLS = new Set([
   "list_api_tokens",
@@ -44,6 +45,7 @@ export type ExecuteFn = (params: Record<string, unknown>) => Promise<unknown>;
 export interface ExecuteMapOptions {
   onWriteAccepted?: (description: string) => void;
   bypassWriteConfirmation?: boolean;
+  gatewayParentCorrelationId?: string;
   startWorkflowJob?: (input: StartWorkflowJobInput) => Promise<StartWorkflowJobResult>;
 }
 
@@ -57,6 +59,7 @@ export interface StartWorkflowJobInput {
   throttleRate?: number;
   timeoutMs?: number;
   runtime?: WorkflowRuntime;
+  gatewayParentCorrelationId?: string;
   creds: ApiCredentials;
   env: Environment;
 }
@@ -347,6 +350,7 @@ function buildHandwrittenExecuteMap(options: ExecuteMapOptions = {}): Record<str
           totalCalls,
           timeoutMs: params.timeoutMs as number | undefined,
           runtime,
+          gatewayParentCorrelationId: options.gatewayParentCorrelationId ?? getGatewayTelemetryContext()?.parentCorrelationId,
           creds,
           env,
         });

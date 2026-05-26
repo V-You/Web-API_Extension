@@ -60,8 +60,8 @@ export interface TransactionTokenInput {
 
 /** Check whether any encrypted credentials exist. */
 export async function hasStoredCredentials(): Promise<boolean> {
-  const result = await chrome.storage.local.get(["cred:uat", "cred:prod", "transactionTokens:uat", "transactionTokens:prod", "pinInitialized"]);
-  return result.pinInitialized === true || !!result["cred:uat"] || !!result["cred:prod"] || !!result["transactionTokens:uat"] || !!result["transactionTokens:prod"];
+  const result = await chrome.storage.local.get(["cred:uat", "cred:prod", "transactionTokens:uat", "transactionTokens:prod", "llm:gemini"]);
+  return !!result["cred:uat"] || !!result["cred:prod"] || !!result["transactionTokens:uat"] || !!result["transactionTokens:prod"] || !!result["llm:gemini"];
 }
 
 /** Check whether decrypted credentials are available in the current session. */

@@ -15,6 +15,7 @@ import { RateLimiter } from "./rate-limiter";
 import { redactSecrets } from "./redact";
 import type { ApiCredentials, ApiOutcome, AuditEntry, AuditEventType, Environment } from "./types";
 import { sendApiTelemetry } from "../gateway/gateway-client";
+import { getGatewayTelemetryContext } from "../gateway/gateway-context";
 
 const DEFAULT_RATE_LIMIT = 9;
 const defaultLimiter = new RateLimiter(DEFAULT_RATE_LIMIT);
@@ -136,10 +137,12 @@ export async function apiRequest<T = unknown>(
     body = new URLSearchParams(opts.params).toString();
   }
 
+  const gatewayParentCorrelationId = opts.gatewayParentCorrelationId ?? getGatewayTelemetryContext()?.parentCorrelationId;
+
   const res = await fetchWithRetry(url, { method, headers, body, signal: opts.signal }, opts.signal, limiter)
-    .catch((err) => {
+    .catch(async (err) => {
       // Final-failure API telemetry (network error after all retries).
-      void fireApiTelemetry({
+      await fireApiTelemetry({
         method,
         path: opts.path,
         status: 0,
@@ -147,7 +150,7 @@ export async function apiRequest<T = unknown>(
         attemptCount: MAX_RETRIES + 1,
         outcomeOk: false,
         errorMessage: err instanceof Error ? err.message : String(err),
-        parentCorrelationId: opts.gatewayParentCorrelationId,
+        parentCorrelationId: gatewayParentCorrelationId,
       });
       throw err;
     });
@@ -188,7 +191,7 @@ export async function apiRequest<T = unknown>(
 
   const finalOk = res.res.ok && apiOutcome?.isError !== true;
   // Final-outcome API telemetry (HTTP completed, success or apiOutcome error).
-  void fireApiTelemetry({
+  await fireApiTelemetry({
     method,
     path: opts.path,
     status: res.res.status,
@@ -196,7 +199,7 @@ export async function apiRequest<T = unknown>(
     attemptCount: res.attemptCount,
     outcomeOk: finalOk,
     apiOutcome,
-    parentCorrelationId: opts.gatewayParentCorrelationId,
+    parentCorrelationId: gatewayParentCorrelationId,
   });
 
   return { ok: finalOk, status: res.res.status, data, ...(apiOutcome ? { apiOutcome } : {}) };

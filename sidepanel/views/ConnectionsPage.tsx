@@ -33,6 +33,7 @@ import {
   saveGatewayToken,
   type GatewaySettings,
 } from "../../src/gateway/gateway-storage";
+import { testGatewayConnection } from "../../src/gateway/gateway-client";
 
 interface Props {
   onChanged: () => void;
@@ -1039,7 +1040,9 @@ type GatewayStatusBadge =
   | "disabled-but-configured"
   | "ready"
   | "token-locked"
-  | "token-missing";
+  | "token-missing"
+  | "policy-endpoint-failed"
+  | "telemetry-degraded";
 
 function badgeStyle(status: GatewayStatusBadge) {
   switch (status) {
@@ -1049,6 +1052,10 @@ function badgeStyle(status: GatewayStatusBadge) {
       return { label: "Token locked", className: "bg-amber-50 text-amber-700 border-amber-200" };
     case "token-missing":
       return { label: "Token missing", className: "bg-rose-50 text-rose-700 border-rose-200" };
+    case "policy-endpoint-failed":
+      return { label: "Policy endpoint failed", className: "bg-rose-50 text-rose-700 border-rose-200" };
+    case "telemetry-degraded":
+      return { label: "Telemetry degraded", className: "bg-amber-50 text-amber-700 border-amber-200" };
     case "disabled-but-configured":
       return { label: "Disabled but configured", className: "bg-slate-100 text-slate-600 border-slate-200" };
     case "disabled":
@@ -1069,6 +1076,7 @@ function GatewaySettingsSection() {
   const [sessionTokenAvailable, setSessionTokenAvailable] = useState(false);
   const [tokenInvalid, setTokenInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -1102,6 +1110,8 @@ function GatewaySettingsSection() {
     }
     if (!hasToken) return "token-missing";
     if (tokenInvalid || !sessionTokenAvailable) return "token-locked";
+    if (settings.lastPolicyStatus === "failed") return "policy-endpoint-failed";
+    if (settings.lastTelemetryStatus === "failed") return "telemetry-degraded";
     return "ready";
   }, [hasToken, sessionTokenAvailable, settings, tokenInvalid]);
 
@@ -1156,6 +1166,26 @@ function GatewaySettingsSection() {
       setError(e instanceof Error ? e.message : "Failed to forget gateway token.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleTestGateway() {
+    setTestBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const result = await testGatewayConnection();
+      await hydrate();
+      if (result.ok) {
+        setInfo("Gateway connection successful.");
+      } else {
+        setError(`${result.step.charAt(0).toUpperCase()}${result.step.slice(1)} check failed: ${result.error ?? "Unknown error."}`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gateway connection failed.");
+      await hydrate();
+    } finally {
+      setTestBusy(false);
     }
   }
 
@@ -1219,13 +1249,22 @@ function GatewaySettingsSection() {
         </div>
       </div>
 
-      <button
-        onClick={handleSaveSettings}
-        disabled={busy || !isDirty}
-        className="bg-blue-600 text-white text-xs font-medium py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
-      >
-        {busy ? "Saving..." : "Save gateway settings"}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={handleSaveSettings}
+          disabled={busy || !isDirty}
+          className="bg-blue-600 text-white text-xs font-medium py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {busy ? "Saving..." : "Save gateway settings"}
+        </button>
+        <button
+          onClick={handleTestGateway}
+          disabled={busy || testBusy || !hasToken || !sessionTokenAvailable}
+          className="bg-slate-100 text-slate-700 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-slate-200 disabled:opacity-50 transition-colors"
+        >
+          {testBusy ? "Testing..." : "Test gateway"}
+        </button>
+      </div>
 
       <div className="border-t border-slate-100 pt-3 space-y-2">
         <div className="flex items-center justify-between">
