@@ -107,6 +107,7 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
     writeToolsEnabled || automationModeEnabled
       ? "Prefer read tools first when you need to inspect current state before writing. Never claim a write succeeded unless the tool result confirms it."
       : "If the user asks for a write or automation task, explain that safe mode does not support it yet.",
+    "After successfully completing the user's goal (e.g., transaction sent, entity created, test passed), stop immediately. Summarize what was done. Do not call additional tools to validate, verify, or explore alternatives unless the user explicitly asks for more information.",
   ].join("\n");
 }
 

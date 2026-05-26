@@ -3,20 +3,24 @@
 ## 0.1.2 (2026-05-26)
 
 ### Added
-- Gateway governance: optional MCP gateway integration for centralized policy evaluation and telemetry
+- Governance: optional MCP gateway integration for central auth & telemetry
 - Correlation ID propagation for auditable tool execution chains
 - Job lifecycle telemetry (start, completion, failure tracking)
-- Gateway probe UI with policy/telemetry health status indicators
-- Terminal telemetry awaiting (1s timeout cap) for reliable audit guarantees
+- UI for the above, plus probe & health indicators
+- 1s timeout cap
 
 ### Changed
-- PIN semantics: gateway token no longer forces app-level PIN gate; gateway-only access now independent
-- API client: awaits terminal telemetry instead of fire-and-forget pattern
-- 401 handling: token lockout preserves encrypted local token, marks session invalid for graceful recovery
+- PIN: extension can now be used without API, so middleware-only
+- API client: awaits terminal telemetry instead of fire-and-forget
+- 401 handling: token is kept (can be reactivated), but session invalidated
 
 ### Fixed
-- Credential detection: `hasStoredCredentials()` now checks actual secure storage buckets instead of PIN flag
+- Credential detection: now checks storage buckets instead of PIN flag
 
-## 0.1.1
+## 0.1.1 (2026-05-15)
 
-Initial release with WebMCP tool registration, sandbox execution, and side panel UI.
+Webstore release with WebMCP tool registration, sandbox, side panel.
+
+## 0.1.0 (2026-03-23)
+
+Initial release.
