@@ -68,6 +68,7 @@ export type AuditEventType =
   | "env_switch"
   | "contact_attach"
   | "get_entity"
+  | "entity_search"
   | "api_token_activate"
   | "api_token_create"
   | "api_token_delete"

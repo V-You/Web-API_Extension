@@ -107,6 +107,7 @@ export function buildChatSystemPrompt(options: ChatSystemPromptOptions = {}): st
     writeToolsEnabled || automationModeEnabled
       ? "Prefer read tools first when you need to inspect current state before writing. Never claim a write succeeded unless the tool result confirms it."
       : "If the user asks for a write or automation task, explain that safe mode does not support it yet.",
+    "Locate before mutate. Never call a mutating tool (delete, edit, create) with the current context entity ID when the user's named target is different from that context entity. When the user names an entity (e.g. 'delete testMerchant02'), first resolve its actual ID: use list_children on the current context to find a case-insensitive match, or get_entity by name path with correct casing. Only after the named target's own ID is confirmed may you call the mutating tool. If resolution fails, report the failure and ask the user to disambiguate. Never substitute the current context ID as a fallback target.",
       "After a tool call returns, always report its actual outcome to the user (success, failure, or partial). If the outcome is success, stop. If failure, attempt one targeted recovery (e.g., retry with corrected parameters, use ID instead of name) and report. Do not loop indefinitely or call unrelated tools to 'explore.'",
   ].join("\n");
 }

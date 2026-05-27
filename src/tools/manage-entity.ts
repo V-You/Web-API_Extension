@@ -115,7 +115,11 @@ async function searchEntity(
   // The API uses /entities/byName/{pspName}[/{divisionName}[/{merchantName}]]
   const segments = input.namePath.split("/").map(encodeURIComponent);
   const path = `/entities/byName/${segments.join("/")}`;
-  const res = await apiRequest(creds, env, { path });
+  const res = await apiRequest(creds, env, { path }, {
+    eventType: "entity_search",
+    entityId: input.namePath,
+    entityType: "search",
+  });
   return res;
 }
 
@@ -188,6 +192,10 @@ async function editEntity(
     method: "POST",
     path: entityPath(input.entityType, input.entityId),
     params: input.fields,
+  }, {
+    eventType: "entity_edit",
+    entityId: input.entityId,
+    entityType: input.entityType,
   });
   return res;
 }
