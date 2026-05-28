@@ -715,4 +715,15 @@ Credentials are never exposed to the LLM context, the DOM, content scripts, or a
 
 This software is licensed under **Creative Commons BY-NC-SA 4.0** for non-commercial use only. To use this software for commercial purposes, you must purchase a commercial license. Contact the author to purchase a license.
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/jumpermcp.dev)
+--- 
+
+<br />
+<br />
+
+<div align="center">
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/jumpermcp.dev) 
+
+<br />
+
+</div>
