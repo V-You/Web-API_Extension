@@ -1,10 +1,8 @@
 # Web API Extension
 
-**Web API Extension** is a Chrome extension that lets ACI customers operate their SaaS via Web API (Merchant Onboarding API). It uses WebMCP for in-browser tool publication, UTCP for efficient tool orchestration, and code mode for local script execution -- representing the most modern, fastest, and most secure approach to SaaS automation via API.
+**Web API Extension** is a Chrome extension. It lets ACI customers operate their SaaS via Web API (Merchant Onboarding API). It uses WebMCP for in-browser tool publication, UTCP for tool orchestration, and code mode for local script execution -- the most modern, fastest, and most secure approach to SaaS automation via API. As a zero-infrastructure alternative to the legacy "Web API MCP Server", **Web API Extension** uses the active SaaS tab for context binding, executes logic locally, and minimizes data exposure to external LLM providers.
 
-**Web API Extension** replaces the legacy "Web API MCP Server" with a browser-native, zero-infrastructure alternative that uses the active SaaS tab for context binding, executes logic locally, and minimizes data exposure to external LLM providers.
-
-**Web API Extension** represents a paradigm shift in SaaS API automation. Unlike traditional MCP servers or generic tools like Postman that require costly backend infrastructure and operate blindly, this extension acts as a zero-infrastructure "Virtual SDK" directly within the user's browser. By executing logic locally and binding to the active dashboard session, it securely bridges the gap between what the users see and what the AI agents can do. The result is immediate, domain-aware automation with unparalleled data privacy - without the maintenance burden or security risks of a custom backend.
+**Web API Extension** represents a paradigm shift in SaaS API automation. Unlike traditional MCP servers or generic tools like that require backend infrastructure and operate blindly, this extension acts as a "Virtual SDK" in the user's browser. By executing logic locally and binding to the active dashboard session, it securely bridges the gap between what the users see and what the user can do. The result is immediate, domain-aware automation with unparalleled data privacy - without the maintenance burden or security risks of a custom backend.
 
 <table>
     <thead>
@@ -43,37 +41,39 @@
 
 ## Overview
 
-The extension is a *Client-Side Adapter*. The <a href="https://github.com/snlr308/Web_API_MCP2" alt="legacy">legacy MCP server</a> was a tool-wrapper &ndash; but *this* is a *Virtual SDK*. Instead of an agent talking to a remote server that then talks to the SaaS, the agent talks to the extension, which uses the active browser session to interact with the SaaS:
+The extension is a *Client-Side Adapter*. Instead of an AI agent talking to a remote server that then talks to the SaaS dashboard, the agent talks to the extension, which uses the active browser session to interact with the SaaS dashboard:
 
 - **Exposes the full Web API** to any WebMCP-compatible AI agent running in Chrome.  
 - **Automates the SaaS via its API** using only a browser extension: no backend proxy, no MCP server, no external credential files or secret stores.  
-- **>90% context-window reduction** compared to the legacy MCP approach by using type-on-demand discovery and code-mode execution.  
+- **>90% context-window reduction** by using type-on-demand discovery and code-mode execution, compared to the legacy MCP approach.  
 - **Faster and more accurate tool use** compared to the legacy MCP.  
 - **Authentication hand-off**: extension runs in the user's browser, leveraging the user's existing login session. Also, CORS is now simple. 
 - **Context injection**: extension can "see" what the user is looking at on the SaaS dashboard and provide that as real-time context to the agent.  
 - **Hybrid interaction**: WebMCP tools can perform two types of actions: *API Actions*: Call the SaaS API directly using fetch() from the background script. *UI Actions*: If the API is missing a specific feature, the extension can inject a script to click a button or scrape data directly from the DOM.  
-- Transferable showcase: Architecture works for any SaaS with a keyed-property API.  
-
-**Non-goals (v1):**
-
-- Does not replace the SaaS dashboard UI for human-only workflows. It complements it.
-- Does not support offline or disconnected operation.
-- No mobile browser support.
-- No multi-tenant profile switching. Dual-env: yes.
-- Extension is primarily a tool provider. The built-in Chat Tab is a BYOK fallback for environments where no WebMCP-compatible agent is available.
+- **Transferable showcase**: Architecture works for any SaaS with a keyed-property API.  
+- **Built-in Chat** (BYOK) when no WebMCP-compatible agent is available.
 
 ## Install
 
 ### Prerequisites
 
-- Google Chrome **146+** (Canary or Dev channel at the time of writing)
-- WebMCP testing flag enabled: navigate to `chrome://flags/#enable-webmcp-testing` and set it to **Enabled**
-- Activate Chrome "Developer mode" in chrome://extensions
-- Node.js 20+ and npm 10+ (if you build)
+- Google Chrome **146+**
+- WebMCP testing flag enabled: `chrome://flags/#enable-webmcp-testing`
+- Chrome "Developer mode" enabled: `chrome://extensions`
+
+### Install the extension from Chrome webstore:
+
+[coming soon]
+
+<details>
+
+<summary>For developers ...</summary>
 
 ### Build the extension
 
 ```bash
+# requires Node.js 20+ and npm 10+
+
 git clone <repo-url> && cd Web-API_Extension
 npm install
 # npm run dev        # development mode with hot reload
@@ -81,7 +81,7 @@ npm install
 npm run build      # production build
 ```
 
-### Developer workflow
+### Dev workflow
 
 Use the standard quality gates before shipping changes:
 
@@ -124,23 +124,22 @@ Repository note:
 
 Host permissions grant dashboard scope on `*.oppwa.com`, `*.ctpe.info`, and `*.prtpe.com`. Web API requests themselves still target `eu-test.oppwa.com` (UAT) and `eu-prod.oppwa.com` (Prod).
 
+</details>
+
 
 ## Usage
 
 ### First run
 
-1. Open the side panel -> **Connections** tab,
-2. Enter Web API credentials (username and password) for UAT, Prod, or both,
-3. Choose a PIN (minimum 6 digits). Store PIN in external tool.
-4. On later visits, enter PIN to unlock. Credentials are encrypted with PBKDF2 + AES-GCM-256 and stored in `chrome.storage.local`. The decrypted credentials in `chrome.storage.session` survive idle, but are cleared on browser restart. 
+- Open the extension (side panel)
+- Open **Connections** tab
+- Enter Web API credentials (username and password) for UAT, Prod, or both
+- Enter a PIN, minimum 6 digits, also store PIN somewhere safe
+- Optional: Enter Bearer header token and entity ID for UAT/Prod test payments and query
+- Optional: Enter MCP gateway URL and Bearer header token
 
-Connections can also create, store, and manage Merchant-scoped transaction bearer tokens for UAT/Prod test payments. The Web API token endpoints can create a new Merchant token directly; manual paste from BIP remains available as a fallback. These tokens are Merchant-level-and-below, not Channel-level, and are encrypted with the same PIN model as Web API credentials. Raw bearer tokens are not shown to the LLM, audit log, tool traces, console logs, or normal UI text.
+> **Any LLM with browser-capability** can now connect to a supported dashboard site (`oppwa.com` or supported whitelabel domains), and provide the same functionality an MCP server would, based on the exposed tools and enriched OpenAPI specs. Secrets or tokens are never shown to the LLM, audit log, tool traces, console logs, or normal UI text.
 
-Connections can optionally bind the extension to an enterprise-grade MCP gateway, such as the Mobot/Obot mock integration, for centralized auth policy checks and telemetry. When governance hooks are enabled, the service worker becomes the choke point: it evaluates the intended WebMCP or Chat Tab tool call with the gateway before local execution, before write confirmation, and before any ACI API request, then sends structured telemetry after the final tool/API outcome. The SaaS credentials still stay local to the browser; the gateway sees redacted tool intent and outcome metadata, not raw ACI credentials, PINs, or bearer tokens.
-
-Chat and WebMCP clients can send UAT test transactions without exposing bearer tokens. The `send_test_transaction` tool can use a matching stored Merchant token or create a temporary Merchant token, send the transaction to a Channel, then suspend and delete the token before returning redacted diagnostics. Example prompts: "Send one test transaction to this Channel" or "Use the API token endpoint to create a token, then send the test transaction." Returned details include the endpoint, exact form fields, HTTP status, gateway response, token metadata, and cleanup status - never the raw `Authorization` value.
-
-> **Any LLM with browser-capability** can now connect to a supported dashboard site (`oppwa.com` or supported whitelabel domains), and provide the same functionality an MCP server would, based on the 9 exposed tools and enriched OpenAPI specs.
 
 ### Example workflow using Google Gemini (browser side panel)
 
@@ -270,33 +269,16 @@ Short version:
 5. Prompt: "What is my dupe check set to here?"
 6. The agent calls `describe_settings` and `manage_settings` using the detected entity context, then returns a human-readable summary
 
-Tool calls appear as collapsible badges in the chat. Chat starts in **safe mode** by default. A per-session `Enable write tools` toggle can expose mutating actions, and `Enable automation mode` adds a reviewed `Draft Job` path that starts real background Jobs. Direct writes still go through the existing preview-confirm flow, and raw `execute_workflow` remains a WebMCP-native path rather than a direct Chat tool.
-
-**Planned v1:** Gemini adapter, context scraper (entityId + entityType only), encrypted LLM key storage integrated with PIN unlock, bounded multi-step read loops, chat-specific read-only tool catalog, explicit exclusion of `execute_workflow`.
-
-**Current v1.1a:** Explicit per-session `Enable write tools` opt-in, session-scoped chat mode, dynamic chat tool catalog, and confirmation bridge reuse for any enabled writes.
-
-**Planned v1.1:** Anthropic and OpenAI adapters.
-
-**Current v1.2a:** Richer context extraction for Chat Tab turns, including best-effort entity name and current BIP section hints.
-
-**Current v1.2b:** Explicit `Enable automation mode` opt-in and reviewed `Draft Job` workflow submission for real background Jobs.
-
-**Planned v1.3:** Streaming responses.
-
-**Deferred:** Local model support such as Ollama, conversation persistence or export, system prompt customization, advanced DOM context beyond entity identification, cost tracking.
-
-**Ideal future state:** WebMCP becomes widely supported by browser-native agents (Gemini, Chrome built-in AI). The extension reverts to being a pure tool provider. The Chat Tab remains as a fallback for environments without WebMCP agent support.
+Chat starts in **safe mode** by default (read-only). `Enable write tools` toggles mutating actions, `Enable automation mode` adds a `Draft Job` path that starts real background Jobs without granular 'confirm'.
 
 ### Note on IDE+CDP vs "simple chat wrapper"
 
-The Chat Tab extracts IDs. Getting `entityId` is not an example use case - it's the key that unlocks all available tools in context. For the prompt: "What's my dupe check set to?", the context gives the agent entityId=8ac7... + entityType=merchant. From that anchor, the agent can call `describe_settings({ query: "dupe" })`, then `manage_settings({ action: "get", ... })`, then reason about the result. That's not one example use case - that's the full settings domain, the full contacts domain, hierarchy traversal, all context-bound.
+The Chat Tab extracts IDs. Getting `entityId` unlocks all available tools in context. For the prompt: "What's my dupe check set to?", the context gives the agent entityId=8ac7... + entityType=merchant. From that anchor, the agent can call `describe_settings({ query: "dupe" })`, then `manage_settings({ action: "get", ... })`, then reason about the result. That's not one example use case - that's the full settings domain, the full contacts domain, hierarchy traversal, all context-bound.
 
 What the Chat Tab can *not* replicate compared to CDP: screenshots, full DOM reading, clicking UI buttons, navigating pages. The context scraper tells the agent which entity to call the API about. That is enough for the core product promise - context-bound API reasoning with near-zero onboarding - even if it is not full browser control.
 
-In v1, what's extracted is intentionally narrow: `entityId` and entity type. Entity name and current dashboard section are planned follow-up improvements, not part of the first release.
+**Ideal future state:** WebMCP becomes widely supported by browser-native agents (Gemini, Chrome built-in AI). The extension reverts to being a pure tool provider. The Chat Tab remains as a fallback for environments without WebMCP agent support.
 
-In other words: the IDE + CDP flow has not spoiled us - it really can do more. The Chat Tab will not match CDP for screenshots, navigation, click automation, or full-page inspection. That is not the bar that the Chat Tab needs to clear. The Chat Tab only proves the core product value: context-bound API reasoning with near-zero onboarding. For that, entity-level context plus good tool use is enough.
 
 ## Features
 
@@ -509,6 +491,15 @@ Note: Web API Extension contains a custom Code Mode implementation, built from s
 ### Environment switching
 
 The active environment (UAT or Prod) is shown as a badge in the side panel. Switching to Prod requires explicit user action. All writes in both environments require confirmation.
+
+### Telemetry
+
+Connections can optionally bind the extension to an enterprise-grade MCP gateway, such as the Mobot/Obot mock integration, for centralized auth policy checks and telemetry. When governance hooks are enabled, the service worker becomes the choke point: it evaluates the intended WebMCP or Chat Tab tool call with the gateway before local execution, before write confirmation, and before any ACI API request, then sends structured telemetry after the final tool/API outcome. The SaaS credentials still stay local to the browser; the gateway sees redacted tool intent and outcome metadata, not credentials, PINs, or bearer tokens. When telemetry is disabled, the history is session-local and capped at ~200 entries.
+
+### Test transactions
+
+Chat and WebMCP clients can send UAT test transactions without exposing bearer tokens. The `send_test_transaction` tool can use a matching stored Merchant token or create a temporary Merchant token, send the transaction to a Channel, then suspend and delete the token before returning redacted diagnostics. Example prompts: "Send one test transaction to this Channel" or "Use the API token endpoint to create a token, then send the test transaction." Returned details include the endpoint, exact form fields, HTTP status, gateway response, token metadata, and cleanup status - never the raw `Authorization` value.
+
 
 ## Architecture
 
@@ -723,3 +714,5 @@ Credentials are never exposed to the LLM context, the DOM, content scripts, or a
 **License**
 
 This software is licensed under **Creative Commons BY-NC-SA 4.0** for non-commercial use only. To use this software for commercial purposes, you must purchase a commercial license. Contact the author to purchase a license.
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/jumpermcp.dev)
